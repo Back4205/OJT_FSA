@@ -9,7 +9,7 @@ export default defineConfig({
     allowedHosts: true,
     // moi them proxy nếu mà Deploy ngrok thì bỏ cái này đi, vì lúc đó sẽ gọi thẳng vào backend
     proxy: {
-      "/api": {
+      "/taskmanager/api": {
         target: "http://localhost:8080",
         changeOrigin: true,
       },
