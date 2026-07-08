@@ -1,0 +1,207 @@
+/* Bao phủ toàn màn hình, nền xám nhạt */
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Thẻ Form chính */
+.login-card {
+  background: #ffffff;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 32px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+/* Logo chữ T */
+.logo-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+.logo-box {
+  width: 48px;
+  height: 48px;
+  background-color: #4f46e5;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Tiêu đề */
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.login-header h1 {
+  font-size: 24px;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+.login-header p {
+  font-size: 14px;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Các nhóm Input */
+.input-group {
+  margin-bottom: 20px;
+}
+.input-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.input-header label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+.forgot-link {
+  font-size: 13px;
+  color: #4f46e5;
+  text-decoration: none;
+}
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+/* Bao bọc Input để chứa Icon tuyệt đối */
+.input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-icon {
+  position: absolute;
+  left: 14px;
+  color: #9ca3af;
+  width: 18px;
+  height: 18px;
+}
+.input-wrapper input {
+  width: 100%;
+  padding: 10px 14px 10px 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+.input-wrapper input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* Checkbox Remember me */
+.remember-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.remember-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  margin-right: 8px;
+  cursor: pointer;
+}
+.remember-group label {
+  font-size: 14px;
+  color: #4b5563;
+  cursor: pointer;
+}
+
+/* Nút Submit */
+.btn-submit {
+  width: 100%;
+  padding: 10px 16px;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn-submit:hover {
+  background-color: #4338ca;
+}
+
+/* Bộ chia "OR CONTINUE WITH" */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 24px 0;
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e5e7eb;
+}
+.divider span {
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: uppercase;
+}
+
+/* Nút đăng nhập Google */
+.btn-google {
+  width: 100%;
+  padding: 10px 16px;
+  background-color: white;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.btn-google:hover {
+  background-color: #f9fafb;
+}
+
+/* Footer Đăng ký */
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 14px;
+  color: #6b7280;
+}
+.login-footer a {
+  color: #4f46e5;
+  font-weight: 600;
+  text-decoration: none;
+}
+.login-footer a:hover {
+  text-decoration: underline;
+}
