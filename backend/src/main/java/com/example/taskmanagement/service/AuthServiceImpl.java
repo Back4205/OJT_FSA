@@ -62,8 +62,9 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public UserResponse login(LoginRequest request, HttpServletRequest httpServletRequest) {
-        User user = userRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
+        User user = userRepository.findByUsername(request.getEmail())
+                .orElseGet(() -> userRepository.findByEmail(request.getEmail())
+                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password")));
 
         if (user.getProvider() != AuthProvider.LOCAL) {
             throw new BadCredentialsException(
@@ -76,7 +77,7 @@ public class AuthServiceImpl implements AuthService {
 
         // Authenticate via AuthenticationManager (uses UserDetailsServiceImpl + configured PasswordEncoder)
         Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+                new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
 
         // Store Authentication into SecurityContext + Session (session-based for now, JWT not added yet)
@@ -91,9 +92,13 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserResponse getCurrentUser(String username) {
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new IllegalStateException("User does not exist"));
+    public UserResponse getCurrentUserByEmail(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+        
+        if (user == null) {
+            throw new IllegalStateException("User does not exist");
+        }
+        
         return UserResponse.fromEntity(user);
     }
 }

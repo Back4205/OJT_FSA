@@ -6,7 +6,7 @@ import com.example.taskmanagement.model.enums.AuthProvider;
 import com.example.taskmanagement.model.enums.RoleName;
 import com.example.taskmanagement.repository.RoleRepository;
 import com.example.taskmanagement.repository.UserRepository;
-
+import com.example.taskmanagement.security.CustomOAuth2User;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
@@ -112,10 +112,16 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         // Cho phép login dù khác provider; ghi nhận provider của lần login cuối
-        user.setProvider(provider);
-        userRepository.save(user);
+       user.setProvider(provider);
+userRepository.save(user);
 
-        return oAuth2User;
+
+return new CustomOAuth2User(
+        oAuth2User.getAuthorities(),
+        oAuth2User.getAttributes(),
+        "id",
+        email
+);
     }
 
     /**

@@ -21,11 +21,13 @@
 // }
 
 // export default App;
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import api from "./services/api";
 import LoginForm from "./components/auth/LoginForm";
 import "./App.css";
-
+import LogoutButton from "./components/auth/LogoutButton";
+import RegisterForm from "./components/auth/RegisterForm";
 
 // Định nghĩa kiểu dữ liệu User trả về từ Spring Boot
 interface User {
@@ -41,8 +43,9 @@ function App() {
     // Hàm kiểm tra session hiện tại
     const fetchUser = async () => {
       try {
-        const response = await api.get("/api/auth/me");
-        setUser(response.data);
+        console.log("Đang kiểm tra đăng nhập...");
+        const response = await api.get("/auth/me");
+        setUser(response.data.data);
       } catch (error) {
         console.log("Người dùng chưa đăng nhập hoặc phiên đã hết hạn.");
         setUser(null);
@@ -60,29 +63,47 @@ function App() {
   }
 
   return (
-    <div className="app-container">
-      {user ? (
-        // Nếu đã đăng nhập thì show Dashboard/Thông tin
-        <div className="dashboard">
-          <h1>Chào mừng, {user.name}!</h1>
-          <p>Tài khoản: {user.email}</p>
-
-          {/* Nút đăng xuất sẽ gọi endpoint logout mặc định của Spring Security */}
-          <button
-            onClick={() =>
-              (window.location.href =
-                "http://localhost:8080/taskmanager/logout")
+    <BrowserRouter>
+      <div className="app-container">
+        <Routes>
+          {/* 1. Trang Dashboard */}
+          <Route
+            path="/taskmanager/dashboard"
+            element={
+              user ? (
+                <DashboardContent user={user} />
+              ) : (
+                <Navigate to="/taskmanager" />
+              )
             }
-          >
-            Đăng xuất
-          </button>
-        </div>
-      ) : (
-        // Nếu chưa đăng nhập thì show Component LoginForm
-        <LoginForm />
-      )}
-    </div>
+          />
+
+          {/* 2. Trang Login */}
+          <Route
+            path="/taskmanager"
+            element={
+              !user ? <LoginForm /> : <Navigate to="/taskmanager/dashboard" />
+            }
+          />
+
+          {/* 3. Trang Register  */}
+          <Route path="/taskmanager/register" element={<RegisterForm />} />
+
+          {/* 4. Redirect mặc định */}
+          <Route path="*" element={<Navigate to="/taskmanager" />} />
+        </Routes>
+      </div>
+    </BrowserRouter>
   );
 }
+
+// Tách Dashboard thành component riêng cho dễ quản lý
+const DashboardContent = ({ user }: { user: User }) => (
+  <div className="dashboard">
+    <h1>Chào mừng, {user.name}!</h1>
+    <p>Tài khoản: {user.email}</p>
+    <LogoutButton />
+  </div>
+);
 
 export default App;

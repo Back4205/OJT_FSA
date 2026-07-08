@@ -11,5 +11,5 @@ import jakarta.servlet.http.HttpServletRequest;
 public interface AuthService {
     UserResponse register(RegisterRequest request);
     UserResponse login(LoginRequest request, HttpServletRequest httpServletRequest);
-    UserResponse getCurrentUser(String username);
+    UserResponse getCurrentUserByEmail(String email);
 }

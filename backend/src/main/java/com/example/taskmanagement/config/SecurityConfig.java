@@ -63,78 +63,44 @@ public AuthenticationProvider authenticationProvider() {
     /**
      * Spring Security Filter Chain
      */
-    @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+   @Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        // 1. Cấu hình CORS tối giản cho phép cookie
+        .cors(cors -> cors.configurationSource(request -> {
+            var config = new org.springframework.web.cors.CorsConfiguration();
+            config.setAllowedOrigins(java.util.List.of("http://localhost:5173"));
+            config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+            config.setAllowedHeaders(java.util.List.of("*"));
+            config.setAllowCredentials(true); // Cực kỳ quan trọng để nhận JSESSIONID
+            return config;
+        }))
+        .csrf(csrf -> csrf.disable())
+        
+        // 2. Cấu hình session (bắt buộc dùng IF_REQUIRED để lưu login)
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+        
+        // 3. Phân quyền (giữ nguyên logic của bạn)
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/api/test/**", "/api/auth/**", "/oauth2/**", "/login/**", "/error", 
+                             "/swagger-ui/**", "/v3/api-docs/**", "/css/**", "/js/**", "/images/**").permitAll()
+            .anyRequest().authenticated()
+        )
+        
+        // 4. Các phương thức đăng nhập
+        .authenticationProvider(authenticationProvider())
+        .oauth2Login(oauth2 -> oauth2
+            .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+            .successHandler(oAuth2SuccessHandler)
+        )
+        .logout(logout -> logout
+            .logoutUrl("/logout")
+            .logoutSuccessUrl("/")
+            .invalidateHttpSession(true)
+            .deleteCookies("JSESSIONID")
+            .permitAll()
+        );
 
-        http
-
-                // Disable CSRF
-                .csrf(csrf -> csrf.disable())
-
-                // Enable CORS
-                .cors(Customizer.withDefaults())
-
-                // Session-based (JWT sẽ chuyển sang STATELESS sau)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                )
-
-                // Authorization
-                .authorizeHttpRequests(auth -> auth
-
-                        // Public API
-                        .requestMatchers(
-                                  "/api/test/**", // Test API
-                                "/api/auth/**",
-                                "/oauth2/**",
-                                "/login/**",
-                                "/error"
-                        ).permitAll()
-
-                        // Swagger
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/v3/api-docs/**"
-                        ).permitAll()
-
-                        // Static
-                        .requestMatchers(
-                                "/css/**",
-                                "/js/**",
-                                "/images/**"
-                        ).permitAll()
-
-                        // All other requests
-                        .anyRequest().authenticated()
-                )
-
-                // Username + Password Login
-                .authenticationProvider(authenticationProvider())
-
-                // OAuth2 Login
-                .oauth2Login(oauth2 -> oauth2
-
-                        .userInfoEndpoint(userInfo ->
-                                userInfo.userService(customOAuth2UserService)
-                        )
-
-                        .successHandler(oAuth2SuccessHandler)
-                )
-
-                // Logout
-                .logout(logout -> logout
-
-                        .logoutUrl("/logout")
-
-                        .logoutSuccessUrl("/")
-
-                        .invalidateHttpSession(true)
-
-                        .deleteCookies("JSESSIONID")
-
-                        .permitAll()
-                );
-
-        return http.build();
-    }
+    return http.build();
+}
 }
