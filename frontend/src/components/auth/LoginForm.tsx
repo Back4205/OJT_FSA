@@ -1,30 +1,25 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import styles from "./LoginForm.module.css";
 import SocialLoginButtons from "./SocialLoginButtons";
-import api from "../../services/api";
-import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [rememberMe, setRememberMe] = useState<boolean>(false);
   const navigate = useNavigate();
+  const { login } = useAuth();
+
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
-      const response = await api.post("/auth/login", {
-        email,
-        password,
-      });
-
-      console.log(response.data);
+      await login(email, password);
 
       alert("Đăng nhập thành công");
 
       navigate("/taskmanager/dashboard");
-
-      window.location.reload();
     } catch (error: any) {
       console.error(error);
 
