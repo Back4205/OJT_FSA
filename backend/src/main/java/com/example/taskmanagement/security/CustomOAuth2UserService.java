@@ -115,11 +115,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
        user.setProvider(provider);
 userRepository.save(user);
 
+String nameAttributeKey;
 
+if (registrationId.equals("google")) {
+    nameAttributeKey = "sub";
+} else {
+    nameAttributeKey = "id";
+}
 return new CustomOAuth2User(
         oAuth2User.getAuthorities(),
         oAuth2User.getAttributes(),
-        "id",
+        nameAttributeKey,
         email
 );
     }

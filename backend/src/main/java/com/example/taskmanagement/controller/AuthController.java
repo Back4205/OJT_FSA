@@ -111,9 +111,9 @@ public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
 
     String email;
 
-    if (authentication.getPrincipal() instanceof OAuth2User oauth2User) {
+    if (authentication.getPrincipal() instanceof CustomOAuth2User  oauth2User) {
 
-        email = ((LoginRequest) oauth2User).getEmail();
+        email =  oauth2User.getEmail();
 
     } else {
 
