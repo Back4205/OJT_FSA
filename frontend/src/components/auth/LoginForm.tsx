@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import styles from "./LoginForm.module.css";
 import SocialLoginButtons from "./SocialLoginButtons";
@@ -11,18 +11,39 @@ const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  // Load saved credentials if Remember Me was selected previously
+  useEffect(() => {
+    const savedRememberMe = localStorage.getItem("rememberMe") === "true";
+    if (savedRememberMe) {
+      const savedEmail = localStorage.getItem("rememberEmail") || "";
+      const savedPassword = localStorage.getItem("rememberPassword") || "";
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
+  }, []);
+
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       await login(email, password);
 
-      alert("Đăng nhập thành công");
+      // Handle Remember Me storage
+      if (rememberMe) {
+        localStorage.setItem("rememberEmail", email);
+        localStorage.setItem("rememberPassword", password); // Note: storing passwords in plain text localStorage has security risks, but fits the request.
+        localStorage.setItem("rememberMe", "true");
+      } else {
+        localStorage.removeItem("rememberEmail");
+        localStorage.removeItem("rememberPassword");
+        localStorage.setItem("rememberMe", "false");
+      }
 
+      alert("Đăng nhập thành công");
       navigate("/taskmanager/dashboard");
     } catch (error: any) {
       console.error(error);
-
       alert(error.response?.data?.message ?? "Email hoặc mật khẩu không đúng");
     }
   };
@@ -32,7 +53,7 @@ const LoginForm: React.FC = () => {
       <div className={styles["login-card"]}>
         {/* Logo & Header */}
         <div className={styles["logo-container"]}>
-          <div className={styles["logo-box"]}>T</div>
+          <div className={styles["logo-box"]}>Task Manager</div>
         </div>
         <div className={styles["login-header"]}>
           <h1>Welcome back</h1>
@@ -85,7 +106,7 @@ const LoginForm: React.FC = () => {
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
             />
-            <label htmlFor="remember">Remember me </label>
+            <label htmlFor="remember">Remember me</label>
           </div>
 
           <button type="submit" className={styles["btn-submit"]}>

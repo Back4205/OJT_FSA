@@ -108,7 +108,13 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
             userRepository.save(user);
 
-            return oAuth2User;
+            String nameAttributeKey = registrationId.equals("google") ? "sub" : "id";
+            return new CustomOAuth2User(
+                    oAuth2User.getAuthorities(),
+                    oAuth2User.getAttributes(),
+                    nameAttributeKey,
+                    email
+            );
         }
 
         // Cho phép login dù khác provider; ghi nhận provider của lần login cuối

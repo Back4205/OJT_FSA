@@ -1,20 +1,16 @@
-import axios from "axios";
+import React from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
-const LogoutButton = () => {
+const LogoutButton: React.FC = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const handleLogout = async () => {
     try {
-      await axios.post(
-        "http://localhost:8080/taskmanager/logout",
-        {},
-        {
-          withCredentials: true,
-        }
-      );
+      await logout();
     } catch (e) {
-      console.error(e);
+      console.error("Lỗi khi đăng xuất:", e);
     } finally {
       navigate("/taskmanager", { replace: true });
       window.location.reload();

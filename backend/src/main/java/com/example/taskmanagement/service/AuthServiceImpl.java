@@ -9,23 +9,17 @@ import com.example.taskmanagement.model.enums.AuthProvider;
 import com.example.taskmanagement.model.enums.RoleName;
 import com.example.taskmanagement.repository.RoleRepository;
 import com.example.taskmanagement.repository.UserRepository;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
+import com.example.taskmanagement.security.CookieUtil;
+import com.example.taskmanagement.security.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * @author Vương Bách
- */
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -34,6 +28,9 @@ public class AuthServiceImpl implements AuthService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
+    private final JwtService jwtService;
+    private final CookieUtil cookieUtil;
+    private final RefreshTokenService refreshTokenService;
 
     @Override
     @Transactional
@@ -61,44 +58,45 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserResponse login(LoginRequest request, HttpServletRequest httpServletRequest) {
+    public UserResponse login(LoginRequest request, HttpServletResponse response) {
         User user = userRepository.findByUsername(request.getEmail())
                 .orElseGet(() -> userRepository.findByEmail(request.getEmail())
-                 .orElseThrow(() -> new BadCredentialsException("Invalid username or password")));
+                        .orElseThrow(() -> new BadCredentialsException("Invalid username or password")));
 
         if (user.getProvider() != AuthProvider.LOCAL) {
             throw new BadCredentialsException(
-                    "This account was registered via " + user.getProvider() + ". Please log in using " + user.getProvider() + ".");
+                    "This account was registered via " + user.getProvider()
+                            + ". Please log in using " + user.getProvider() + ".");
         }
 
         if (!user.isActive()) {
             throw new BadCredentialsException("This account has been locked. Please contact an Admin");
         }
 
-        // Authenticate via AuthenticationManager (uses UserDetailsServiceImpl + configured PasswordEncoder)
-        Authentication authentication = authenticationManager.authenticate(
+        authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
 
-        // Store Authentication into SecurityContext + Session (session-based for now, JWT not added yet)
-        SecurityContext context = SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(authentication);
-        SecurityContextHolder.setContext(context);
+        String token = jwtService.generateToken(
+                user.getEmail(),
+                user.getRole().getName().name()
+        );
+        cookieUtil.addTokenCookie(response, token, jwtService.getExpirationSeconds());
 
-        HttpSession session = httpServletRequest.getSession(true);
-        session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, context);
+        // Create and add the refresh token cookie
+        var refreshToken = refreshTokenService.createRefreshToken(user);
+        cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
+
+        // Explicitly clear JSESSIONID from client just in case
+        // cookieUtil.clearJSessionIdCookie(response);
 
         return UserResponse.fromEntity(user);
     }
 
     @Override
     public UserResponse getCurrentUserByEmail(String email) {
-        User user = userRepository.findByEmail(email).orElse(null);
-        
-        if (user == null) {
-            throw new IllegalStateException("User does not exist");
-        }
-        
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User does not exist"));
         return UserResponse.fromEntity(user);
     }
 }

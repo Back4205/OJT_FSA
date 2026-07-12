@@ -4,33 +4,33 @@ import com.example.taskmanagement.dto.request.LoginRequest;
 import com.example.taskmanagement.dto.request.RegisterRequest;
 import com.example.taskmanagement.dto.response.ApiResponse;
 import com.example.taskmanagement.dto.response.UserResponse;
+import com.example.taskmanagement.model.User;
+import com.example.taskmanagement.security.AuthEmailExtractor;
+import com.example.taskmanagement.security.CookieUtil;
+import com.example.taskmanagement.security.JwtService;
 import com.example.taskmanagement.service.AuthService;
+import com.example.taskmanagement.service.RefreshTokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import com.example.taskmanagement.security.CustomOAuth2User;
 
-/**
- * @author Vương Bách
- */
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
     private final AuthService authService;
+    private final CookieUtil cookieUtil;
+    private final RefreshTokenService refreshTokenService;
+    private final JwtService jwtService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request) {
@@ -45,11 +45,12 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<UserResponse>> login(@Valid @RequestBody LoginRequest request,
-                                                            HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<UserResponse>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletResponse response) {
         try {
-            UserResponse response = authService.login(request, httpServletRequest);
-            return ResponseEntity.ok(ApiResponse.success("Login successful", response));
+            UserResponse userResponse = authService.login(request, response);
+            return ResponseEntity.ok(ApiResponse.success("Login successful", userResponse));
         } catch (BadCredentialsException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error(e.getMessage()));
@@ -57,74 +58,76 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-public ResponseEntity<ApiResponse<Void>> logout(
-        HttpServletRequest request,
-        HttpServletResponse response) {
+    public ResponseEntity<ApiResponse<Void>> logout(HttpServletRequest request, HttpServletResponse response) {
+        String refreshTokenVal = cookieUtil.extractRefreshTokenFromCookies(request);
+        if (refreshTokenVal != null && !refreshTokenVal.isBlank()) {
+            refreshTokenService.revokeToken(refreshTokenVal);
+        }
 
-    HttpSession session = request.getSession(false);
-    if (session != null) {
-        session.invalidate();
+        SecurityContextHolder.clearContext();
+        cookieUtil.clearTokenCookie(response);
+        cookieUtil.clearRefreshTokenCookie(response);
+        // cookieUtil.clearJSessionIdCookie(response);
+
+        return ResponseEntity.ok(ApiResponse.success("Logout successful", null));
     }
 
-    SecurityContextHolder.clearContext();
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse<Void>> refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshTokenVal = cookieUtil.extractRefreshTokenFromCookies(request);
+        if (refreshTokenVal == null || refreshTokenVal.isBlank()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Refresh Token not found"));
+        }
 
-    Cookie cookie = new Cookie("JSESSIONID", null);
-    cookie.setPath("/taskmanager");          // hoặc "/taskmanager"
-    cookie.setHttpOnly(true);
-    cookie.setMaxAge(0);          // xóa ngay
+        try {
+            var refreshTokenOpt = refreshTokenService.findByToken(refreshTokenVal);
+            if (refreshTokenOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.error("Refresh Token not registered"));
+            }
 
-    response.addCookie(cookie);
+            var refreshToken = refreshTokenOpt.get();
+            refreshTokenService.verifyExpiration(refreshToken);
 
-    return ResponseEntity.ok(
-            ApiResponse.success("Logout successful", null));
-}
+            User user = refreshToken.getUser();
+            String newAccessToken = jwtService.generateToken(
+                    user.getEmail(),
+                    user.getRole().getName().name()
+            );
 
-//    @GetMapping("/me")
-// public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser() {
-//     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-//     System.out.println("===========================");
-//     System.out.println(authentication);
-//     System.out.println(authentication.getName());
-//     if (authentication == null || !authentication.isAuthenticated()) {
-//         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                 .body(ApiResponse.error("Not logged in"));
-//     }
-    
-//     try {
-//         UserResponse response = authService.getCurrentUser(authentication.getName());
-//         return ResponseEntity.ok(ApiResponse.success("OK", response));
-//     } catch ( IllegalStateException e) {
-//         // User không tồn tại trong DB - xóa session và trả 401
-//         SecurityContextHolder.clearContext();
-//         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-//                 .body(ApiResponse.error("User not found or session expired"));
-//     }
-// }
-@GetMapping("/me")
-public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
-        Authentication authentication) {
+            cookieUtil.addTokenCookie(response, newAccessToken, jwtService.getExpirationSeconds());
 
-    if (authentication == null || !authentication.isAuthenticated()) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error("Not logged in"));
+            // Rotate Refresh Token
+            var newRefreshToken = refreshTokenService.createRefreshToken(user);
+            cookieUtil.addRefreshTokenCookie(response, newRefreshToken.getToken(), refreshTokenService.getExpirationSeconds());
+
+            return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", null));
+        } catch (Exception e) {
+            cookieUtil.clearTokenCookie(response);
+            cookieUtil.clearRefreshTokenCookie(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
     }
 
-    String email;
+    @GetMapping("/me")
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Not logged in"));
+        }
 
-    if (authentication.getPrincipal() instanceof CustomOAuth2User  oauth2User) {
-
-        email =  oauth2User.getEmail();
-
-    } else {
-
-        email = authentication.getName();
-
+        try {
+            String email = AuthEmailExtractor.extractEmail(authentication);
+            UserResponse userResponse = authService.getCurrentUserByEmail(email);
+            return ResponseEntity.ok(ApiResponse.success("OK", userResponse));
+        } catch (IllegalStateException e) {
+            SecurityContextHolder.clearContext();
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("User not found or session expired"));
+        }
     }
-
-    UserResponse response =
-            authService.getCurrentUserByEmail(email);
-
-    return ResponseEntity.ok(
-            ApiResponse.success("OK", response));
-}
 }
