@@ -11,8 +11,8 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard">
-      <h1>Chào mừng, {user.name}!</h1>
-      <p>Tài khoản: {user.email}</p>
+      <h1>Welcome, {user.name}!</h1>
+      <p>Account: {user.email}</p>
       <LogoutButton />
     </div>
   );

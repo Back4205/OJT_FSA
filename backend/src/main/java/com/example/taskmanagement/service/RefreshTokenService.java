@@ -30,12 +30,13 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public RefreshToken createRefreshToken(User user) {
+    public RefreshToken createRefreshToken(User user, com.example.taskmanagement.model.Workspace workspace) {
         // Clear previous refresh tokens of the user to avoid accumulation
         refreshTokenRepository.deleteByUser(user);
 
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
+                .workspace(workspace)
                 .token(UUID.randomUUID().toString())
                 .expiryDate(Instant.now().plusMillis(refreshExpirationMs))
                 .revoked(false)

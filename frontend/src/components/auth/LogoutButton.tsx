@@ -10,14 +10,14 @@ const LogoutButton: React.FC = () => {
     try {
       await logout();
     } catch (e) {
-      console.error("Lỗi khi đăng xuất:", e);
+      console.error("Error during logout:", e);
     } finally {
       navigate("/taskmanager", { replace: true });
       window.location.reload();
     }
   };
 
-  return <button onClick={handleLogout}>Đăng xuất</button>;
+  return <button onClick={handleLogout}>Log out</button>;
 };
 
 export default LogoutButton;

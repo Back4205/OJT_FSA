@@ -105,6 +105,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user.setRole(memberRole);
 
             user.setActive(true);
+            user.setEmailVerified(true);
 
             userRepository.save(user);
 
@@ -118,8 +119,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         // Cho phép login dù khác provider; ghi nhận provider của lần login cuối
-       user.setProvider(provider);
-userRepository.save(user);
+        user.setProvider(provider);
+        user.setEmailVerified(true);
+        userRepository.save(user);
 
 String nameAttributeKey;
 

@@ -20,7 +20,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    await api.post("/auth/login", { email, password });
+    const response = await api.post("/auth/login", { email, password });
+    if (response.data.message === "OTP_REQUIRED") {
+      return { otpRequired: true, email: response.data.data };
+    }
+    await checkAuth();
+    return { otpRequired: false };
+  };
+
+  const verifyOtp = async (email: string, otpCode: string) => {
+    await api.post("/auth/verify-otp", { email, otpCode });
     await checkAuth();
   };
 
@@ -28,7 +37,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await api.post("/auth/logout");
     } catch (error) {
-      console.error("Lỗi khi đăng xuất:", error);
+      console.error("Error during logout:", error);
     } finally {
       setUser(null);
     }
@@ -39,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, verifyOtp, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );

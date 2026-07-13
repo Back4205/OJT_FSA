@@ -45,6 +45,9 @@ private String providerId;
     @Column(name = "is_active")
     private boolean isActive = true; // Phục vụ tính năng Khóa/Mở khóa User
 
+    @Column(name = "is_email_verified", nullable = false)
+    private boolean isEmailVerified = false;
+
     @ManyToMany(mappedBy = "members")
     private Set<Project> projects = new HashSet<>();
 

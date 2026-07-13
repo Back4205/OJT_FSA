@@ -2,6 +2,8 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginForm from "../auth/LoginForm";
 import RegisterForm from "../auth/RegisterForm";
+import ForgotPasswordForm from "../auth/ForgotPasswordForm";
+import ResetPasswordForm from "../auth/ResetPasswordForm";
 import Dashboard from "../dashboard/Dashboard";
 import PublicRoute from "./PublicRoute";
 import ProtectedRoute from "./ProtectedRoute";
@@ -13,6 +15,8 @@ const AppRoutes: React.FC = () => {
       <Route element={<PublicRoute />}>
         <Route path="/taskmanager" element={<LoginForm />} />
         <Route path="/taskmanager/register" element={<RegisterForm />} />
+        <Route path="/taskmanager/forgot-password" element={<ForgotPasswordForm />} />
+        <Route path="/taskmanager/reset-password" element={<ResetPasswordForm />} />
       </Route>
 
       {/* Các tuyến yêu cầu người dùng phải đăng nhập */}

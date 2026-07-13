@@ -21,17 +21,33 @@ public class JwtService {
     private long expirationMs;
 
     public String generateToken(String email, String role) {
-        return Jwts.builder()
+        return generateToken(email, role, null);
+    }
+
+    public String generateToken(String email, String role, Long workspaceId) {
+        var builder = Jwts.builder()
                 .subject(email)
                 .claim("role", role)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expirationMs))
-                .signWith(getSigningKey())
+                .expiration(new Date(System.currentTimeMillis() + expirationMs));
+        if (workspaceId != null) {
+            builder.claim("workspace_id", workspaceId);
+        }
+        return builder.signWith(getSigningKey())
                 .compact();
     }
 
     public String extractEmail(String token) {
         return extractClaims(token).getSubject();
+    }
+
+    public Long extractWorkspaceId(String token) {
+        Claims claims = extractClaims(token);
+        Object workspaceId = claims.get("workspace_id");
+        if (workspaceId instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {

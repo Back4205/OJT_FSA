@@ -21,6 +21,8 @@ public class UserResponse {
     private RoleName role;
     private AuthProvider provider;
     private boolean active;
+    private Long workspaceId;
+    private String workspaceName;
 
     public static UserResponse fromEntity(User user) {
         return new UserResponse(
@@ -29,7 +31,22 @@ public class UserResponse {
                 user.getEmail(),
                 user.getRole().getName(),
                 user.getProvider(),
-                user.isActive()
+                user.isActive(),
+                null,
+                null
+        );
+    }
+
+    public static UserResponse fromEntity(User user, com.example.taskmanagement.model.Workspace workspace, com.example.taskmanagement.model.Role role) {
+        return new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getEmail(),
+                role != null ? role.getName() : user.getRole().getName(),
+                user.getProvider(),
+                user.isActive(),
+                workspace != null ? workspace.getId() : null,
+                workspace != null ? workspace.getName() : null
         );
     }
 }

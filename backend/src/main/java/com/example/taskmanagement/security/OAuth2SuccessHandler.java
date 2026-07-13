@@ -23,6 +23,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final UserRepository userRepository;
     private final RefreshTokenService refreshTokenService;
     private final HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
+    private final com.example.taskmanagement.repository.WorkspaceMembershipRepository workspaceMembershipRepository;
 
     @Value("${app.frontend-url:http://localhost:5173/taskmanager/dashboard}")
     private String frontendUrl;
@@ -38,13 +39,26 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("OAuth user not found: " + email));
 
+        var memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        Long workspaceId = null;
+        com.example.taskmanagement.model.Workspace activeWorkspace = null;
+        String activeRole = user.getRole().getName().name();
+
+        if (user.getRole().getName() != com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN && !memberships.isEmpty()) {
+            var defaultMembership = memberships.get(0);
+            workspaceId = defaultMembership.getWorkspace().getId();
+            activeWorkspace = defaultMembership.getWorkspace();
+            activeRole = defaultMembership.getRole().getName().name();
+        }
+
         String token = jwtService.generateToken(
                 user.getEmail(),
-                user.getRole().getName().name()
+                activeRole,
+                workspaceId
         );
         cookieUtil.addTokenCookie(response, token, jwtService.getExpirationSeconds());
 
-        var refreshToken = refreshTokenService.createRefreshToken(user);
+        var refreshToken = refreshTokenService.createRefreshToken(user, activeWorkspace);
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
         httpCookieOAuth2AuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);

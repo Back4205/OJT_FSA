@@ -1,18 +1,17 @@
 package com.example.taskmanagement.model;
 
+import com.example.taskmanagement.model.enums.TokenType;
 import jakarta.persistence.*;
 import lombok.*;
-import java.time.Instant;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "refresh_tokens")
+@Table(name = "verification_tokens")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class RefreshToken {
-
+public class VerificationToken {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -24,14 +23,14 @@ public class RefreshToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, name = "expiry_date")
-    private Instant expiryDate;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "workspace_id")
-    private Workspace workspace;
-
-    @Builder.Default
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private boolean revoked = false;
+    private TokenType type;
+
+    @Column(nullable = false)
+    private LocalDateTime expiryDate;
+
+    public boolean isExpired() {
+        return LocalDateTime.now().isAfter(this.expiryDate);
+    }
 }

@@ -22,6 +22,10 @@ public final class AuthEmailExtractor {
             }
         }
 
-        return authentication.getName();
+        String name = authentication.getName();
+        if (name != null && name.contains(":")) {
+            return name.split(":")[0];
+        }
+        return name;
     }
 }

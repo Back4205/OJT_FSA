@@ -30,6 +30,10 @@ public class Project {
     @JoinColumn(name = "leader_id", nullable = false)
     private User leader;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "workspace_id", nullable = false)
+    private Workspace workspace;
+
     // Bảng trung gian project_members để quản lý Member trong Project
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

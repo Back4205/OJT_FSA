@@ -6,7 +6,7 @@ const PublicRoute: React.FC = () => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
+    return <div className="loading">Loading data...</div>;
   }
 
   return !user ? <Outlet /> : <Navigate to="/taskmanager/dashboard" replace />;
