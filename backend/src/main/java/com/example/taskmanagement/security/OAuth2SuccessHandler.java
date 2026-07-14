@@ -42,9 +42,9 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         var memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
         Long workspaceId = null;
         com.example.taskmanagement.model.Workspace activeWorkspace = null;
-        String activeRole = user.getRole().getName().name();
+        String activeRole = user.isSuperAdmin() ? com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN.name() : com.example.taskmanagement.model.enums.RoleName.MEMBER.name();
 
-        if (user.getRole().getName() != com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN && !memberships.isEmpty()) {
+        if (!user.isSuperAdmin() && !memberships.isEmpty()) {
             var defaultMembership = memberships.get(0);
             workspaceId = defaultMembership.getWorkspace().getId();
             activeWorkspace = defaultMembership.getWorkspace();
@@ -62,7 +62,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
         httpCookieOAuth2AuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
-        // cookieUtil.clearJSessionIdCookie(response);
+        cookieUtil.clearJSessionIdCookie(response);
 
         getRedirectStrategy().sendRedirect(request, response, frontendUrl);
     }
