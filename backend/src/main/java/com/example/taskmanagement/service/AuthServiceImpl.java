@@ -82,7 +82,6 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(request.getUsername());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(memberRole);
         user.setProvider(AuthProvider.LOCAL);
         user.setActive(true);
         user.setEmailVerified(false); // LOCAL users must verify email
@@ -169,9 +168,15 @@ public class AuthServiceImpl implements AuthService {
         List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
 
         Workspace activeWorkspace = null;
-        Role activeRole = user.getRole(); // superadmin's global role or fallback role
+        Role activeRole;
 
-        if (user.getRole().getName() != RoleName.SUPER_ADMIN) {
+        if (user.isSuperAdmin()) {
+            activeRole = roleRepository.findByName(RoleName.SUPER_ADMIN)
+                    .orElseThrow(() -> new IllegalStateException("Role SUPER_ADMIN has not been seeded"));
+        } else {
+            activeRole = roleRepository.findByName(RoleName.MEMBER)
+                    .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
+
             if (!memberships.isEmpty()) {
                 WorkspaceMembership defaultMembership = memberships.get(0);
                 activeWorkspace = defaultMembership.getWorkspace();
@@ -191,6 +196,9 @@ public class AuthServiceImpl implements AuthService {
         var refreshToken = refreshTokenService.createRefreshToken(user, activeWorkspace);
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
+        // Clear any pre-existing JSESSIONID cookie
+        cookieUtil.clearJSessionIdCookie(response);
+
         return UserResponse.fromEntity(user, activeWorkspace, activeRole);
     }
 
@@ -201,9 +209,18 @@ public class AuthServiceImpl implements AuthService {
 
         // Load their first active membership context for profile fetching
         List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
-        if (user.getRole().getName() == RoleName.SUPER_ADMIN || memberships.isEmpty()) {
-            return UserResponse.fromEntity(user, null, user.getRole());
+        if (user.isSuperAdmin()) {
+            Role superAdminRole = roleRepository.findByName(RoleName.SUPER_ADMIN)
+                    .orElseThrow(() -> new IllegalStateException("Role SUPER_ADMIN has not been seeded"));
+            return UserResponse.fromEntity(user, null, superAdminRole);
         }
+        
+        if (memberships.isEmpty()) {
+            Role memberRole = roleRepository.findByName(RoleName.MEMBER)
+                    .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
+            return UserResponse.fromEntity(user, null, memberRole);
+        }
+        
         WorkspaceMembership defaultMembership = memberships.get(0);
         return UserResponse.fromEntity(user, defaultMembership.getWorkspace(), defaultMembership.getRole());
     }
@@ -332,9 +349,15 @@ public class AuthServiceImpl implements AuthService {
         List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
 
         Workspace activeWorkspace = null;
-        Role activeRole = user.getRole(); // superadmin's global role or fallback role
+        Role activeRole;
 
-        if (user.getRole().getName() != RoleName.SUPER_ADMIN) {
+        if (user.isSuperAdmin()) {
+            activeRole = roleRepository.findByName(RoleName.SUPER_ADMIN)
+                    .orElseThrow(() -> new IllegalStateException("Role SUPER_ADMIN has not been seeded"));
+        } else {
+            activeRole = roleRepository.findByName(RoleName.MEMBER)
+                    .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
+
             if (!memberships.isEmpty()) {
                 WorkspaceMembership defaultMembership = memberships.get(0);
                 activeWorkspace = defaultMembership.getWorkspace();
@@ -353,6 +376,9 @@ public class AuthServiceImpl implements AuthService {
         // Create and add the refresh token cookie
         var refreshToken = refreshTokenService.createRefreshToken(user, activeWorkspace);
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
+
+        // Clear any pre-existing JSESSIONID cookie
+        cookieUtil.clearJSessionIdCookie(response);
 
         return UserResponse.fromEntity(user, activeWorkspace, activeRole);
     }

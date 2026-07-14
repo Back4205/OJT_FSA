@@ -127,7 +127,7 @@ public class AuthController {
         SecurityContextHolder.clearContext();
         cookieUtil.clearTokenCookie(response);
         cookieUtil.clearRefreshTokenCookie(response);
-        // cookieUtil.clearJSessionIdCookie(response);
+        cookieUtil.clearJSessionIdCookie(response);
 
         return ResponseEntity.ok(ApiResponse.success("Logout successful", null));
     }
@@ -152,9 +152,9 @@ public class AuthController {
 
             User user = refreshToken.getUser();
             Long workspaceId = refreshToken.getWorkspace() != null ? refreshToken.getWorkspace().getId() : null;
-            String activeRole = user.getRole().getName().name();
+            String activeRole = user.isSuperAdmin() ? com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN.name() : com.example.taskmanagement.model.enums.RoleName.MEMBER.name();
 
-            if (workspaceId != null && user.getRole().getName() != com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN) {
+            if (workspaceId != null && !user.isSuperAdmin()) {
                 var membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), workspaceId)
                         .orElseThrow(() -> new RuntimeException("Workspace membership revoked"));
                 activeRole = membership.getRole().getName().name();

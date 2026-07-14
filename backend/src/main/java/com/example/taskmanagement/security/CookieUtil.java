@@ -88,24 +88,24 @@ public class CookieUtil {
         return null;
     }
 
-    // public void clearJSessionIdCookie(jakarta.servlet.http.HttpServletResponse response) {
-    //     ResponseCookie cookie = ResponseCookie.from("JSESSIONID", "")
-    //             .httpOnly(true)
-    //             .secure(cookieSecure)
-    //             .path(cookiePath)
-    //             .sameSite("Lax")
-    //             .maxAge(0)
-    //             .build();
-    //     response.addHeader("Set-Cookie", cookie.toString());
+    public void clearJSessionIdCookie(jakarta.servlet.http.HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from("JSESSIONID", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path(cookiePath)
+                .sameSite("Lax")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", cookie.toString());
 
-    //     // Also clear JSESSIONID on root path just in case
-    //     ResponseCookie rootCookie = ResponseCookie.from("JSESSIONID", "")
-    //             .httpOnly(true)
-    //             .secure(cookieSecure)
-    //             .path("/")
-    //             .sameSite("Lax")
-    //             .maxAge(0)
-    //             .build();
-    //     response.addHeader("Set-Cookie", rootCookie.toString());
-    // }
+        // Also clear JSESSIONID on root path just in case
+        ResponseCookie rootCookie = ResponseCookie.from("JSESSIONID", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", rootCookie.toString());
+    }
 }

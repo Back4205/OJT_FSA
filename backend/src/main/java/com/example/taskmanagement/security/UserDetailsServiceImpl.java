@@ -40,11 +40,11 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                 .orElseGet(() -> userRepository.findByUsername(finalEmail)
                         .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal)));
 
-        String activeRole = user.getRole().getName().name(); // global fallback role
+        String activeRole = user.isSuperAdmin() ? com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN.name() : com.example.taskmanagement.model.enums.RoleName.MEMBER.name(); // global fallback role
         boolean isUserDisabled = !user.isActive();
 
         // If a workspace context is present, query membership inside the workspace
-        if (workspaceId != null && user.getRole().getName() != com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN) {
+        if (workspaceId != null && !user.isSuperAdmin()) {
             WorkspaceMembership membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), workspaceId)
                     .orElseThrow(() -> new UsernameNotFoundException("User is not a member of active workspace: " + workspaceId));
             

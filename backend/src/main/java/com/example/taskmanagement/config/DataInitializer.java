@@ -33,16 +33,14 @@ public class DataInitializer implements CommandLineRunner {
         // Seed super admin
         String superAdminEmail = "superadmin@platform.com";
         if (userRepository.findByEmail(superAdminEmail).isEmpty()) {
-            Role superAdminRole = roleRepository.findByName(RoleName.SUPER_ADMIN)
-                    .orElseThrow(() -> new IllegalStateException("SUPER_ADMIN role not seeded"));
-
             User superAdmin = new User();
             superAdmin.setUsername("superadmin");
             superAdmin.setEmail(superAdminEmail);
             superAdmin.setPassword(passwordEncoder.encode("admin123"));
-            superAdmin.setRole(superAdminRole);
+            superAdmin.setSuperAdmin(true);
             superAdmin.setProvider(AuthProvider.LOCAL);
             superAdmin.setActive(true);
+            superAdmin.setEmailVerified(true);
 
             userRepository.save(superAdmin);
         }

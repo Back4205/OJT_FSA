@@ -38,9 +38,8 @@ private AuthProvider provider = AuthProvider.LOCAL;
 @Column(name = "provider_id")
 private String providerId;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "role_id", nullable = false)
-    private Role role;
+    @Column(name = "is_super_admin", nullable = false)
+    private boolean isSuperAdmin = false;
 
     @Column(name = "is_active")
     private boolean isActive = true; // Phục vụ tính năng Khóa/Mở khóa User

@@ -30,12 +30,10 @@ import java.util.Map;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest)
             throws OAuth2AuthenticationException {
-
         OAuth2User oAuth2User = super.loadUser(userRequest);
 
         String registrationId =
@@ -89,10 +87,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         if (user == null) {
 
-            Role memberRole = roleRepository.findByName(RoleName.MEMBER)
-                    .orElseThrow(() ->
-                            new IllegalStateException("Role MEMBER not found."));
-
             user = new User();
 
             user.setEmail(email);
@@ -101,8 +95,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
             user.setProvider(provider);
             user.setProviderId(providerId);
-
-            user.setRole(memberRole);
 
             user.setActive(true);
             user.setEmailVerified(true);
