@@ -1,4 +1,7 @@
 HELP.md
+flow.md
+workspace_admin_api_plan.md
+test_workspace_admin_apis.http
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/

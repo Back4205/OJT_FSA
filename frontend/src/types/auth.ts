@@ -1,6 +1,11 @@
 export interface User {
-  name: string;
+  id: number;
+  username: string;
   email: string;
+  role: "MEMBER" | "LEADER" | "WORKSPACE_ADMIN" | "SUPER_ADMIN";
+  active: boolean;
+  workspaceId: number | null;
+  workspaceName: string | null;
 }
 
 export interface AuthContextType {

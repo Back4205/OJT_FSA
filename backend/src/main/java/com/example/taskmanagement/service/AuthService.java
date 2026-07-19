@@ -10,10 +10,13 @@ public interface AuthService {
     UserResponse register(RegisterRequest request);
     UserResponse login(LoginRequest request, HttpServletResponse response);
     UserResponse verifyLoginOtp(LoginOtpRequest request, HttpServletResponse response);
-    UserResponse getCurrentUserByEmail(String email);
+    UserResponse getCurrentUserByEmail(String email, Long activeWorkspaceId);
     UserResponse switchWorkspace(String email, Long workspaceId, HttpServletResponse response);
     void verifyEmail(String token);
     void forgotPassword(String email);
     void resetPassword(String token, String newPassword);
+    java.util.List<com.example.taskmanagement.dto.response.UserWorkspaceResponse> getUserWorkspaces(String email);
+    UserResponse createNewWorkspace(String email, String name, String description, HttpServletResponse response);
+    UserResponse joinWorkspaceWithInviteCode(String email, String inviteCode, HttpServletResponse response);
 }
 

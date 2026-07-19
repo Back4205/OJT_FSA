@@ -45,6 +45,11 @@ public class EmailService {
 
             mailSender.send(message);
             log.info("Email sent successfully to {}", to);
+            log.info("=== DEVELOPER EMAIL DUMP ===");
+            log.info("To: {}", to);
+            log.info("Subject: {}", subject);
+            log.info("Content Body:\n{}", content);
+            log.info("============================");
         } catch (Exception e) {
             log.error("Failed to send email to {}", to, e);
             // Fallback dump in log so the developer can still copy/paste the link

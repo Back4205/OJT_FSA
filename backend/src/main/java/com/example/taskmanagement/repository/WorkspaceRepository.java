@@ -11,7 +11,6 @@ import java.util.Optional;
 public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
     Optional<Workspace> findByName(String name);
     boolean existsByName(String name);
-
     @Query("""
             select w
             from Workspace w
@@ -26,4 +25,6 @@ public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
 
     long countByActiveTrue();
     long countByActiveFalse();
+
+    Optional<Workspace> findByInviteCode(String inviteCode);
 }
