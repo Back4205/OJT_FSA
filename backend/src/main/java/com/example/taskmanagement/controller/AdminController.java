@@ -1,6 +1,7 @@
 package com.example.taskmanagement.controller;
 
 import com.example.taskmanagement.dto.request.admin.AdminWorkspaceUpdateRequest;
+import com.example.taskmanagement.dto.request.admin.AdminUserPasswordUpdateRequest;
 import com.example.taskmanagement.dto.response.ApiResponse;
 import com.example.taskmanagement.dto.response.PageResponse;
 import com.example.taskmanagement.dto.response.admin.AdminDashboardResponse;
@@ -95,6 +96,28 @@ public class AdminController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(e.getMessage()));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PatchMapping("/users/{userId}/email-verified")
+    public ResponseEntity<ApiResponse<AdminUserSummaryResponse>> updateEmailVerified(
+            @PathVariable Long userId,
+            @RequestParam boolean enabled) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success("OK", adminService.setUserEmailVerified(userId, enabled)));
+        } catch (NoSuchElementException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PatchMapping("/users/{userId}/password")
+    public ResponseEntity<ApiResponse<AdminUserSummaryResponse>> resetPassword(
+            @PathVariable Long userId,
+            @Valid @RequestBody AdminUserPasswordUpdateRequest request) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success("Password updated successfully", adminService.resetUserPassword(userId, request.getPassword())));
         } catch (NoSuchElementException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(e.getMessage()));
         }

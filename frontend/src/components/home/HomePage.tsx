@@ -1,54 +1,16 @@
 import { Link } from "react-router-dom";
-import styles from "./HomePage.module.css";
+import styles from "./HomePage.clean.module.css";
 
-const featureCards = [
+const roleCards = [
   {
-    icon: "bi-kanban",
-    title: "Task Management",
-    text: "Create, assign, and organize tasks with detailed descriptions, attachments, and subtasks.",
+    icon: "bi-shield-lock",
+    title: "Sadmin",
+    text: "Manage users, workspaces and platform-wide rules.",
   },
   {
-    icon: "bi-view-list",
-    title: "Kanban Board",
-    text: "Visualize your workflow and drag-and-drop tasks across customizable stages.",
-  },
-  {
-    icon: "bi-layers",
-    title: "Project Management",
-    text: "Group tasks into projects, track overall progress, and manage multiple initiatives.",
-  },
-  {
-    icon: "bi-people",
-    title: "Team Collaboration",
-    text: "Comment on tasks, mention teammates, and keep everyone aligned in real time.",
-  },
-  {
-    icon: "bi-calendar2-week",
-    title: "Calendar & Deadlines",
-    text: "Never miss a due date with integrated calendars and automated reminder notifications.",
-  },
-  {
-    icon: "bi-graph-up-arrow",
-    title: "Progress Tracking",
-    text: "Generate beautiful reports, burndown charts, and track your team's velocity.",
-  },
-];
-
-const steps = [
-  {
-    number: "1",
-    title: "Create a Project",
-    text: "Set up a workspace, invite your team, and define your project goals and milestones.",
-  },
-  {
-    number: "2",
-    title: "Assign Tasks",
-    text: "Break down work into actionable tasks, assign owners, and set clear deadlines.",
-  },
-  {
-    number: "3",
-    title: "Track Progress",
-    text: "Watch your project move forward via Kanban boards, timelines, and automated reports.",
+    icon: "bi-person",
+    title: "Member",
+    text: "Focus on assigned tasks, boards and updates.",
   },
 ];
 
@@ -62,167 +24,107 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
     <div className={styles.page}>
       <header className={styles.header}>
         <Link to="/taskmanager" className={styles.brand} aria-label="TaskManager home">
-          <span className={styles.brandMark}>T</span>
-          <span className={styles.brandName}>TaskManager</span>
+          <span className={styles.brandMark}>
+            <i className="bi bi-stars" aria-hidden="true" />
+          </span>
+          <span className={styles.brandText}>
+            <strong>Flowspace</strong>
+            <small>TASK OS</small>
+          </span>
         </Link>
 
         <nav className={styles.nav} aria-label="Primary">
-          <a href="#features">Features</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#about">About</a>
+          <a href="#roles">Product</a>
+          <a href="#roles">Customers</a>
+          <a href="#roles">Pricing</a>
+          <a href="#roles">Docs</a>
         </nav>
 
         <div className={styles.actions}>
-          <Link to="/taskmanager/login" className={styles.textLink}>
-            Login
+          <Link to="/taskmanager/login" className={styles.textLink} onClick={onLogin}>
+            Sign in
           </Link>
-          <Link to="/taskmanager/register" className={styles.primaryButton}>
-            Sign Up
+          <Link to="/taskmanager/register" className={styles.primaryButton} onClick={onRegister}>
+            Get started
           </Link>
         </div>
       </header>
 
       <main className={styles.main}>
         <section className={styles.hero}>
-          <div className={styles.heroContent}>
-            <span className={styles.badge}>
-              <i className="bi bi-dot" aria-hidden="true" />
-              TASK MANAGEMENT 2.0
-            </span>
+          <div className={styles.heroTopBadge}>
+            <span className={styles.badgeDot} />
+            <span>Now with AI project planning</span>
+          </div>
 
-            <h1>Manage tasks smarter, work together better.</h1>
+          <div className={styles.heroContent}>
+            <h1>
+              <span>The task platform that</span>
+              <span className={styles.heroAccent}>runs your entire team.</span>
+            </h1>
+
             <p>
-              TaskManager helps individuals and teams organize projects, assign tasks, track
-              progress, and meet deadlines without the chaos.
+              Plan projects, assign work, track deadlines and celebrate wins
+              <span> all in one beautifully simple workspace built for modern teams.</span>
             </p>
 
             <div className={styles.heroButtons}>
-              <Link
-                to="/taskmanager/login"
-                className={styles.ctaPrimary}
-                onClick={onLogin}
-              >
-                Get Started <i className="bi bi-arrow-right" aria-hidden="true" />
+              <Link to="/taskmanager/register" className={styles.ctaPrimary} onClick={onRegister}>
+                Start free trial <i className="bi bi-arrow-right" aria-hidden="true" />
               </Link>
-              <Link
-                to="/taskmanager/login"
-                className={styles.ctaSecondary}
-                onClick={onLogin}
-              >
-                Login
+              <Link to="/taskmanager/login" className={styles.ctaSecondary} onClick={onLogin}>
+                Sign in
               </Link>
             </div>
-          </div>
 
-          <div className={styles.heroVisual} aria-hidden="true">
-            <div className={styles.window}>
-              <div className={styles.windowHeader}>
-                <span className={styles.dotRed} />
-                <span className={styles.dotYellow} />
-                <span className={styles.dotGreen} />
-              </div>
-
-              <div className={styles.board}>
-                <div className={styles.boardColumn}>
-                  <span className={styles.columnLabel} />
-                  <div className={styles.card} />
-                  <div className={styles.card} />
-                </div>
-                <div className={styles.boardColumn}>
-                  <span className={styles.columnLabel} />
-                  <div className={styles.card} />
-                  <div className={styles.card} />
-                </div>
-                <div className={styles.boardColumn}>
-                  <span className={styles.columnLabel} />
-                  <div className={styles.card} />
-                  <div className={styles.card} />
-                </div>
-              </div>
+            <div className={styles.trustRow} aria-label="Highlights">
+              <span>
+                <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                No credit card
+              </span>
+              <span>
+                <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                Free for up to 10 users
+              </span>
+              <span>
+                <i className="bi bi-check-circle-fill" aria-hidden="true" />
+                Built for teams
+              </span>
             </div>
           </div>
         </section>
 
-        <section className={styles.features} id="features">
-          <div className={styles.sectionHeading}>
-            <span className={styles.sectionTag}>Features</span>
-            <h2>Everything you need to ship faster</h2>
-            <p>Powerful features designed to help your team focus on execution rather than organization.</p>
-          </div>
+        <section className={styles.rolesSection} id="roles">
+          <div className={styles.rolesLabel}>Explore by role</div>
 
-          <div className={styles.featureGrid}>
-            {featureCards.map((item) => (
-              <article className={styles.featureCard} key={item.title}>
-                <div className={styles.featureIcon}>
-                  <i className={`bi ${item.icon}`} aria-hidden="true" />
+          <div className={styles.roleGrid}>
+            {roleCards.map((card) => (
+              <article className={styles.roleCard} key={card.title}>
+                <div className={styles.roleIcon}>
+                  <i className={`bi ${card.icon}`} aria-hidden="true" />
                 </div>
-                <h3>{item.title}</h3>
-                <p>{item.text}</p>
+                <h2>{card.title}</h2>
+                <p>{card.text}</p>
               </article>
             ))}
           </div>
-        </section>
 
-        <section className={styles.workflow} id="how-it-works">
-          <div className={styles.sectionHeading}>
-            <span className={styles.sectionTag}>How it works</span>
-            <h2>Get up and running in minutes, not days.</h2>
-          </div>
-
-          <div className={styles.workflowGrid}>
-            {steps.map((step) => (
-              <article className={styles.stepCard} key={step.number}>
-                <div className={styles.stepNumber}>{step.number}</div>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className={styles.ctaSection} id="about">
-          <div className={styles.ctaPanel}>
-            <div>
-              <span className={styles.sectionTag}>About</span>
-              <h2>Built to look like a real product from the first click.</h2>
-              <p>
-                The home page now works as the first screen in the app, while login and sign up stay
-                one click away.
-              </p>
-            </div>
-
-            <div className={styles.ctaButtons}>
-              <Link
-                to="/taskmanager/register"
-                className={styles.ctaPrimary}
-                onClick={onRegister}
-              >
-                Create Free Account
-              </Link>
-              <Link
-                to="/taskmanager/login"
-                className={styles.ctaSecondary}
-                onClick={onLogin}
-              >
-                Login
-              </Link>
-            </div>
+          <div className={styles.bottomDock} aria-hidden="true">
+            <button type="button" className={styles.dockButton}>
+              <i className="bi bi-arrows-move" />
+            </button>
+            <button type="button" className={styles.dockButton}>
+              <i className="bi bi-type" />
+            </button>
+            <button type="button" className={styles.dockButton}>
+              <i className="bi bi-link-45deg" />
+            </button>
+            <button type="button" className={styles.dockButton}>
+              <i className="bi bi-chat-square-dots" />
+            </button>
           </div>
         </section>
       </main>
-
-      <footer className={styles.footer}>
-        <div>
-          <strong>TaskManager</strong>
-          <p>The modern standard for project management and team collaboration.</p>
-        </div>
-
-        <div className={styles.footerLinks}>
-          <a href="#features">Features</a>
-          <a href="#how-it-works">How it works</a>
-          <a href="#about">About</a>
-        </div>
-      </footer>
     </div>
   );
 }

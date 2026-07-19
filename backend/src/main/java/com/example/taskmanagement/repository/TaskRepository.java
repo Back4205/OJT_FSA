@@ -7,6 +7,8 @@ import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByProjectId(Long projectId);
+    List<Task> findByAssigneeIdAndProjectWorkspaceIdOrderByDeadlineAsc(Long assigneeId, Long workspaceId);
+    long countByAssigneeIdAndProjectWorkspaceIdAndStatus(Long assigneeId, Long workspaceId, TaskStatus status);
     long countByProjectWorkspaceId(Long workspaceId);
     long countByProjectWorkspaceIdAndStatus(Long workspaceId, TaskStatus status);
     long countByProjectWorkspaceIdAndPriority(Long workspaceId, com.example.taskmanagement.model.enums.TaskPriority priority);

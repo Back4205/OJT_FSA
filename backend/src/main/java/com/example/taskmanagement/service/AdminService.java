@@ -18,6 +18,8 @@ public interface AdminService {
     AdminUserSummaryResponse lockUser(Long userId);
     AdminUserSummaryResponse unlockUser(Long userId);
     AdminUserSummaryResponse setSuperAdmin(Long userId, boolean enabled, String actorEmail);
+    AdminUserSummaryResponse setUserEmailVerified(Long userId, boolean enabled);
+    AdminUserSummaryResponse resetUserPassword(Long userId, String rawPassword);
     PageResponse<AdminMembershipResponse> getUserMemberships(Long userId, Pageable pageable);
 
     PageResponse<AdminWorkspaceSummaryResponse> getWorkspaces(String search, Boolean active, Pageable pageable);
