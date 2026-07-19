@@ -70,6 +70,7 @@ public class AuthServiceImpl implements AuthService {
             workspace = new Workspace();
             workspace.setName(request.getWorkspaceName().trim());
             workspace.setActive(true);
+            workspace.setInviteCode("WS-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
             workspace = workspaceRepository.save(workspace);
         }
 
@@ -203,18 +204,27 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public UserResponse getCurrentUserByEmail(String email) {
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUserByEmail(String email, Long activeWorkspaceId) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("User does not exist"));
 
-        // Load their first active membership context for profile fetching
-        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
         if (user.isSuperAdmin()) {
             Role superAdminRole = roleRepository.findByName(RoleName.SUPER_ADMIN)
                     .orElseThrow(() -> new IllegalStateException("Role SUPER_ADMIN has not been seeded"));
             return UserResponse.fromEntity(user, null, superAdminRole);
         }
-        
+
+        if (activeWorkspaceId != null) {
+            var membershipOpt = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), activeWorkspaceId);
+            if (membershipOpt.isPresent() && membershipOpt.get().isActive()) {
+                WorkspaceMembership membership = membershipOpt.get();
+                return UserResponse.fromEntity(user, membership.getWorkspace(), membership.getRole());
+            }
+        }
+
+        // Fallback to first active membership
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
         if (memberships.isEmpty()) {
             Role memberRole = roleRepository.findByName(RoleName.MEMBER)
                     .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
@@ -381,5 +391,112 @@ public class AuthServiceImpl implements AuthService {
         cookieUtil.clearJSessionIdCookie(response);
 
         return UserResponse.fromEntity(user, activeWorkspace, activeRole);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<com.example.taskmanagement.dto.response.UserWorkspaceResponse> getUserWorkspaces(String email) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User does not exist"));
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        return memberships.stream()
+                .map(m -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse(
+                        m.getWorkspace().getId(),
+                        m.getWorkspace().getName(),
+                        m.getRole().getName().name()
+                ))
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public UserResponse createNewWorkspace(String email, String name, String description, HttpServletResponse response) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User does not exist"));
+
+        if (workspaceRepository.existsByName(name.trim())) {
+            throw new IllegalArgumentException("Workspace/Organization name is already in use");
+        }
+
+        // Create Workspace
+        Workspace workspace = new Workspace();
+        workspace.setName(name.trim());
+        workspace.setDescription(description);
+        workspace.setActive(true);
+        workspace.setInviteCode("WS-" + java.util.UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+        workspace = workspaceRepository.save(workspace);
+
+        // Retrieve workspace admin role
+        Role adminRole = roleRepository.findByName(RoleName.WORKSPACE_ADMIN)
+                .orElseThrow(() -> new IllegalStateException("Role WORKSPACE_ADMIN has not been seeded"));
+
+        // Save Membership
+        WorkspaceMembership membership = new WorkspaceMembership();
+        membership.setUser(user);
+        membership.setWorkspace(workspace);
+        membership.setRole(adminRole);
+        membership.setActive(true);
+        workspaceMembershipRepository.save(membership);
+
+        // Re-generate cookies/tokens for the new workspace context
+        String token = jwtService.generateToken(
+                user.getEmail(),
+                adminRole.getName().name(),
+                workspace.getId()
+        );
+        cookieUtil.addTokenCookie(response, token, jwtService.getExpirationSeconds());
+
+        var refreshToken = refreshTokenService.createRefreshToken(user, workspace);
+        cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
+
+        return UserResponse.fromEntity(user, workspace, adminRole);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse joinWorkspaceWithInviteCode(String email, String inviteCode, HttpServletResponse response) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User does not exist"));
+
+        Workspace workspace = workspaceRepository.findByInviteCode(inviteCode.trim())
+                .orElseThrow(() -> new IllegalArgumentException("Mã mời không tồn tại hoặc không hợp lệ."));
+
+        if (!workspace.isActive()) {
+            throw new IllegalArgumentException("Workspace này đã bị ngừng hoạt động.");
+        }
+
+        Role memberRole = roleRepository.findByName(RoleName.MEMBER)
+                .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
+
+        // Check if already a member
+        var existingMembershipOpt = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), workspace.getId());
+        WorkspaceMembership membership;
+        if (existingMembershipOpt.isPresent()) {
+            membership = existingMembershipOpt.get();
+            if (!membership.isActive()) {
+                membership.setActive(true);
+                workspaceMembershipRepository.save(membership);
+            }
+        } else {
+            membership = new WorkspaceMembership();
+            membership.setUser(user);
+            membership.setWorkspace(workspace);
+            membership.setRole(memberRole);
+            membership.setActive(true);
+            membership = workspaceMembershipRepository.save(membership);
+        }
+
+        // Re-generate cookies/tokens for the new workspace context
+        String token = jwtService.generateToken(
+                user.getEmail(),
+                membership.getRole().getName().name(),
+                workspace.getId()
+        );
+        cookieUtil.addTokenCookie(response, token, jwtService.getExpirationSeconds());
+
+        var refreshToken = refreshTokenService.createRefreshToken(user, workspace);
+        cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
+
+        return UserResponse.fromEntity(user, workspace, membership.getRole());
     }
 }
