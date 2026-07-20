@@ -43,14 +43,12 @@ public interface WorkspaceAdminService {
      */
     MembershipResponse addWorkspaceMember(Long workspaceId, MemberAddRequest request);
 
-    /**
-     * Thay đổi vai trò (thăng chức/hạ chức) của một thành viên trong Workspace.
-     * @param workspaceId ID của workspace đang hoạt động
-     * @param userId ID của người dùng cần đổi vai trò
-     * @param request vai trò đổi mới (LEADER/MEMBER)
-     * @return MembershipResponse sau khi đã sửa đổi vai trò
-     */
     MembershipResponse updateMemberRole(Long workspaceId, Long userId, MemberRoleUpdateRequest request);
+
+    /**
+     * Thay đổi vai trò (thăng chức/hạ chức) của một thành viên trong một Dự án cụ thể.
+     */
+    void updateProjectMemberRole(Long workspaceId, Long projectId, Long userId, MemberRoleUpdateRequest request);
 
     /**
      * Vô hiệu hóa (Deactivate/Soft Delete) một thành viên khỏi Workspace.

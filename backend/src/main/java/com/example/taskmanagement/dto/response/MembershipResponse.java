@@ -17,7 +17,16 @@ public class MembershipResponse {
     private String email;
     private String roleName;
     private boolean active;
-    private List<String> projects;
+    private List<ProjectDetail> projects;
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    public static class ProjectDetail {
+        private Long projectId;
+        private String projectName;
+        private String roleInProject; // "LEADER" or "MEMBER"
+    }
 
     public static MembershipResponse fromEntity(WorkspaceMembership membership) {
         return new MembershipResponse(
@@ -31,7 +40,7 @@ public class MembershipResponse {
         );
     }
 
-    public static MembershipResponse fromEntity(WorkspaceMembership membership, List<String> projects) {
+    public static MembershipResponse fromEntity(WorkspaceMembership membership, List<ProjectDetail> projects) {
         return new MembershipResponse(
                 membership.getId(),
                 membership.getUser().getId(),

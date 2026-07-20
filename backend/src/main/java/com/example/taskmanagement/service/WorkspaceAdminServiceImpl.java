@@ -79,9 +79,12 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                     return true;
                 })
                 .map(m -> {
-                    List<String> userProjects = projects.stream()
-                            .filter(p -> p.getMembers().contains(m.getUser()))
-                            .map(com.example.taskmanagement.model.Project::getName)
+                    List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                            .filter(p -> p.getMembers().contains(m.getUser()) || p.getLeader().equals(m.getUser()))
+                            .map(p -> {
+                                String role = p.getLeader().equals(m.getUser()) ? "LEADER" : "MEMBER";
+                                return new MembershipResponse.ProjectDetail(p.getId(), p.getName(), role);
+                            })
                             .collect(Collectors.toList());
                     return MembershipResponse.fromEntity(m, userProjects);
                 })
@@ -185,12 +188,69 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         WorkspaceMembership savedMembership = workspaceMembershipRepository.save(membership);
 
         List<com.example.taskmanagement.model.Project> projects = projectRepository.findByWorkspaceId(workspaceId);
-        List<String> userProjects = projects.stream()
-                .filter(p -> p.getMembers().contains(savedMembership.getUser()))
-                .map(com.example.taskmanagement.model.Project::getName)
+        List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                .filter(p -> p.getMembers().contains(savedMembership.getUser()) || p.getLeader().equals(savedMembership.getUser()))
+                .map(p -> {
+                    String role = p.getLeader().equals(savedMembership.getUser()) ? "LEADER" : "MEMBER";
+                    return new MembershipResponse.ProjectDetail(p.getId(), p.getName(), role);
+                })
                 .collect(Collectors.toList());
 
         return MembershipResponse.fromEntity(savedMembership, userProjects);
+    }
+
+    @Override
+    @Transactional
+    public void updateProjectMemberRole(Long workspaceId, Long projectId, Long userId, MemberRoleUpdateRequest request) {
+        Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
+                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này"));
+
+        RoleName newRole;
+        try {
+            newRole = RoleName.valueOf(request.getRoleName().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Vai trò đổi mới không hợp lệ. Chỉ chấp nhận LEADER hoặc MEMBER");
+        }
+
+        if (newRole == RoleName.LEADER) {
+            // Thăng chức làm Leader dự án
+            project.getMembers().add(user);
+            project.setLeader(user);
+            projectRepository.save(project);
+
+            // [Phương án B] Tự động nâng workspace role lên LEADER nếu hiện là MEMBER
+            WorkspaceMembership membership = workspaceMembershipRepository
+                    .findByUserIdAndWorkspaceId(userId, workspaceId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy membership của user trong Workspace"));
+            upgradeToLeaderIfNeeded(membership);
+
+        } else if (newRole == RoleName.MEMBER) {
+            // Hạ chức xuống làm Member dự án
+            if (project.getLeader().getId().equals(userId)) {
+                throw new IllegalArgumentException("Không thể trực tiếp hạ chức Project Leader. Vui lòng thăng chức thành viên khác làm Leader trước.");
+            }
+            project.getMembers().add(user);
+            projectRepository.save(project);
+
+            // [Phương án B] Nếu user không còn là leader của project nào khác trong WS → hạ về MEMBER
+            boolean stillLeadsAnotherProject = projectRepository.findByWorkspaceId(workspaceId)
+                    .stream()
+                    .anyMatch(p -> !p.getId().equals(projectId) && p.getLeader().getId().equals(userId));
+            if (!stillLeadsAnotherProject) {
+                WorkspaceMembership membership = workspaceMembershipRepository
+                        .findByUserIdAndWorkspaceId(userId, workspaceId)
+                        .orElseThrow();
+                if (membership.getRole().getName() == RoleName.LEADER) {
+                    Role memberRole = roleRepository.findByName(RoleName.MEMBER)
+                            .orElseThrow(() -> new IllegalStateException("Không tìm thấy role MEMBER"));
+                    membership.setRole(memberRole);
+                    workspaceMembershipRepository.save(membership);
+                }
+            }
+        }
     }
 
     @Override
@@ -252,6 +312,10 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         project.getMembers().add(leaderMembership.getUser());
 
         Project savedProject = projectRepository.save(project);
+
+        // [Phương án B] Tự động nâng workspace role lên LEADER nếu hiện là MEMBER
+        upgradeToLeaderIfNeeded(leaderMembership);
+
         return ProjectResponse.fromEntity(savedProject);
     }
 
@@ -331,4 +395,26 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 .tasksByPriority(tasksByPriority)
                 .build();
     }
-}
+
+    // @Override
+    // public ProjectResponse changeProjectLeader(Long workspaceId, Long projectId, Long newLeaderUserId) {
+    //     // TODO Auto-generated method stub
+    //     throw new UnsupportedOperationException("Unimplemented method 'changeProjectLeader'");
+    // }
+
+    /**
+     * [Phương án B] Helper: Tự động nâng workspace membership role lên LEADER
+     * nếu user hiện đang là MEMBER. Gọi mỗi khi một user được chỉ định làm
+     * project leader trong workspace này.
+     */
+    private void upgradeToLeaderIfNeeded(WorkspaceMembership membership) {
+        RoleName currentRole = membership.getRole().getName();
+        if (currentRole == RoleName.MEMBER) {
+            Role leaderRole = roleRepository.findByName(RoleName.LEADER)
+                    .orElseThrow(() -> new IllegalStateException("Không tìm thấy role LEADER trong hệ thống"));
+            membership.setRole(leaderRole);
+            workspaceMembershipRepository.save(membership);
+        }
+        // Nếu đã là LEADER hoặc WORKSPACE_ADMIN → không cần thay đổi
+    }
+}

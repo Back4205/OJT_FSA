@@ -13,6 +13,12 @@ export interface WorkspaceUpdateRequest {
   description: string;
 }
 
+export interface ProjectDetail {
+  projectId: number;
+  projectName: string;
+  roleInProject: "LEADER" | "MEMBER";
+}
+
 export interface MembershipResponse {
   id: number;
   userId: number;
@@ -20,7 +26,7 @@ export interface MembershipResponse {
   email: string;
   roleName: string;
   active: boolean;
-  projects?: string[];
+  projects?: ProjectDetail[];
 }
 
 export interface MemberAddRequest {
@@ -139,6 +145,11 @@ export const workspaceService = {
   removeProjectMember: async (projectId: number, userId: number): Promise<ProjectResponse> => {
     const response = await api.delete(`/workspaces/current/projects/${projectId}/members/${userId}`);
     return response.data.data;
+  },
+
+  // Cập nhật vai trò của thành viên trong dự án
+  updateProjectMemberRole: async (projectId: number, userId: number, roleName: "LEADER" | "MEMBER"): Promise<void> => {
+    await api.put(`/workspaces/current/projects/${projectId}/members/${userId}/role`, { roleName });
   },
 
   // Lấy thống kê của Dashboard
