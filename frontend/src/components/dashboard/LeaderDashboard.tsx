@@ -97,6 +97,8 @@ const LeaderDashboard: React.FC = () => {
   const [taskProject, setTaskProject]   = useState<number>(0);
   const [taskAssignee, setTaskAssignee] = useState<number>(0);
   const [inviteEmail, setInviteEmail]   = useState("");
+  const [projectMemberToAdd, setProjectMemberToAdd] = useState<number>(0);
+  const [projectMemberActionLoading, setProjectMemberActionLoading] = useState(false);
 
   // Create Workspace Form
   const [newWSNameInput, setNewWSNameInput] = useState("");
@@ -142,6 +144,10 @@ const LeaderDashboard: React.FC = () => {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    setProjectMemberToAdd(0);
+  }, [selectedProjectId]);
 
   // ── Workspace switch ─────────────────────────────────────────────────────
   const handleSwitchWs = async (wsId: number) => {
@@ -261,6 +267,30 @@ const LeaderDashboard: React.FC = () => {
       setWsMembers(mems);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Mời thành viên thất bại.");
+    }
+  };
+
+  const handleAddMemberToProject = async (projectId: number) => {
+    if (!projectMemberToAdd) {
+      setErrorMsg("Vui lòng chọn member để thêm vào project.");
+      return;
+    }
+
+    if (projectMemberActionLoading) {
+      return;
+    }
+
+    setProjectMemberActionLoading(true);
+    setErrorMsg("");
+    try {
+      await leaderService.addProjectMember(projectId, projectMemberToAdd);
+      setSuccessMsg("Đã thêm member vào project.");
+      setProjectMemberToAdd(0);
+      await loadData();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể thêm member vào project.");
+    } finally {
+      setProjectMemberActionLoading(false);
     }
   };
 
@@ -809,6 +839,70 @@ const LeaderDashboard: React.FC = () => {
                   <button className={styles["btn-primary"]} onClick={() => { setTaskProject(project.id); setShowCreateTask(true); }}>
                     <i className="bi bi-plus-lg" /> New task
                   </button>
+                </div>
+
+                <div className={styles["card"]} style={{ marginBottom: "16px" }}>
+                  <div className={styles["card-header"]} style={{ marginBottom: "12px" }}>
+                    <h2 className={styles["card-title"]}>Project members</h2>
+                    <span className={styles["card-badge"]}>{project.members.length} members</span>
+                  </div>
+
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
+                    {project.members.map((member) => (
+                      <div
+                        key={member.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          padding: "8px 12px",
+                          borderRadius: "999px",
+                          background: "#f8fafc",
+                          border: "1px solid #e2e8f0"
+                        }}
+                      >
+                        <div
+                          className={`${styles["member-avatar"]} ${styles["av-indigo"]}`}
+                          style={{ width: "28px", height: "28px", fontSize: "0.68rem", borderRadius: "999px" }}
+                        >
+                          {getInitials(member.username)}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{member.username}</span>
+                          <span style={{ fontSize: "0.72rem", color: "#64748b" }}>{member.email}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", gap: "12px", alignItems: "end", flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 280px" }}>
+                      <label className={styles["form-label"]}>Add workspace member to this project</label>
+                      <select
+                        className={styles["form-select"]}
+                        value={projectMemberToAdd}
+                        onChange={(e) => setProjectMemberToAdd(Number(e.target.value))}
+                      >
+                        <option value={0}>-- Select member --</option>
+                        {wsMembers
+                          .filter((member) => member.active && !project.members.some((projectMember) => projectMember.id === member.userId))
+                          .map((member) => (
+                            <option key={member.userId} value={member.userId}>
+                              {member.username} - {member.email}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      className={styles["btn-primary"]}
+                      onClick={() => void handleAddMemberToProject(project.id)}
+                      disabled={projectMemberActionLoading || !projectMemberToAdd}
+                    >
+                      {projectMemberActionLoading ? "Adding..." : "Add member"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className={styles["view-toggle"]}>

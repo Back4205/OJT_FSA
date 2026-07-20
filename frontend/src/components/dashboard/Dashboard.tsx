@@ -1,6 +1,7 @@
 import React from "react";
 import { useAuth } from "../../context/AuthContext";
 import AdminDashboard from "./AdminDashboard";
+import LeaderDashboard from "./LeaderDashboard";
 import MemberDashboard from "./MemberDashboard";
 import NoWorkspaceDashboard from "./NoWorkspaceDashboard";
 import WorkspaceAdminDashboard from "./WorkspaceAdminDashboard";
@@ -21,6 +22,10 @@ const Dashboard: React.FC = () => {
 
   if (workspaceEntryMode !== "workspace") {
     return <NoWorkspaceDashboard />;
+  }
+
+  if (user.role === "LEADER") {
+    return <LeaderDashboard />;
   }
 
   if (user.role === "WORKSPACE_ADMIN") {
