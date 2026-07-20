@@ -118,7 +118,6 @@ const WorkspaceAdminDashboard: React.FC = () => {
     }
   };
 
-  // State và handlers xử lý popup tạo / gia nhập Workspace mới
   const [wsModalTab, setWsModalTab] = useState<"create" | "join">("create");
   const [newWSNameInput, setNewWSNameInput] = useState<string>("");
   const [newWSDescInput, setNewWSDescInput] = useState<string>("");

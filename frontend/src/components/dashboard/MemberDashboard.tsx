@@ -1,60 +1,234 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { memberService, type MemberDashboardResponse, type MemberTaskResponse } from "../../services/memberService";
+import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
 import styles from "./MemberDashboard.module.css";
 
 const menuItems = [
   { key: "dashboard", label: "Dashboard", icon: "bi-grid" },
   { key: "tasks", label: "My tasks", icon: "bi-check2-square" },
   { key: "board", label: "Kanban board", icon: "bi-kanban" },
-  { key: "profile", label: "Profile", icon: "bi-person" },
+  { key: "profile", label: "Profile", icon: "bi-person" }
 ] as const;
 
 type TabKey = typeof menuItems[number]["key"];
 
 const MemberDashboard: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, checkAuth } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
   const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);
+  const [userWorkspaces, setUserWorkspaces] = useState<UserWorkspaceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [workspaceSwitchingId, setWorkspaceSwitchingId] = useState<number | null>(null);
+  const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
+  const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false);
+  const [newWorkspaceName, setNewWorkspaceName] = useState("");
+  const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
+  const [createWorkspaceLoading, setCreateWorkspaceLoading] = useState(false);
+  const [createWorkspaceError, setCreateWorkspaceError] = useState("");
+  const [createWorkspaceSuccess, setCreateWorkspaceSuccess] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskStatusFilter, setTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
+  const [taskPriorityFilter, setTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
+  const [selectedTask, setSelectedTask] = useState<MemberTaskResponse | null>(null);
+
+  const loadDashboard = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [dashboardResult, workspacesResult] = await Promise.allSettled([
+        memberService.getDashboard(),
+        workspaceService.getUserWorkspaces()
+      ]);
+
+      if (dashboardResult.status === "fulfilled") {
+        setDashboard(dashboardResult.value);
+      } else {
+        throw dashboardResult.reason;
+      }
+
+      if (workspacesResult.status === "fulfilled") {
+        setUserWorkspaces(workspacesResult.value);
+      } else {
+        setUserWorkspaces([]);
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to load member dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError("");
-      try {
-        const data = await memberService.getDashboard();
-        setDashboard(data);
-      } catch (err: any) {
-        setError(err.response?.data?.message || "Unable to load member dashboard.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    load();
+    loadDashboard();
   }, []);
 
-  const groupedTasks = useMemo(() => {
+  const activeWorkspace = useMemo(() => {
+    if (!dashboard) {
+      return null;
+    }
+
+    return (
+      userWorkspaces.find((item) => item.workspaceId === dashboard.workspaceId) ?? {
+        workspaceId: dashboard.workspaceId,
+        workspaceName: dashboard.workspaceName || "Current workspace",
+        roleName: dashboard.role
+      }
+    );
+  }, [dashboard, userWorkspaces]);
+
+  const filteredTasks = useMemo(() => {
     const tasks = dashboard?.tasks ?? [];
+    const query = taskSearch.trim().toLowerCase();
+
+    return tasks.filter((task) => {
+      const matchesSearch =
+        !query ||
+        [task.title, task.description, task.projectName, task.deadline]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      const matchesStatus = taskStatusFilter === "all" || task.status === taskStatusFilter;
+      const matchesPriority = taskPriorityFilter === "all" || task.priority === taskPriorityFilter;
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [dashboard, taskSearch, taskStatusFilter, taskPriorityFilter]);
+
+  const groupedTasks = useMemo(() => {
+    const tasks = filteredTasks;
     return {
       TODO: tasks.filter((task) => task.status === "TODO"),
       IN_PROGRESS: tasks.filter((task) => task.status === "IN_PROGRESS"),
+      REVIEW: tasks.filter((task) => task.status === "REVIEW"),
       DONE: tasks.filter((task) => task.status === "DONE"),
     };
-  }, [dashboard]);
+  }, [filteredTasks]);
   const currentSectionLabel = menuItems.find((item) => item.key === activeTab)?.label ?? "Dashboard";
+
+  const taskStatusOrder: MemberTaskResponse["status"][] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
+
+  const updateTaskStatus = async (task: MemberTaskResponse, nextStatus: MemberTaskResponse["status"]) => {
+    if (task.status === nextStatus) {
+      return;
+    }
+
+    if (actionLoading === task.id) {
+      return;
+    }
+
+    setActionLoading(task.id);
+    setError("");
+    try {
+      await memberService.updateTaskStatus(task.id, nextStatus);
+      setSelectedTask((current) => (current?.id === task.id ? { ...current, status: nextStatus } : current));
+      await loadDashboard();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to update task status.");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const advanceTaskStatus = async (task: MemberTaskResponse) => {
+    const currentIndex = taskStatusOrder.indexOf(task.status);
+    if (currentIndex < 0 || currentIndex >= taskStatusOrder.length - 1) {
+      return;
+    }
+
+    const nextStatus = taskStatusOrder[currentIndex + 1];
+    return updateTaskStatus(task, nextStatus);
+  };
+
+  const handleSwitchWorkspace = async (workspaceId: number) => {
+    if (workspaceSwitchingId === workspaceId || dashboard?.workspaceId === workspaceId) {
+      return;
+    }
+
+    setWorkspaceSwitchingId(workspaceId);
+    setWorkspaceDropdownOpen(false);
+    setError("");
+    try {
+      await workspaceService.switchWorkspace(workspaceId);
+      await checkAuth();
+      await loadDashboard();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to switch workspace.");
+    } finally {
+      setWorkspaceSwitchingId(null);
+    }
+  };
+
+  const openCreateWorkspaceModal = () => {
+    setWorkspaceDropdownOpen(false);
+    setCreateWorkspaceError("");
+    setCreateWorkspaceSuccess("");
+    setShowCreateWorkspaceModal(true);
+  };
+
+  const closeCreateWorkspaceModal = () => {
+    setShowCreateWorkspaceModal(false);
+    setCreateWorkspaceError("");
+    setCreateWorkspaceSuccess("");
+  };
+
+  const handleCreateWorkspaceSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newWorkspaceName.trim()) {
+      setCreateWorkspaceError("Workspace name is required.");
+      return;
+    }
+
+    setCreateWorkspaceLoading(true);
+    setCreateWorkspaceError("");
+    setCreateWorkspaceSuccess("");
+    try {
+      await workspaceService.createWorkspace(newWorkspaceName.trim(), newWorkspaceDescription.trim());
+      setCreateWorkspaceSuccess("Workspace created successfully. Reloading...");
+      setNewWorkspaceName("");
+      setNewWorkspaceDescription("");
+      await checkAuth();
+      setTimeout(() => {
+        window.location.reload();
+      }, 800);
+    } catch (err: any) {
+      setCreateWorkspaceError(err.response?.data?.message || "Unable to create workspace.");
+      setCreateWorkspaceLoading(false);
+    }
+  };
+
+  const formatWorkspaceRole = (roleName: string) => {
+    if (roleName === "WORKSPACE_ADMIN") {
+      return "Workspace admin";
+    }
+    if (roleName === "LEADER") {
+      return "Leader";
+    }
+    return "Member";
+  };
 
   const statCards = [
     { label: "Assigned", value: dashboard?.totalAssignedTasks ?? 0, tone: "blue" },
     { label: "Completed", value: dashboard?.completedTasks ?? 0, tone: "green" },
     { label: "In progress", value: dashboard?.inProgressTasks ?? 0, tone: "amber" },
+    { label: "Review", value: dashboard?.reviewTasks ?? 0, tone: "purple" },
     { label: "Due soon", value: dashboard?.dueSoonTasks ?? 0, tone: "purple" },
   ];
 
   const renderTaskCard = (task: MemberTaskResponse) => (
-    <article key={task.id} className={styles.taskCard}>
+    <article
+      key={task.id}
+      className={styles.taskCard}
+      role="button"
+      tabIndex={0}
+      onClick={() => setSelectedTask(task)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setSelectedTask(task);
+        }
+      }}
+    >
       <div className={styles.taskTopRow}>
         <span className={styles.taskProject}>{task.projectName || "General"}</span>
         <span className={`${styles.statusBadge} ${styles[`status_${task.status}`]}`}>{task.status.replace("_", " ")}</span>
@@ -64,6 +238,33 @@ const MemberDashboard: React.FC = () => {
       <div className={styles.taskMetaRow}>
         <span className={`${styles.priorityBadge} ${styles[`priority_${task.priority}`]}`}>{task.priority}</span>
         <span className={styles.deadline}>{task.deadline || "No deadline"}</span>
+      </div>
+      <div className={styles.taskActions}>
+        <button
+          type="button"
+          className={`${styles.taskActionButton} ${styles.secondaryTaskActionButton}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            setSelectedTask(task);
+          }}
+        >
+          Details
+        </button>
+        <button
+          type="button"
+          className={styles.taskActionButton}
+          onClick={(event) => {
+            event.stopPropagation();
+            void advanceTaskStatus(task);
+          }}
+          disabled={actionLoading === task.id || task.status === "DONE"}
+        >
+          {task.status === "DONE"
+            ? "Completed"
+            : actionLoading === task.id
+              ? "Updating..."
+              : `Move to ${taskStatusOrder[taskStatusOrder.indexOf(task.status) + 1]}`}
+        </button>
       </div>
     </article>
   );
@@ -79,9 +280,59 @@ const MemberDashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className={styles.workspaceCard}>
-          <div className={styles.workspaceTitle}>{dashboard?.workspaceName || "No workspace"}</div>
-          <div className={styles.workspaceMeta}>{dashboard?.role || "Member"} workspace</div>
+        <div className={styles.workspaceSelectorContainer}>
+          <button
+            type="button"
+            className={styles.workspaceSelectorBtn}
+            onClick={() => setWorkspaceDropdownOpen((open) => !open)}
+          >
+            <div className={styles.workspaceAvatar}>
+              {(activeWorkspace?.workspaceName || "WS").slice(0, 2).toUpperCase()}
+            </div>
+            <div className={styles.workspaceMetaWrap}>
+              <span className={styles.workspaceActiveName}>{activeWorkspace?.workspaceName || "No workspace"}</span>
+              <span className={styles.workspaceActiveRole}>
+                {formatWorkspaceRole(activeWorkspace?.roleName || dashboard?.role || "MEMBER")} · Team
+              </span>
+            </div>
+            <i className={`bi bi-chevron-down ${styles.chevronIcon} ${workspaceDropdownOpen ? styles.chevronOpen : ""}`} />
+          </button>
+
+          {workspaceDropdownOpen && (
+            <div className={styles.workspaceDropdown}>
+              <p className={styles.dropdownSectionTitle}>Your workspaces</p>
+              {userWorkspaces.length === 0 && (
+                <div className={styles.workspaceEmpty}>No joined workspaces yet.</div>
+              )}
+              {userWorkspaces.map((workspace) => {
+                const isActive = workspace.workspaceId === dashboard?.workspaceId;
+                return (
+                  <button
+                    key={workspace.workspaceId}
+                    type="button"
+                    className={`${styles.workspaceDropdownItem} ${isActive ? styles.workspaceDropdownItemActive : ""}`}
+                    onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
+                    disabled={workspaceSwitchingId === workspace.workspaceId || isActive}
+                  >
+                    <div className={styles.workspaceDropdownMain}>
+                      <span className={styles.workspaceDropdownName}>{workspace.workspaceName}</span>
+                      <span className={styles.workspaceDropdownRole}>
+                        {formatWorkspaceRole(workspace.roleName)} · Team
+                      </span>
+                    </div>
+                    <span className={styles.workspaceDropdownAction}>
+                      {workspaceSwitchingId === workspace.workspaceId ? "Switching..." : isActive ? "Active" : "Switch"}
+                    </span>
+                    </button>
+                  );
+              })}
+
+              <button type="button" className={styles.dropdownActionBtn} onClick={openCreateWorkspaceModal}>
+                <i className="bi bi-plus-lg" />
+                <span>Create workspace</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <nav className={styles.nav}>
@@ -128,18 +379,80 @@ const MemberDashboard: React.FC = () => {
             </div>
             <div className={styles.headerActions}>
               <span className={styles.pill}>Member</span>
-              <button className={styles.primaryButton} type="button">
+              <button className={styles.primaryButton} type="button" onClick={() => setActiveTab("tasks")}>
                 <i className="bi bi-plus" />
-                <span>New task</span>
+                <span>View tasks</span>
               </button>
             </div>
           </div>
+
+          {!loading && !error && dashboard && (
+            <div className={styles.filterBar}>
+              <input
+                className={styles.filterInput}
+                type="text"
+                placeholder="Search task, project, deadline..."
+                value={taskSearch}
+                onChange={(e) => setTaskSearch(e.target.value)}
+              />
+              <select
+                className={styles.filterSelect}
+                value={taskStatusFilter}
+                onChange={(e) => setTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
+              >
+                <option value="all">All statuses</option>
+                <option value="TODO">To do</option>
+                <option value="IN_PROGRESS">In progress</option>
+                <option value="REVIEW">Review</option>
+                <option value="DONE">Done</option>
+              </select>
+              <select
+                className={styles.filterSelect}
+                value={taskPriorityFilter}
+                onChange={(e) => setTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
+              >
+                <option value="all">All priorities</option>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+              <button
+                type="button"
+                className={styles.filterButtonSecondary}
+                onClick={() => {
+                  setTaskSearch("");
+                  setTaskStatusFilter("all");
+                  setTaskPriorityFilter("all");
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          )}
 
           {loading && <div className={styles.loading}>Loading member dashboard...</div>}
           {error && <div className={styles.error}>{error}</div>}
 
           {!loading && !error && dashboard && activeTab === "dashboard" && (
             <>
+              <div className={styles.workspaceSummaryGrid}>
+                <article className={styles.workspaceSummaryCard}>
+                  <div className={styles.summaryLabel}>Current workspace</div>
+                  <div className={styles.summaryValue}>{activeWorkspace?.workspaceName || dashboard.workspaceName || "No workspace"}</div>
+                  <div className={styles.summaryMeta}>Workspace ID: {dashboard.workspaceId ?? "N/A"}</div>
+                </article>
+                <article className={styles.workspaceSummaryCard}>
+                  <div className={styles.summaryLabel}>Your role</div>
+                  <div className={styles.summaryValue}>{dashboard.role}</div>
+                  <div className={styles.summaryMeta}>Joined workspaces: {userWorkspaces.length}</div>
+                </article>
+                <article className={styles.workspaceSummaryCard}>
+                  <div className={styles.summaryLabel}>Next action</div>
+                  <div className={styles.summaryValue}>{dashboard.dueSoonTasks > 0 ? "Finish due tasks" : "Keep board tidy"}</div>
+                  <div className={styles.summaryMeta}>Open tasks: {dashboard.totalAssignedTasks - dashboard.completedTasks}</div>
+                </article>
+              </div>
+
               <div className={styles.statsGrid}>
                 {statCards.map((card) => (
                   <article key={card.label} className={`${styles.statCard} ${styles[card.tone]}`}>
@@ -153,25 +466,25 @@ const MemberDashboard: React.FC = () => {
                 <section className={styles.panel}>
                   <div className={styles.panelHeader}>
                     <h2>Assigned to me</h2>
-                    <span>{dashboard.tasks.length} tasks</span>
+                    <span>{filteredTasks.length} tasks</span>
                   </div>
                   <div className={styles.taskList}>
-                    {dashboard.tasks.slice(0, 5).map(renderTaskCard)}
+                    {filteredTasks.slice(0, 5).map(renderTaskCard)}
                   </div>
                 </section>
 
                 <section className={styles.focusPanel}>
                   <div className={styles.focusHeader}>
                     <h2>Today's focus</h2>
-                    <span>{dashboard.completedTasks} done</span>
+                    <span>{groupedTasks.DONE.length} done</span>
                   </div>
                   <div className={styles.focusItems}>
-                    {dashboard.tasks.slice(0, 4).map((task) => (
+                    {filteredTasks.slice(0, 4).map((task) => (
                       <div key={task.id} className={styles.focusItem}>
                         <span className={styles.focusDot} />
                         <div>
                           <div className={styles.rowTitle}>{task.title}</div>
-                          <div className={styles.rowSub}>{task.projectName || "General"} · {task.deadline || "No deadline"}</div>
+                          <div className={styles.rowSub}>{task.projectName || "General"} - {task.deadline || "No deadline"}</div>
                         </div>
                       </div>
                     ))}
@@ -195,20 +508,7 @@ const MemberDashboard: React.FC = () => {
                           <div className={styles.activityTime}>{activity.timeLabel}</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className={styles.panel}>
-                  <div className={styles.panelHeader}>
-                    <h2>Profile</h2>
-                    <span>Member</span>
-                  </div>
-                  <div className={styles.profileCard}>
-                    <div className={styles.profileAvatar}>{(dashboard.username || "ME").slice(0, 2).toUpperCase()}</div>
-                    <div className={styles.profileName}>{dashboard.username}</div>
-                    <div className={styles.profileMeta}>{dashboard.email}</div>
-                    <div className={styles.profileMeta}>{dashboard.workspaceName || "No workspace"}</div>
+                      ))}
                   </div>
                 </section>
               </div>
@@ -219,10 +519,10 @@ const MemberDashboard: React.FC = () => {
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <h2>My tasks</h2>
-                <span>{dashboard.tasks.length} total</span>
+                <span>{filteredTasks.length} total</span>
               </div>
               <div className={styles.taskList}>
-                {dashboard.tasks.map(renderTaskCard)}
+                {filteredTasks.map(renderTaskCard)}
               </div>
             </section>
           )}
@@ -249,6 +549,15 @@ const MemberDashboard: React.FC = () => {
               </section>
               <section className={styles.boardColumn}>
                 <div className={styles.panelHeader}>
+                  <h2>Review</h2>
+                  <span>{groupedTasks.REVIEW.length}</span>
+                </div>
+                <div className={styles.boardList}>
+                  {groupedTasks.REVIEW.map(renderTaskCard)}
+                </div>
+              </section>
+              <section className={styles.boardColumn}>
+                <div className={styles.panelHeader}>
                   <h2>Done</h2>
                   <span>{groupedTasks.DONE.length}</span>
                 </div>
@@ -260,30 +569,158 @@ const MemberDashboard: React.FC = () => {
           )}
 
           {!loading && !error && dashboard && activeTab === "profile" && (
-            <section className={styles.profilePanel}>
-              <div className={styles.profileHero}>
-                <div className={styles.profileAvatarLarge}>{(dashboard.username || "ME").slice(0, 2).toUpperCase()}</div>
-                <div>
-                  <h2>{dashboard.username}</h2>
-                  <p>{dashboard.email}</p>
-                  <p>{dashboard.workspaceName || "No workspace"}</p>
-                </div>
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2>My profile</h2>
+                <span>{dashboard.role}</span>
               </div>
-              <div className={styles.profileStats}>
-                <div className={styles.profileStat}>
-                  <span>Assigned</span>
-                  <strong>{dashboard.totalAssignedTasks}</strong>
-                </div>
-                <div className={styles.profileStat}>
-                  <span>Completed</span>
-                  <strong>{dashboard.completedTasks}</strong>
-                </div>
-                <div className={styles.profileStat}>
-                  <span>Due soon</span>
-                  <strong>{dashboard.dueSoonTasks}</strong>
+              <div className={styles.profileCard}>
+                <div className={styles.profileAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
+                <div className={styles.profileMeta}>
+                  <div className={styles.profileName}>{user?.username || dashboard.username}</div>
+                  <div className={styles.profileEmail}>{user?.email || "No email"}</div>
+                  <div className={styles.profileRow}>Current workspace: {activeWorkspace?.workspaceName || dashboard.workspaceName || "No workspace"}</div>
+                  <div className={styles.profileRow}>Joined workspaces: {userWorkspaces.length}</div>
+                  <div className={styles.profileRow}>Account status: Active</div>
                 </div>
               </div>
             </section>
+          )}
+
+          {selectedTask && dashboard && (
+            <div className={styles.modalOverlay} onClick={() => setSelectedTask(null)}>
+              <div className={styles.modalContent} onClick={(event) => event.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <h3>{selectedTask.title}</h3>
+                    <p className={styles.modalSubTitle}>
+                      {selectedTask.projectName || "General"} - {selectedTask.deadline || "No deadline"}
+                    </p>
+                  </div>
+                  <button type="button" className={styles.modalCloseButton} onClick={() => setSelectedTask(null)}>
+                    ×
+                  </button>
+                </div>
+
+                <div className={styles.modalBody}>
+                  <div className={styles.detailStatsGrid}>
+                    <div className={styles.detailStatCard}>
+                      <span>Status</span>
+                      <strong>{selectedTask.status.replace("_", " ")}</strong>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <span>Priority</span>
+                      <strong>{selectedTask.priority}</strong>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <span>Project</span>
+                      <strong>{selectedTask.projectName || "General"}</strong>
+                    </div>
+                    <div className={styles.detailStatCard}>
+                      <span>Deadline</span>
+                      <strong>{selectedTask.deadline || "No deadline"}</strong>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailSection}>
+                    <div className={styles.detailSectionHeader}>
+                      <h4>Description</h4>
+                      <span>Task #{selectedTask.id}</span>
+                    </div>
+                    <div className={styles.detailList}>
+                      <div className={styles.detailListItem}>
+                        {selectedTask.description || "No description provided."}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailActions}>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => void updateTaskStatus(selectedTask, "TODO")}
+                      disabled={actionLoading === selectedTask.id || selectedTask.status === "TODO"}
+                    >
+                      To do
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => void updateTaskStatus(selectedTask, "IN_PROGRESS")}
+                      disabled={actionLoading === selectedTask.id || selectedTask.status === "IN_PROGRESS"}
+                    >
+                      In progress
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => void updateTaskStatus(selectedTask, "REVIEW")}
+                      disabled={actionLoading === selectedTask.id || selectedTask.status === "REVIEW"}
+                    >
+                      Review
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.actionButton}
+                      onClick={() => void updateTaskStatus(selectedTask, "DONE")}
+                      disabled={actionLoading === selectedTask.id || selectedTask.status === "DONE"}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {showCreateWorkspaceModal && (
+            <div className={styles.modalOverlay} onClick={closeCreateWorkspaceModal}>
+              <div className={styles.modalContent} onClick={(event) => event.stopPropagation()}>
+                <div className={styles.modalHeader}>
+                  <div>
+                    <h3>Create workspace</h3>
+                    <p className={styles.modalSubTitle}>Start a new workspace and invite people later.</p>
+                  </div>
+                  <button type="button" className={styles.modalCloseButton} onClick={closeCreateWorkspaceModal}>
+                    ×
+                  </button>
+                </div>
+                <div className={styles.modalBody}>
+                  {createWorkspaceError && <div className={styles.error}>{createWorkspaceError}</div>}
+                  {createWorkspaceSuccess && <div className={styles.loading}>{createWorkspaceSuccess}</div>}
+                  <form className={styles.createWorkspaceForm} onSubmit={handleCreateWorkspaceSubmit}>
+                    <label className={styles.formLabel}>
+                      Workspace name
+                      <input
+                        className={styles.filterInput}
+                        type="text"
+                        value={newWorkspaceName}
+                        onChange={(e) => setNewWorkspaceName(e.target.value)}
+                        placeholder="e.g. Northwind Studio"
+                      />
+                    </label>
+                    <label className={styles.formLabel}>
+                      Description
+                      <textarea
+                        className={styles.textArea}
+                        value={newWorkspaceDescription}
+                        onChange={(e) => setNewWorkspaceDescription(e.target.value)}
+                        placeholder="What is this workspace for?"
+                        rows={4}
+                      />
+                    </label>
+                    <div className={styles.detailActions}>
+                      <button type="button" className={styles.taskActionButton} onClick={closeCreateWorkspaceModal}>
+                        Cancel
+                      </button>
+                      <button type="submit" className={styles.taskActionButton} disabled={createWorkspaceLoading}>
+                        {createWorkspaceLoading ? "Creating..." : "Create workspace"}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
           )}
         </section>
       </main>

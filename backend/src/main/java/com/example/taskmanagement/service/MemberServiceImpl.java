@@ -64,6 +64,7 @@ public class MemberServiceImpl implements MemberService {
 
         long completedTasks = tasks.stream().filter(task -> task.getStatus() == TaskStatus.DONE).count();
         long inProgressTasks = tasks.stream().filter(task -> task.getStatus() == TaskStatus.IN_PROGRESS).count();
+        long reviewTasks = tasks.stream().filter(task -> task.getStatus() == TaskStatus.REVIEW).count();
         long dueSoonTasks = tasks.stream()
                 .filter(task -> task.getStatus() != TaskStatus.DONE)
                 .filter(task -> task.getDeadline() != null)
@@ -87,6 +88,7 @@ public class MemberServiceImpl implements MemberService {
                 .totalAssignedTasks(tasks.size())
                 .completedTasks(completedTasks)
                 .inProgressTasks(inProgressTasks)
+                .reviewTasks(reviewTasks)
                 .dueSoonTasks(dueSoonTasks)
                 .overdueTasks(overdueTasks)
                 .tasks(tasks.stream().map(MemberTaskResponse::fromEntity).toList())
@@ -148,5 +150,38 @@ public class MemberServiceImpl implements MemberService {
                             .build();
                 })
                 .toList();
+    }
+
+    @Override
+    @Transactional
+    public MemberTaskResponse updateTaskStatus(Authentication authentication, Long taskId, TaskStatus status) {
+        String email = com.example.taskmanagement.security.AuthEmailExtractor.extractEmail(authentication);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+
+        WorkspaceMembership membership = resolveActiveMembership(authentication, user);
+        if (membership == null) {
+            throw new IllegalStateException("No active workspace membership found");
+        }
+
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Task not found"));
+
+        Long taskWorkspaceId = task.getProject().getWorkspace().getId();
+        if (!taskWorkspaceId.equals(membership.getWorkspace().getId())) {
+            throw new IllegalStateException("Task is outside your active workspace");
+        }
+
+        if (task.getAssignee() == null || !task.getAssignee().getId().equals(user.getId())) {
+            throw new IllegalStateException("You can only update tasks assigned to you");
+        }
+
+        if (status == null) {
+            throw new IllegalArgumentException("Task status is required");
+        }
+
+        task.setStatus(status);
+        taskRepository.save(task);
+        return MemberTaskResponse.fromEntity(task);
     }
 }

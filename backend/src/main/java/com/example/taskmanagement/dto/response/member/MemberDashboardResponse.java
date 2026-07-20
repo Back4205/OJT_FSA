@@ -23,6 +23,7 @@ public class MemberDashboardResponse {
     private long totalAssignedTasks;
     private long completedTasks;
     private long inProgressTasks;
+    private long reviewTasks;
     private long dueSoonTasks;
     private long overdueTasks;
     private List<MemberTaskResponse> tasks;

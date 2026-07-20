@@ -199,7 +199,9 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(Authentication authentication) {
+    public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(
+            Authentication authentication,
+            HttpServletResponse response) {
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || authentication instanceof AnonymousAuthenticationToken) {
@@ -214,6 +216,17 @@ public class AuthController {
                 activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
             }
             UserResponse userResponse = authService.getCurrentUserByEmail(email, activeWorkspaceId);
+
+            // Keep the access token aligned with the latest role stored in DB.
+            // This avoids stale cookies causing 403 on role-gated screens after
+            // a user is promoted to SUPER_ADMIN (or changes workspace role).
+            String refreshedToken = jwtService.generateToken(
+                    userResponse.getEmail(),
+                    userResponse.getRole().name(),
+                    userResponse.getWorkspaceId()
+            );
+            cookieUtil.addTokenCookie(response, refreshedToken, jwtService.getExpirationSeconds());
+
             return ResponseEntity.ok(ApiResponse.success("OK", userResponse));
         } catch (IllegalStateException e) {
             SecurityContextHolder.clearContext();

@@ -28,10 +28,46 @@ export interface AdminWorkspaceSummaryResponse {
   name: string;
   description?: string;
   active: boolean;
-  memberCount: number;
 }
 
-interface PageResponse<T> {
+export interface AdminMembershipResponse {
+  membershipId: number;
+  userId: number;
+  username: string;
+  email: string;
+  workspaceId: number;
+  workspaceName: string;
+  role: string;
+  active: boolean;
+}
+
+export interface AdminUserDetailResponse {
+  id: number;
+  username: string;
+  email: string;
+  provider: string;
+  active: boolean;
+  superAdmin: boolean;
+  emailVerified: boolean;
+  membershipCount: number;
+  activeMembershipCount: number;
+  memberships: AdminMembershipResponse[];
+}
+
+export interface AdminWorkspaceDetailResponse {
+  id: number;
+  name: string;
+  description?: string;
+  active: boolean;
+  memberCount: number;
+  activeMemberCount: number;
+  workspaceAdminCount: number;
+  leaderCount: number;
+  regularMemberCount: number;
+  memberships: AdminMembershipResponse[];
+}
+
+export interface PageResponse<T> {
   content: T[];
   pageNumber: number;
   pageSize: number;
@@ -52,8 +88,28 @@ export const adminService = {
     return response.data.data;
   },
 
+  getUser: async (userId: number): Promise<AdminUserDetailResponse> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data.data;
+  },
+
+  getUserMemberships: async (userId: number, params?: { page?: number; size?: number }): Promise<PageResponse<AdminMembershipResponse>> => {
+    const response = await api.get(`/admin/users/${userId}/memberships`, { params });
+    return response.data.data;
+  },
+
   getWorkspaces: async (params?: { search?: string; active?: boolean; page?: number; size?: number }): Promise<PageResponse<AdminWorkspaceSummaryResponse>> => {
     const response = await api.get("/admin/workspaces", { params });
+    return response.data.data;
+  },
+
+  getWorkspace: async (workspaceId: number): Promise<AdminWorkspaceDetailResponse> => {
+    const response = await api.get(`/admin/workspaces/${workspaceId}`);
+    return response.data.data;
+  },
+
+  getWorkspaceMembers: async (workspaceId: number, params?: { page?: number; size?: number }): Promise<PageResponse<AdminMembershipResponse>> => {
+    const response = await api.get(`/admin/workspaces/${workspaceId}/members`, { params });
     return response.data.data;
   },
 

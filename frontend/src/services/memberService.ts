@@ -6,7 +6,7 @@ export interface MemberTaskResponse {
   description?: string;
   projectName?: string;
   priority: "LOW" | "MEDIUM" | "HIGH";
-  status: "TODO" | "IN_PROGRESS" | "DONE";
+  status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   deadline?: string | null;
 }
 
@@ -27,6 +27,7 @@ export interface MemberDashboardResponse {
   totalAssignedTasks: number;
   completedTasks: number;
   inProgressTasks: number;
+  reviewTasks: number;
   dueSoonTasks: number;
   overdueTasks: number;
   tasks: MemberTaskResponse[];
@@ -36,6 +37,11 @@ export interface MemberDashboardResponse {
 export const memberService = {
   getDashboard: async (): Promise<MemberDashboardResponse> => {
     const response = await api.get("/member/dashboard");
+    return response.data.data;
+  },
+
+  updateTaskStatus: async (taskId: number, status: MemberTaskResponse["status"]): Promise<MemberTaskResponse> => {
+    const response = await api.patch(`/member/tasks/${taskId}/status`, { status });
     return response.data.data;
   }
 };

@@ -5,9 +5,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class CookieUtil {
+
+    private final JwtService jwtService;
 
     @Value("${jwt.cookie-name}")
     private String cookieName;
@@ -27,6 +31,17 @@ public class CookieUtil {
                 .maxAge(maxAgeSeconds)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
+
+        // Keep a root-path copy in sync so we do not accidentally keep an old
+        // access_token alive from a previous dev session or path change.
+        ResponseCookie rootCookie = ResponseCookie.from(cookieName, token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(maxAgeSeconds)
+                .build();
+        response.addHeader("Set-Cookie", rootCookie.toString());
     }
 
     public void clearTokenCookie(jakarta.servlet.http.HttpServletResponse response) {
@@ -38,6 +53,15 @@ public class CookieUtil {
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
+
+        ResponseCookie rootCookie = ResponseCookie.from(cookieName, "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", rootCookie.toString());
     }
 
     public String extractTokenFromCookies(HttpServletRequest request) {
@@ -45,12 +69,30 @@ public class CookieUtil {
         if (cookies == null) {
             return null;
         }
+
+        String fallbackToken = null;
         for (Cookie cookie : cookies) {
             if (cookieName.equals(cookie.getName())) {
-                return cookie.getValue();
+                String token = cookie.getValue();
+                if (token == null || token.isBlank()) {
+                    continue;
+                }
+
+                if (fallbackToken == null) {
+                    fallbackToken = token;
+                }
+
+                try {
+                    String role = jwtService.extractRole(token);
+                    if ("SUPER_ADMIN".equalsIgnoreCase(role)) {
+                        return token;
+                    }
+                } catch (Exception ignored) {
+                    // Ignore malformed tokens and keep scanning for a valid one.
+                }
             }
         }
-        return null;
+        return fallbackToken;
     }
 
     public void addRefreshTokenCookie(jakarta.servlet.http.HttpServletResponse response, String token, long maxAgeSeconds) {
@@ -62,6 +104,15 @@ public class CookieUtil {
                 .maxAge(maxAgeSeconds)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
+
+        ResponseCookie rootCookie = ResponseCookie.from("refresh_token", token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(maxAgeSeconds)
+                .build();
+        response.addHeader("Set-Cookie", rootCookie.toString());
     }
 
     public void clearRefreshTokenCookie(jakarta.servlet.http.HttpServletResponse response) {
@@ -73,6 +124,15 @@ public class CookieUtil {
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", cookie.toString());
+
+        ResponseCookie rootCookie = ResponseCookie.from("refresh_token", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .sameSite("Lax")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", rootCookie.toString());
     }
 
     public String extractRefreshTokenFromCookies(HttpServletRequest request) {

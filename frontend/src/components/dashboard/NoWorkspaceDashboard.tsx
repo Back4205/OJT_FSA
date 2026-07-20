@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { workspaceService } from "../../services/workspaceService";
+import type { UserWorkspaceResponse } from "../../services/workspaceService";
 import styles from "./NoWorkspaceDashboard.module.css";
+
+const WORKSPACE_ENTRY_MODE_KEY = "taskmanager.workspace.entry-mode";
 
 const NoWorkspaceDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
-  const [activeTab, setActiveTab] = useState<"join" | "create" | "profile">("join");
+  const [activeTab, setActiveTab] = useState<"join" | "create" | "workspaces" | "profile">("join");
   
   // Form states
   const [inviteCode, setInviteCode] = useState<string>("");
@@ -14,9 +17,12 @@ const NoWorkspaceDashboard: React.FC = () => {
 
   // UI state
   const [loading, setLoading] = useState<boolean>(false);
+  const [workspacesLoading, setWorkspacesLoading] = useState<boolean>(true);
   const [successMsg, setSuccessMsg] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [userDropdownOpen, setUserDropdownOpen] = useState<boolean>(false);
+  const [workspaceSwitchingId, setWorkspaceSwitchingId] = useState<number | null>(null);
+  const [userWorkspaces, setUserWorkspaces] = useState<UserWorkspaceResponse[]>([]);
 
   useEffect(() => {
     if (successMsg || errorMsg) {
@@ -27,6 +33,21 @@ const NoWorkspaceDashboard: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [successMsg, errorMsg]);
+
+  useEffect(() => {
+    const loadWorkspaces = async () => {
+      try {
+        const data = await workspaceService.getUserWorkspaces();
+        setUserWorkspaces(data);
+      } catch {
+        setUserWorkspaces([]);
+      } finally {
+        setWorkspacesLoading(false);
+      }
+    };
+
+    loadWorkspaces();
+  }, []);
 
   // Join workspace handler
   const handleJoinWorkspace = async (e: React.FormEvent) => {
@@ -51,13 +72,13 @@ const NoWorkspaceDashboard: React.FC = () => {
     }
   };
 
-  // Create workspace handler
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWsName.trim()) {
       setErrorMsg("Tên Workspace không được để trống.");
       return;
     }
+
     setLoading(true);
     setErrorMsg("");
     try {
@@ -65,13 +86,33 @@ const NoWorkspaceDashboard: React.FC = () => {
       setSuccessMsg("Khởi tạo Workspace mới thành công! Đang chuyển hướng...");
       setNewWsName("");
       setNewWsDesc("");
-      await checkAuth(); // Đồng bộ trạng thái user
+      await checkAuth();
       setTimeout(() => {
-        window.location.reload(); // Tải lại trang để cập nhật JWT context mới
+        window.location.reload();
       }, 1000);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Tạo Workspace thất bại. Vui lòng thử một tên khác.");
       setLoading(false);
+    }
+  };
+
+  const handleSwitchWorkspace = async (workspaceId: number) => {
+    if (workspaceSwitchingId === workspaceId) {
+      return;
+    }
+
+    setWorkspaceSwitchingId(workspaceId);
+    setErrorMsg("");
+    try {
+      localStorage.setItem(WORKSPACE_ENTRY_MODE_KEY, "workspace");
+      await workspaceService.switchWorkspace(workspaceId);
+      await checkAuth();
+      setSuccessMsg("Đã chuyển sang workspace đã chọn.");
+      window.location.reload();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Chuyển workspace thất bại.");
+      localStorage.removeItem(WORKSPACE_ENTRY_MODE_KEY);
+      setWorkspaceSwitchingId(null);
     }
   };
 
@@ -122,6 +163,14 @@ const NoWorkspaceDashboard: React.FC = () => {
           >
             <i className={`bi bi-plus-circle-fill ${styles["menu-item-icon"]}`}></i>
             <span>Create workspace</span>
+          </div>
+
+          <div
+            className={`${styles["menu-item"]} ${activeTab === "workspaces" ? styles["active"] : ""}`}
+            onClick={() => setActiveTab("workspaces")}
+          >
+            <i className={`bi bi-grid-3x3-gap-fill ${styles["menu-item-icon"]}`}></i>
+            <span>My workspaces</span>
           </div>
 
           <div
@@ -262,7 +311,45 @@ const NoWorkspaceDashboard: React.FC = () => {
             </>
           )}
 
-          {/* TAB 3: PROFILE */}
+          {/* TAB 3: MY WORKSPACES */}
+          {activeTab === "workspaces" && (
+            <>
+              <div className={styles["page-header"]}>
+                <h1 className={styles["header-title"]}>My workspaces</h1>
+                <p className={styles["header-subtitle"]}>Chọn một workspace để chuyển sang vai trò tương ứng trong workspace đó.</p>
+              </div>
+
+              <div className={styles["workspace-section"]}>
+                <div className={styles["workspace-list"]}>
+                  {workspacesLoading && <div className={styles["workspace-empty"]}>Đang tải danh sách workspace...</div>}
+
+                  {!workspacesLoading && userWorkspaces.length === 0 && (
+                    <div className={styles["workspace-empty"]}>Bạn chưa tham gia workspace nào.</div>
+                  )}
+
+                  {userWorkspaces.map((workspace) => (
+                    <button
+                      key={workspace.workspaceId}
+                      type="button"
+                      className={styles["workspace-card"]}
+                      onClick={() => void handleSwitchWorkspace(workspace.workspaceId)}
+                      disabled={workspaceSwitchingId === workspace.workspaceId}
+                    >
+                      <div className={styles["workspace-card-main"]}>
+                        <div className={styles["workspace-card-title"]}>{workspace.workspaceName}</div>
+                        <div className={styles["workspace-card-role"]}>{workspace.roleName}</div>
+                      </div>
+                      <span className={styles["workspace-card-action"]}>
+                        {workspaceSwitchingId === workspace.workspaceId ? "Switching..." : "Open"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 4: PROFILE */}
           {activeTab === "profile" && (
             <>
               <div className={styles["page-header"]}>
