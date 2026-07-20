@@ -286,6 +286,49 @@ const WorkspaceAdminDashboard: React.FC = () => {
     }
   };
 
+  const handleAddToProjectDetail = async (projectId: number, userId: number) => {
+    try {
+      await workspaceService.addProjectMember(projectId, userId);
+      setSuccessMsg("Đã thêm thành viên vào dự án thành công.");
+      // Nạp lại thành viên và dự án
+      const membersData = await workspaceService.getMembers();
+      setMembers(membersData);
+      const projectsData = await workspaceService.getProjects();
+      setProjects(projectsData);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể thêm thành viên vào dự án.");
+    }
+  };
+
+  const handleRemoveFromProjectDetail = async (projectId: number, userId: number) => {
+    if (!window.confirm("Bạn có chắc chắn muốn gỡ thành viên này khỏi dự án?")) return;
+    try {
+      await workspaceService.removeProjectMember(projectId, userId);
+      setSuccessMsg("Đã loại bỏ thành viên ra khỏi dự án.");
+      // Nạp lại thành viên và dự án
+      const membersData = await workspaceService.getMembers();
+      setMembers(membersData);
+      const projectsData = await workspaceService.getProjects();
+      setProjects(projectsData);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể xóa thành viên khỏi dự án.");
+    }
+  };
+
+  const handleUpdateProjectRole = async (projectId: number, userId: number, newRole: "LEADER" | "MEMBER") => {
+    try {
+      await workspaceService.updateProjectMemberRole(projectId, userId, newRole);
+      setSuccessMsg("Cập nhật vai trò thành viên trong dự án thành công.");
+      // Nạp lại thành viên và dự án
+      const membersData = await workspaceService.getMembers();
+      setMembers(membersData);
+      const projectsData = await workspaceService.getProjects();
+      setProjects(projectsData);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể cập nhật vai trò dự án.");
+    }
+  };
+
   // Cập nhật thông tin Workspace hiện tại (settings)
   const [wsName, setWsName] = useState<string>("");
   const [wsDesc, setWsDesc] = useState<string>("");
@@ -1104,45 +1147,76 @@ const WorkspaceAdminDashboard: React.FC = () => {
                               </span>
                             </td>
                             <td>
-                              {member.projects && member.projects.length > 0 ? (
-                                <div className={styles["projects-tag-list"]}>
-                                  {member.projects.map((proj, idx) => (
-                                    <span key={idx} className={styles["project-member-tag"]}>
-                                      {proj}
+                              <div className={styles["projects-tag-list"]} style={{ alignItems: "center" }}>
+                                {member.projects && member.projects.map((proj) => (
+                                  <div key={proj.projectId} className={styles["project-member-tag-card"]}>
+                                    <span className={styles["project-name"]}>{proj.projectName}</span>
+                                    <span className={`${styles["project-role-badge"]} ${proj.roleInProject === 'LEADER' ? styles["leader"] : styles["member"]}`}>
+                                      {proj.roleInProject === 'LEADER' ? 'Leader' : 'Member'}
                                     </span>
-                                  ))}
-                                </div>
-                              ) : (
-                                <span style={{ color: "var(--admin-text-muted)", fontStyle: "italic", fontSize: "0.78rem" }}>—</span>
-                              )}
+                                    
+                                    {/* Đổi vai trò dự án */}
+                                    {member.roleName !== "WORKSPACE_ADMIN" && (
+                                      <button 
+                                        className={styles["tag-action-btn"]}
+                                        title={proj.roleInProject === 'LEADER' ? "Demote to Member" : "Promote to Leader"}
+                                        onClick={() => handleUpdateProjectRole(proj.projectId, member.userId, proj.roleInProject === 'LEADER' ? 'MEMBER' : 'LEADER')}
+                                      >
+                                        <i className={proj.roleInProject === 'LEADER' ? "bi bi-arrow-down-circle-fill" : "bi bi-arrow-up-circle-fill"}></i>
+                                      </button>
+                                    )}
+                                    
+                                    {/* Banned/Removed cụ thể theo dự án */}
+                                    {member.roleName !== "WORKSPACE_ADMIN" && (
+                                      <button 
+                                        className={`${styles["tag-action-btn"]} ${styles["danger"]}`}
+                                        title="Remove from Project"
+                                        onClick={() => handleRemoveFromProjectDetail(proj.projectId, member.userId)}
+                                      >
+                                        <i className="bi bi-x-circle-fill"></i>
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                
+                                {/* Chọn để thêm vào dự án mới */}
+                                {member.roleName !== "WORKSPACE_ADMIN" && (
+                                  <div className={styles["add-to-project-wrapper"]}>
+                                    <select
+                                      className={styles["add-to-project-select"]}
+                                      value=""
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          handleAddToProjectDetail(Number(e.target.value), member.userId);
+                                        }
+                                      }}
+                                    >
+                                      <option value="">+ Add to Project</option>
+                                      {projects
+                                        .filter(p => !member.projects?.some(mp => mp.projectId === p.id))
+                                        .map(p => (
+                                          <option key={p.id} value={p.id}>{p.name}</option>
+                                        ))
+                                      }
+                                    </select>
+                                  </div>
+                                )}
+
+                                {(!member.projects || member.projects.length === 0) && member.roleName === "WORKSPACE_ADMIN" && (
+                                  <span style={{ color: "var(--admin-text-muted)", fontStyle: "italic", fontSize: "0.78rem" }}>—</span>
+                                )}
+                              </div>
                             </td>
                             <td>
                               {member.roleName !== "WORKSPACE_ADMIN" && (
                                 <div className={styles["actions-cell-buttons"]}>
-                                  {member.roleName === "LEADER" ? (
-                                    <button
-                                      className={styles["btn-secondary"]}
-                                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                      onClick={() => handleUpdateRole(member.userId, "MEMBER")}
-                                    >
-                                      Demote to Member
-                                    </button>
-                                  ) : (
-                                    <button
-                                      className={styles["btn-primary"]}
-                                      style={{ padding: "4px 8px", fontSize: "0.75rem" }}
-                                      onClick={() => handleUpdateRole(member.userId, "LEADER")}
-                                    >
-                                      Promote to Leader
-                                    </button>
-                                  )}
-
                                   <button
-                                    className={`${styles["btn-icon-action"]} ${member.active ? styles["danger"] : styles["success"]}`}
-                                    title={member.active ? "Deactivate" : "Activate"}
+                                    className={`${styles["btn-workspace-toggle"]} ${member.active ? styles["danger"] : styles["success"]}`}
+                                    title={member.active ? "Disable all WorkSpace" : "Enable all WorkSpace"}
                                     onClick={() => handleToggleMemberStatus(member.userId, member.active)}
                                   >
-                                    <i className={member.active ? "bi bi-eye-slash-fill" : "bi bi-check-circle-fill"}></i>
+                                    <i className={member.active ? "bi bi-lock-fill" : "bi bi-unlock-fill"}></i>
+                                    {member.active ? "Disable all WorkSpace" : "Enable all WorkSpace"}
                                   </button>
                                 </div>
                               )}

@@ -246,6 +246,26 @@ public class WorkspaceAdminController {
     }
 
     /**
+     * Cập nhật vai trò (Thăng chức / Hạ chức) cho một thành viên trong một dự án của Workspace.
+     */
+    @PutMapping("/projects/{projectId}/members/{userId}/role")
+    public ResponseEntity<ApiResponse<Void>> updateProjectMemberRole(
+            @CurrentWorkspaceId Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long userId,
+            @Valid @RequestBody MemberRoleUpdateRequest request) {
+        if (workspaceId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+        }
+        try {
+            workspaceAdminService.updateProjectMemberRole(workspaceId, projectId, userId, request);
+            return ResponseEntity.ok(ApiResponse.success("Cập nhật vai trò trong dự án thành công", null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
      * Lấy các số liệu thống kê tổng hợp phục vụ hiển thị Dashboard của Workspace.
      * @param workspaceId ID của workspace đang đăng nhập
      * @return ApiResponse chứa DashboardStatsResponse (Tổng số dự án, thành viên, và phân bố các trạng thái/mức ưu tiên)

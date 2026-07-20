@@ -79,9 +79,12 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                     return true;
                 })
                 .map(m -> {
-                    List<String> userProjects = projects.stream()
-                            .filter(p -> p.getMembers().contains(m.getUser()))
-                            .map(com.example.taskmanagement.model.Project::getName)
+                    List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                            .filter(p -> p.getMembers().contains(m.getUser()) || p.getLeader().equals(m.getUser()))
+                            .map(p -> {
+                                String role = p.getLeader().equals(m.getUser()) ? "LEADER" : "MEMBER";
+                                return new MembershipResponse.ProjectDetail(p.getId(), p.getName(), role);
+                            })
                             .collect(Collectors.toList());
                     return MembershipResponse.fromEntity(m, userProjects);
                 })
@@ -185,12 +188,50 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         WorkspaceMembership savedMembership = workspaceMembershipRepository.save(membership);
 
         List<com.example.taskmanagement.model.Project> projects = projectRepository.findByWorkspaceId(workspaceId);
-        List<String> userProjects = projects.stream()
-                .filter(p -> p.getMembers().contains(savedMembership.getUser()))
-                .map(com.example.taskmanagement.model.Project::getName)
+        List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                .filter(p -> p.getMembers().contains(savedMembership.getUser()) || p.getLeader().equals(savedMembership.getUser()))
+                .map(p -> {
+                    String role = p.getLeader().equals(savedMembership.getUser()) ? "LEADER" : "MEMBER";
+                    return new MembershipResponse.ProjectDetail(p.getId(), p.getName(), role);
+                })
                 .collect(Collectors.toList());
 
         return MembershipResponse.fromEntity(savedMembership, userProjects);
+    }
+
+    @Override
+    @Transactional
+    public void updateProjectMemberRole(Long workspaceId, Long projectId, Long userId, MemberRoleUpdateRequest request) {
+        Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
+                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này"));
+
+        RoleName newRole;
+        try {
+            newRole = RoleName.valueOf(request.getRoleName().trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("Vai trò đổi mới không hợp lệ. Chỉ chấp nhận LEADER hoặc MEMBER");
+        }
+
+        if (newRole == RoleName.LEADER) {
+            // Thăng chức làm Leader dự án
+            // add user vào project members nếu chưa có
+            project.getMembers().add(user);
+            // set làm leader
+            project.setLeader(user);
+        } else if (newRole == RoleName.MEMBER) {
+            // Hạ chức xuống làm Member dự án
+            // Kiểm tra xem hiện tại user đó có phải leader không
+            if (project.getLeader().getId().equals(userId)) {
+                throw new IllegalArgumentException("Không thể trực tiếp hạ chức Project Leader. Vui lòng thăng chức thành viên khác làm Leader trước.");
+            }
+            // Nếu không phải leader thì họ đã là Member rồi, không cần làm gì thêm nhưng để an tâm cứ add vào members set
+            project.getMembers().add(user);
+        }
+
+        projectRepository.save(project);
     }
 
     @Override
@@ -331,4 +372,10 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 .tasksByPriority(tasksByPriority)
                 .build();
     }
+
+    // @Override
+    // public ProjectResponse changeProjectLeader(Long workspaceId, Long projectId, Long newLeaderUserId) {
+    //     // TODO Auto-generated method stub
+    //     throw new UnsupportedOperationException("Unimplemented method 'changeProjectLeader'");
+    // }
 }
