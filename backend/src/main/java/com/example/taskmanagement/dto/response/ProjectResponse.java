@@ -32,6 +32,11 @@ public class ProjectResponse {
         private String email;
     }
 
+    /** Alias for fromEntity() — kept for backward compatibility with ProjectServiceImpl. */
+    public static ProjectResponse from(Project project) {
+        return fromEntity(project);
+    }
+
     public static ProjectResponse fromEntity(Project project) {
         List<UserSummaryResponse> memberList = project.getMembers().stream()
                 .map(m -> new UserSummaryResponse(m.getId(), m.getUsername(), m.getEmail()))
