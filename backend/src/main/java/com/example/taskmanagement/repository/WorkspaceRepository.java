@@ -7,4 +7,5 @@ import java.util.Optional;
 public interface WorkspaceRepository extends JpaRepository<Workspace, Long> {
     Optional<Workspace> findByName(String name);
     boolean existsByName(String name);
+    Optional<Workspace> findByInviteCode(String inviteCode);
 }

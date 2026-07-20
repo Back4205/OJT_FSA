@@ -1,0 +1,286 @@
+# Implementation Plan: WORKSPACE_ADMIN API Suite
+
+Tài liệu này phác thảo kế hoạch chi tiết, đầy đủ và bảo mật nhất để triển khai các API dành riêng cho vai trò **WORKSPACE_ADMIN** (Quản trị viên của Workspace/Công ty) trong mô hình kiến trúc SaaS Multi-Tenant (Đa cơ sở thuê).
+
+---
+
+## 1. Giải thích thiết kế: JWT có cần mang `workspaceId` và `role` hay không?
+
+> [!TIP]
+> **Câu trả lời ngắn gọn:** **CỰC KỲ CẦN THIẾT.** Đây là thiết kế chuẩn mực nhất trong hệ thống Multi-Tenant để đạt hiệu năng tối đa và bảo mật chặt chẽ.
+
+Dưới đây là phân tích chi tiết tại sao hai thông tin này cần nằm trong JWT Claims:
+
+### A. Tại sao cần mang `workspaceId`?
+1. **Thiết lập ngữ cảnh hoạt động (Active Context):** Trong một hệ thống SaaS, một người dùng có thể tham gia vào nhiều Workspace (ví dụ: công ty đối tác, công ty con, dự án ngoài). Khi họ gọi API, hệ thống cần biết hành động này đang được thực hiện **ở Workspace nào**.
+2. **Ký số bảo mật (Tamper-proof):** Nếu gửi `workspaceId` qua HTTP Header thông thường (như `X-Workspace-Id`), người dùng tinh nghịch có thể chỉnh sửa header này để truy cập workspace khác. Khi đặt trong JWT được ký số bằng mã khóa bí mật ở backend, giá trị này **không thể bị giả mạo**. Nếu client cố tình thay đổi, chữ ký JWT sẽ trở nên không hợp lệ ngay lập tức.
+3. **Stateless hiệu quả:** Backend lấy ra `activeWorkspaceId` từ JWT lập tức mà không cần thực hiện thêm một câu lệnh SQL quét DB để biết người dùng đang thao tác tại không gian làm việc nào.
+
+### B. Tại sao cần mang ẩn vai trò `role` (ví dụ: WORKSPACE_ADMIN, MEMBER)?
+1. **Tối ưu hóa hiệu năng (Không nghẽn cổ chai Database):** Nếu JWT *chỉ* chứa email của user:
+   * Mỗi khi request gọi API (ví dụ: lấy danh sách nhiệm vụ, chỉnh sửa project), Spring Security cần kiểm tra quyền hạn của người đó.
+   * Do mỗi Workspace người dùng có một vai trò khác nhau (là Admin ở Workspace A, nhưng chỉ là Member ở Workspace B), backend buộc phải query bảng `workspace_memberships` để tìm vai trò của họ ứng với Workspace đó.
+   * **Hệ quả cực đoan:** Nếu hệ thống có 10,000 requests/giây, database sẽ phải gánh thêm đúng 10,000 truy vấn chỉ để kiểm tra quyền hạn (Authorization check).
+   * **Giải pháp:** Lưu `role` đại diện cho Workspace đó vào JWT. Lớp bảo mật `JwtAuthenticationFilter` giải mã ra quyền hạn (Authorities) và gán thẳng vào `SecurityContext` của Spring mà **không cần chạm vào Database** trong suốt request.
+
+### C. Giải quyết điểm yếu của JWT (Role cập nhật trễ)
+* **Vấn đề:** Nếu người dùng bị hạ quyền từ `WORKSPACE_ADMIN` xuống `MEMBER`, JWT cũ của họ vẫn còn hạn (ví dụ: 15-30 phút). Họ vẫn có thể thực hiện hành vi Quản trị.
+* **Cách khắc phục:** 
+  1. Với các API đọc dữ liệu (Read-only): Cho phép sử dụng quyền trong JWT để đảm bảo tốc độ tải trang nhanh nhất.
+  2. Với các API ghi dữ liệu quan trọng (Write/Delete): Service cần kiểm tra lại một lần nữa trạng thái thực tế từ Repository trước khi lưu đổi (State-verification).
+  3. Khi đổi workspace hoặc phân lại quyền, gọi cơ chế **xoay vòng token (Refresh Token / Switch Workspace)** để phát hành JWT mới có thông tin chính xác nhất.
+
+---
+
+## 2. Mô hình thực thể cơ sở dữ liệu (Database Schema)
+
+Dưới đây là mối quan hệ giữa các thực thể liên quan trực tiếp đến Workspace mà `WORKSPACE_ADMIN` sẽ quản lý:
+
+```mermaid
+classDiagram
+    class User {
+        +Long id
+        +String username
+        +String email
+        +boolean isActive
+    }
+
+    class Workspace {
+        +Long id
+        +String name
+        +String description
+        +boolean isActive
+    }
+    
+    class Role {
+        +Long id
+        +RoleName name [SUPER_ADMIN, WORKSPACE_ADMIN, LEADER, MEMBER]
+    }
+
+    class WorkspaceMembership {
+        +Long id
+        +User user
+        +Workspace workspace
+        +Role role
+        +boolean isActive
+    }
+
+    class Project {
+        +Long id
+        +String name
+        +String description
+        +User leader
+        +Workspace workspace
+    }
+
+    User "1" --* "many" WorkspaceMembership : Has
+    Workspace "1" --* "many" WorkspaceMembership : Has
+    Role "1" --* "many" WorkspaceMembership : Bound
+    Workspace "1" --* "many" Project : Contains
+    User "1" --* "many" Project : Leads
+```
+
+---
+
+## 3. Kiến trúc Bảo mật (Security Isolation)
+
+Để triển khai chuyên nghiệp nhất, chúng ta sẽ tùy biến lại `UserDetails` của Spring Security để mang theo `activeWorkspaceId` trong Suốt Vòng Đời Request.
+
+### Bước 1: Tạo `CustomUserDetails` lưu giữ metadata
+Thay vì dùng class mặc định của Spring `org.springframework.security.core.userdetails.User`, hãy tạo một class bọc:
+
+```java
+package com.example.taskmanagement.security;
+
+import com.example.taskmanagement.model.User;
+import lombok.Getter;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import java.util.Collection;
+
+@Getter
+public class CustomUserDetails implements UserDetails {
+    private final User user;
+    private final Long activeWorkspaceId;
+    private final Collection<? extends GrantedAuthority> authorities;
+
+    public CustomUserDetails(User user, Long activeWorkspaceId, Collection<? extends GrantedAuthority> authorities) {
+        this.user = user;
+        this.activeWorkspaceId = activeWorkspaceId;
+        this.authorities = authorities;
+    }
+
+    @Override public String getUsername() { return user.getEmail(); }
+    @Override public String getPassword() { return user.getPassword(); }
+    @Override public boolean isEnabled() { return user.isActive(); }
+    @Override public boolean isAccountNonExpired() { return true; }
+    @Override public boolean isAccountNonLocked() { return true; }
+    @Override public boolean isCredentialsNonExpired() { return true; }
+}
+```
+
+### Bước 2: Cập nhật `UserDetailsServiceImpl` để trả về `CustomUserDetails`
+```java
+@Override
+public UserDetails loadUserByUsername(String principal) throws UsernameNotFoundException {
+    // ... logic phân tách email và workspaceId ...
+    
+    // Tạo danh sách Quyền từ activeRole (Ví dụ: ROLE_WORKSPACE_ADMIN)
+    List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + activeRole));
+    
+    return new CustomUserDetails(user, workspaceId, authorities);
+}
+```
+
+### Bước 3: Tạo Annotation `@CurrentWorkspaceId` để Inject vào Controller nhanh chóng
+```java
+package com.example.taskmanagement.security;
+
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import java.lang.annotation.*;
+
+@Target({ElementType.PARAMETER, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+@AuthenticationPrincipal(expression = "#this instanceof T(com.example.taskmanagement.security.CustomUserDetails) ? activeWorkspaceId : null")
+public @interface CurrentWorkspaceId {
+}
+```
+
+---
+
+## 4. Thiết kế các API Endpoints chi tiết
+
+Toàn bộ các API của `WORKSPACE_ADMIN` đều được bảo vệ bởi `@PreAuthorize("hasRole('WORKSPACE_ADMIN')")`.
+
+### 4.1. Quản lý Workspace Info
+*   **API 1: Lấy thông tin Workspace hiện tại**
+    *   **Route:** `GET /api/workspaces/current`
+    *   **Mô tả:** Lấy thông tin chi tiết tên, mô tả của workspace đang đăng nhập.
+*   **API 2: Cập nhật thông tin Workspace**
+    *   **Route:** `PUT /api/workspaces/current`
+    *   **Request Body:** `{"name": "New Name", "description": "New Desc"}`
+    *   **Mô tả:** Đổi tên hoặc mô tả công ty (chỉ admin của workspace đó mới có quyền).
+
+### 4.2. Quản lý Thành viên (Workspace Member Management)
+*   **API 3: Lấy danh sách thành viên trong Workspace**
+    *   **Route:** `GET /api/workspaces/current/members`
+    *   **Query Params:** `isActive` (optional), `role` (optional)
+    *   **Response:** Danh sách các thành viên kèm thông tin `email`, `username`, `role` (ví dụ: LEADER, MEMBER) và trạng thái hoạt động trong workspace.
+*   **API 4: Thêm/Mời thành viên vào Workspace**
+    *   **Route:** `POST /api/workspaces/current/members`
+    *   **Request Body:** `{"email": "employee@gmail.com", "roleName": "MEMBER"}`
+    *   **Xử lý:** 
+        1. Tìm User theo email. Nếu chưa có tài khoản, báo lỗi hoặc tự động tạo tài khoản nháp.
+        2. Tạo bản ghi `WorkspaceMembership` mới với `workspace_id = activeWorkspaceId`, `role` tương ứng và `isActive = true`.
+*   **API 5: Thay đổi vai trò thành viên**
+    *   **Route:** `PUT /api/workspaces/current/members/{userId}/role`
+    *   **Request Body:** `{"roleName": "LEADER"}`
+    *   **Mô tả:** Thăng chức/hạ chức thành viên (ví dụ: chuyển từ MEMBER lên LEADER).
+*   **API 6: Khóa/Xóa thành viên khỏi Workspace (Soft Delete)**
+    *   **Route:** `DELETE /api/workspaces/current/members/{userId}`
+    *   **Xử lý:** Thiết lập cột `is_active = false` trong bảng `WorkspaceMembership` để người này không đăng nhập vào Workspace được nữa.
+
+### 4.3. Quản lý Dự án (Project Management)
+*   **API 7: Lấy toàn bộ Project trong Workspace**
+    *   **Route:** `GET /api/workspaces/current/projects`
+    *   **Xử lý:** Truy vấn theo `workspaceId` hoạt động.
+*   **API 8: Tạo dự án mới**
+    *   **Route:** `POST /api/workspaces/current/projects`
+    *   **Request Body:** `{"name": "App Mobile", "description": "...", "leaderId": 5}`
+    *   **Bảo mật:** Phải validate `leaderId` có trực thuộc Workspace hiện tại hay không trước khi gán.
+*   **API 9: Gán/Xóa thành viên vào Dự án**
+    *   **Route:** `POST /api/workspaces/current/projects/{projectId}/members` hoặc `DELETE /api/workspaces/current/projects/{projectId}/members/{userId}`
+    *   **Bảo mật:** Kiểm tra `projectId` phải thuộc `activeWorkspaceId`, đồng thời member gán vào cũng phải thuộc `activeWorkspaceId`.
+
+### 4.4. Báo cáo & Thống kê (Dashboard & Analytics)
+*   **API 10: Xem số liệu thống kê chung của workspace**
+    *   **Route:** `GET /api/workspaces/current/dashboard-stats`
+    *   **Mô tả:** Trả về số lượng tổng dự án, tổng thành viên, tổng task chưa hoàn thành/đã hoàn thành để hiển thị biểu đồ trên admin site.
+
+---
+
+## 5. Các bước triển khai Backend cụ thể (Step-by-Step Dev)
+
+### Bước 1: Khai báo DTOs
+Tạo `WorkspaceUpdateRequest.java`, `MemberAddRequest.java`, `MemberRoleUpdateRequest.java`, `ProjectCreateRequest.java`.
+
+### Bước 2: Thiết lập Service
+Viết `WorkspaceAdminService.java` chứa các nghiệp vụ:
+```java
+@Service
+@RequiredArgsConstructor
+public class WorkspaceAdminService {
+    private final WorkspaceRepository workspaceRepository;
+    private final WorkspaceMembershipRepository membershipRepository;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final ProjectRepository projectRepository;
+
+    // Ví dụ: Lấy danh sách member
+    public List<WorkspaceMembership> getMembers(Long workspaceId) {
+        return membershipRepository.findByWorkspaceId(workspaceId);
+    }
+
+    // Ví dụ: Thêm member mới
+    @Transactional
+    public void addMember(Long workspaceId, MemberAddRequest request) {
+        User user = userRepository.findByEmail(request.getEmail())
+            .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            
+        if (membershipRepository.existsByUserIdAndWorkspaceId(user.getId(), workspaceId)) {
+            throw new IllegalArgumentException("User is already a member of this workspace");
+        }
+        
+        Role role = roleRepository.findByName(RoleName.valueOf(request.getRoleName()))
+            .orElseThrow(() -> new IllegalArgumentException("Role not found"));
+
+        Workspace workspace = workspaceRepository.findById(workspaceId).get();
+
+        WorkspaceMembership membership = new WorkspaceMembership();
+        membership.setUser(user);
+        membership.setWorkspace(workspace);
+        membership.setRole(role);
+        membership.setActive(true);
+        membershipRepository.save(membership);
+    }
+}
+```
+
+### Bước 3: Viết Controller (`WorkspaceAdminController.java`)
+Gắn kèm cơ chế phân quyền sử dụng Spring Security.
+
+```java
+@RestController
+@RequestMapping("/api/workspaces/current")
+@PreAuthorize("hasRole('WORKSPACE_ADMIN')")
+@RequiredArgsConstructor
+public class WorkspaceAdminController {
+
+    private final WorkspaceAdminService adminService;
+
+    @GetMapping("/members")
+    public ResponseEntity<?> getWorkspaceMembers(@CurrentWorkspaceId Long workspaceId) {
+        return ResponseEntity.ok(adminService.getMembers(workspaceId));
+    }
+
+    @PostMapping("/members")
+    public ResponseEntity<?> addWorkspaceMember(
+            @CurrentWorkspaceId Long workspaceId,
+            @RequestBody MemberAddRequest request) {
+        adminService.addMember(workspaceId, request);
+        return ResponseEntity.ok("Member added successfully");
+    }
+}
+```
+
+---
+
+## 6. Kế hoạch tích hợp Frontend (UI/UX)
+1. **Workspace Setting Page**: Cho phép admin cập nhật tên, mô tả công ty thông qua form.
+2. **Member Management Interface**:
+   * Bảng hiển thị danh sách nhân viên kèm cột Vai trò (Dropdown: Admin, Leader, Member). Khi thay đổi dropdown -> Gửi API cập nhật lập tức.
+   * Nút hành động "Deactivate" để khóa quyền truy cập của nhân viên.
+   * Form "Invite Member" dạng slide-over hoặc popup nhập địa chỉ email và chọn vai trò.
+3. **Project Hub**:
+   * Nút "Create Project". Form chọn Leader (chỉ hiển thị những ai là LEADER trong Workspace đó) và gán các Member tham gia vào dự án.

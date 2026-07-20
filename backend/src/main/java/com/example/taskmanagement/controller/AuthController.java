@@ -209,12 +209,68 @@ public class AuthController {
 
         try {
             String email = AuthEmailExtractor.extractEmail(authentication);
-            UserResponse userResponse = authService.getCurrentUserByEmail(email);
+            Long activeWorkspaceId = null;
+            if (authentication.getPrincipal() instanceof com.example.taskmanagement.security.CustomUserDetails) {
+                activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
+            }
+            UserResponse userResponse = authService.getCurrentUserByEmail(email, activeWorkspaceId);
             return ResponseEntity.ok(ApiResponse.success("OK", userResponse));
         } catch (IllegalStateException e) {
             SecurityContextHolder.clearContext();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error("User not found or session expired"));
+        }
+    }
+
+    @GetMapping("/workspaces")
+    public ResponseEntity<ApiResponse<java.util.List<com.example.taskmanagement.dto.response.UserWorkspaceResponse>>> getUserWorkspaces(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication instanceof AnonymousAuthenticationToken) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error("Not logged in"));
+        }
+        try {
+            String email = AuthEmailExtractor.extractEmail(authentication);
+            var workspaces = authService.getUserWorkspaces(email);
+            return ResponseEntity.ok(ApiResponse.success("Success", workspaces));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/create-workspace")
+    public ResponseEntity<ApiResponse<UserResponse>> createWorkspace(
+            Authentication authentication,
+            @RequestParam String name,
+            @RequestParam(required = false) String description,
+            HttpServletResponse response) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Not authenticated"));
+        }
+        try {
+            String email = AuthEmailExtractor.extractEmail(authentication);
+            UserResponse userResponse = authService.createNewWorkspace(email, name, description, response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Workspace created successfully", userResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/join-workspace")
+    public ResponseEntity<ApiResponse<UserResponse>> joinWorkspace(
+            Authentication authentication,
+            @RequestParam String inviteCode,
+            HttpServletResponse response) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Not authenticated"));
+        }
+        try {
+            String email = AuthEmailExtractor.extractEmail(authentication);
+            UserResponse userResponse = authService.joinWorkspaceWithInviteCode(email, inviteCode, response);
+            return ResponseEntity.ok(ApiResponse.success("Joined workspace successfully", userResponse));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 }

@@ -54,11 +54,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
             }
         }
 
-        return org.springframework.security.core.userdetails.User
-                .withUsername(user.getEmail())
-                .password(user.getPassword() != null ? user.getPassword() : "")
-                .roles(activeRole)
-                .disabled(isUserDisabled)
-                .build();
+        java.util.List<org.springframework.security.core.authority.SimpleGrantedAuthority> authorities = java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + activeRole));
+
+        return new CustomUserDetails(
+                user,
+                workspaceId,
+                authorities,
+                !isUserDisabled
+        );
     }
 }
