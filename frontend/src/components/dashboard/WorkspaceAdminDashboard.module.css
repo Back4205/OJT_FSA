@@ -28,7 +28,8 @@
 /* Base Layout */
 .admin-layout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   background-color: var(--admin-bg);
   color: var(--admin-text-main);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -46,6 +47,8 @@
   border-right: 1px solid #1e293b;
   z-index: 100;
   position: relative;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .sidebar-header {
@@ -362,7 +365,8 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  overflow-y: auto;
+  height: 100vh;
+  overflow: hidden;
 }
 
 /* Topbar Header */
@@ -560,6 +564,7 @@
 .content-body {
   padding: 32px;
   flex-grow: 1;
+  overflow-y: auto;
 }
 
 .page-header {

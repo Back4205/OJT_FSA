@@ -762,9 +762,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   <span className={styles["header-subtitle"]}>Welcome back — here's what's happening today.</span>
                 </div>
                 <div className={styles["page-header-actions"]}>
-                  <button className={styles["btn-secondary"]}>
+                  {/* <button className={styles["btn-secondary"]}>
                     <i className="bi bi-download"></i> Export data
-                  </button>
+                  </button> */}
                   <button
                     className={styles["btn-primary"]}
                     onClick={() => setShowProjModal(true)}
