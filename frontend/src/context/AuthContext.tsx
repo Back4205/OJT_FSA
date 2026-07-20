@@ -3,7 +3,6 @@ import api from "../services/api";
 import type { User, AuthContextType } from "../types/auth";
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const WORKSPACE_ENTRY_MODE_KEY = "taskmanager.workspace.entry-mode";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -21,7 +20,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const login = async (email: string, password: string) => {
-    localStorage.removeItem(WORKSPACE_ENTRY_MODE_KEY);
     const response = await api.post("/auth/login", { email, password });
     if (response.data.message === "OTP_REQUIRED") {
       return { otpRequired: true, email: response.data.data };
@@ -41,7 +39,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Error during logout:", error);
     } finally {
-      localStorage.removeItem(WORKSPACE_ENTRY_MODE_KEY);
       setUser(null);
     }
   };

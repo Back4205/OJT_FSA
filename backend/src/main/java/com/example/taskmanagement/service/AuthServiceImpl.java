@@ -166,7 +166,7 @@ public class AuthServiceImpl implements AuthService {
 
         // --- ĐĂNG NHẬP THẲNG KHI ĐÃ XÁC THỰC TÀI KHOẢN ---
         // Fetch active memberships
-        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
 
         Workspace activeWorkspace = null;
         Role activeRole;
@@ -224,7 +224,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Fallback to first active membership
-        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
         if (memberships.isEmpty()) {
             Role memberRole = roleRepository.findByName(RoleName.MEMBER)
                     .orElseThrow(() -> new IllegalStateException("Role MEMBER has not been seeded"));
@@ -356,7 +356,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // Fetch active memberships
-        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
 
         Workspace activeWorkspace = null;
         Role activeRole;
@@ -398,7 +398,7 @@ public class AuthServiceImpl implements AuthService {
     public List<com.example.taskmanagement.dto.response.UserWorkspaceResponse> getUserWorkspaces(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("User does not exist"));
-        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
         return memberships.stream()
                 .map(m -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse(
                         m.getWorkspace().getId(),

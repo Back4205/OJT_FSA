@@ -316,31 +316,6 @@ const AdminDashboard: React.FC = () => {
     }, `Workspace ${item.name} ${item.active ? "locked" : "unlocked"} successfully.`);
   };
 
-  const applyUserFilters = () => {
-    setUserPage(0);
-    setUserSearch(userSearchDraft.trim());
-  };
-
-  const resetUserFilters = () => {
-    setUserSearchDraft("");
-    setUserSearch("");
-    setUserActiveFilter("all");
-    setUserRoleFilter("all");
-    setUserPage(0);
-  };
-
-  const applyWorkspaceFilters = () => {
-    setWorkspacePage(0);
-    setWorkspaceSearch(workspaceSearchDraft.trim());
-  };
-
-  const resetWorkspaceFilters = () => {
-    setWorkspaceSearchDraft("");
-    setWorkspaceSearch("");
-    setWorkspaceActiveFilter("all");
-    setWorkspacePage(0);
-  };
-
   const statCards = [
     { label: "Total users", value: dashboard?.totalUsers ?? 0, tone: "indigo" },
     { label: "Active users", value: dashboard?.activeUsers ?? 0, tone: "green" },
@@ -542,11 +517,11 @@ const AdminDashboard: React.FC = () => {
                   type="text"
                   placeholder="Search users by name or email..."
                   value={userSearchDraft}
-                  onChange={(e) => setUserSearchDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      applyUserFilters();
-                    }
+                  onChange={(e) => {
+                    const nextSearch = e.target.value;
+                    setUserSearchDraft(nextSearch);
+                    setUserSearch(nextSearch.trim());
+                    setUserPage(0);
                   }}
                 />
                 <select
@@ -567,12 +542,6 @@ const AdminDashboard: React.FC = () => {
                   <option value="super">Sadmin</option>
                   <option value="member">Member</option>
                 </select>
-                <button type="button" className={styles.filterButton} onClick={applyUserFilters}>
-                  Apply
-                </button>
-                <button type="button" className={styles.filterButtonSecondary} onClick={resetUserFilters}>
-                  Reset
-                </button>
               </div>
               <div className={styles.panelHeader}>
                 <h2>Users</h2>
@@ -683,11 +652,11 @@ const AdminDashboard: React.FC = () => {
                   type="text"
                   placeholder="Search workspaces by name or description..."
                   value={workspaceSearchDraft}
-                  onChange={(e) => setWorkspaceSearchDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      applyWorkspaceFilters();
-                    }
+                  onChange={(e) => {
+                    const nextSearch = e.target.value;
+                    setWorkspaceSearchDraft(nextSearch);
+                    setWorkspaceSearch(nextSearch.trim());
+                    setWorkspacePage(0);
                   }}
                 />
                 <select
@@ -699,12 +668,6 @@ const AdminDashboard: React.FC = () => {
                   <option value="active">Active</option>
                   <option value="locked">Locked</option>
                 </select>
-                <button type="button" className={styles.filterButton} onClick={applyWorkspaceFilters}>
-                  Apply
-                </button>
-                <button type="button" className={styles.filterButtonSecondary} onClick={resetWorkspaceFilters}>
-                  Reset
-                </button>
               </div>
               <div className={styles.panelHeader}>
                 <h2>Workspaces</h2>

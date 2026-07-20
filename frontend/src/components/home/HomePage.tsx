@@ -1,19 +1,6 @@
 import { Link } from "react-router-dom";
 import styles from "./HomePage.clean.module.css";
 
-const roleCards = [
-  {
-    icon: "bi-shield-lock",
-    title: "Sadmin",
-    text: "Manage users, workspaces and platform-wide rules.",
-  },
-  {
-    icon: "bi-person",
-    title: "Member",
-    text: "Focus on assigned tasks, boards and updates.",
-  },
-];
-
 type HomePageProps = {
   onLogin?: () => void;
   onRegister?: () => void;
@@ -32,13 +19,6 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
             <small>TASK OS</small>
           </span>
         </Link>
-
-        <nav className={styles.nav} aria-label="Primary">
-          <a href="#roles">Product</a>
-          <a href="#roles">Customers</a>
-          <a href="#roles">Pricing</a>
-          <a href="#roles">Docs</a>
-        </nav>
 
         <div className={styles.actions}>
           <Link to="/taskmanager/login" className={styles.textLink} onClick={onLogin}>
@@ -91,37 +71,6 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
                 Built for teams
               </span>
             </div>
-          </div>
-        </section>
-
-        <section className={styles.rolesSection} id="roles">
-          <div className={styles.rolesLabel}>Explore by role</div>
-
-          <div className={styles.roleGrid}>
-            {roleCards.map((card) => (
-              <article className={styles.roleCard} key={card.title}>
-                <div className={styles.roleIcon}>
-                  <i className={`bi ${card.icon}`} aria-hidden="true" />
-                </div>
-                <h2>{card.title}</h2>
-                <p>{card.text}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className={styles.bottomDock} aria-hidden="true">
-            <button type="button" className={styles.dockButton}>
-              <i className="bi bi-arrows-move" />
-            </button>
-            <button type="button" className={styles.dockButton}>
-              <i className="bi bi-type" />
-            </button>
-            <button type="button" className={styles.dockButton}>
-              <i className="bi bi-link-45deg" />
-            </button>
-            <button type="button" className={styles.dockButton}>
-              <i className="bi bi-chat-square-dots" />
-            </button>
           </div>
         </section>
       </main>

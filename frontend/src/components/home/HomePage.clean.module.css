@@ -87,23 +87,6 @@
   letter-spacing: 0.24em;
 }
 
-.nav {
-  display: flex;
-  justify-content: center;
-  gap: 34px;
-}
-
-.nav a {
-  color: rgba(233, 239, 255, 0.82);
-  text-decoration: none;
-  font-size: 0.97rem;
-  font-weight: 500;
-}
-
-.nav a:hover {
-  color: #fff;
-}
-
 .actions {
   display: inline-flex;
   align-items: center;
@@ -263,87 +246,6 @@
   font-size: 0.9rem;
 }
 
-.rolesSection {
-  padding: 56px 0 44px;
-}
-
-.rolesLabel {
-  text-align: center;
-  margin-bottom: 18px;
-  color: rgba(233, 239, 255, 0.62);
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.roleGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.roleCard {
-  min-height: 146px;
-  padding: 22px 18px 18px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.roleIcon {
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #18d59d;
-  font-size: 1.05rem;
-}
-
-.roleCard h2 {
-  margin: 18px 0 8px;
-  color: #fff;
-  font-size: 1.12rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
-}
-
-.roleCard p {
-  margin: 0;
-  color: rgba(233, 239, 255, 0.7);
-  line-height: 1.55;
-  font-size: 0.95rem;
-}
-
-.bottomDock {
-  width: fit-content;
-  margin: 34px auto 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(8, 12, 24, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
-}
-
-.dockButton {
-  width: 32px;
-  height: 32px;
-  border: 0;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: rgba(233, 239, 255, 0.82);
-}
-
-.dockButton:hover,
 .primaryButton:hover,
 .textLink:hover,
 .ctaPrimary:hover,
@@ -357,13 +259,6 @@
     justify-items: center;
   }
 
-  .nav {
-    flex-wrap: wrap;
-  }
-
-  .roleGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 720px) {
@@ -403,7 +298,4 @@
     gap: 12px 18px;
   }
 
-  .roleGrid {
-    grid-template-columns: 1fr;
-  }
 }

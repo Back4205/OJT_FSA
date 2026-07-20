@@ -39,7 +39,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalStateException("OAuth user not found: " + email));
 
-        var memberships = workspaceMembershipRepository.findByUserIdAndIsActive(user.getId(), true);
+        var memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
         Long workspaceId = null;
         com.example.taskmanagement.model.Workspace activeWorkspace = null;
         String activeRole = user.isSuperAdmin() ? com.example.taskmanagement.model.enums.RoleName.SUPER_ADMIN.name() : com.example.taskmanagement.model.enums.RoleName.MEMBER.name();

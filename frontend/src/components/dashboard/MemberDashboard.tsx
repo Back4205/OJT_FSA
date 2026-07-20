@@ -20,7 +20,9 @@ const MemberDashboard: React.FC = () => {
   const [userWorkspaces, setUserWorkspaces] = useState<UserWorkspaceResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [statusUpdateTaskId, setStatusUpdateTaskId] = useState<number | null>(null);
+  const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState<MemberTaskResponse["status"] | null>(null);
   const [workspaceSwitchingId, setWorkspaceSwitchingId] = useState<number | null>(null);
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
   const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false);
@@ -105,19 +107,19 @@ const MemberDashboard: React.FC = () => {
     };
   }, [filteredTasks]);
   const currentSectionLabel = menuItems.find((item) => item.key === activeTab)?.label ?? "Dashboard";
-
-  const taskStatusOrder: MemberTaskResponse["status"][] = ["TODO", "IN_PROGRESS", "REVIEW", "DONE"];
+  const taskStatusColumns: Array<{ status: MemberTaskResponse["status"]; label: string; tasks: MemberTaskResponse[] }> = [
+    { status: "TODO", label: "To do", tasks: groupedTasks.TODO },
+    { status: "IN_PROGRESS", label: "In progress", tasks: groupedTasks.IN_PROGRESS },
+    { status: "REVIEW", label: "Review", tasks: groupedTasks.REVIEW },
+    { status: "DONE", label: "Done", tasks: groupedTasks.DONE }
+  ];
 
   const updateTaskStatus = async (task: MemberTaskResponse, nextStatus: MemberTaskResponse["status"]) => {
-    if (task.status === nextStatus) {
+    if (task.status === nextStatus || statusUpdateTaskId === task.id) {
       return;
     }
 
-    if (actionLoading === task.id) {
-      return;
-    }
-
-    setActionLoading(task.id);
+    setStatusUpdateTaskId(task.id);
     setError("");
     try {
       await memberService.updateTaskStatus(task.id, nextStatus);
@@ -126,18 +128,36 @@ const MemberDashboard: React.FC = () => {
     } catch (err: any) {
       setError(err.response?.data?.message || "Unable to update task status.");
     } finally {
-      setActionLoading(null);
+      setStatusUpdateTaskId(null);
     }
   };
 
-  const advanceTaskStatus = async (task: MemberTaskResponse) => {
-    const currentIndex = taskStatusOrder.indexOf(task.status);
-    if (currentIndex < 0 || currentIndex >= taskStatusOrder.length - 1) {
+  const handleTaskDragStart = (event: React.DragEvent<HTMLElement>, task: MemberTaskResponse) => {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(task.id));
+    setDraggingTaskId(task.id);
+  };
+
+  const handleTaskDrop = (event: React.DragEvent<HTMLElement>, nextStatus: MemberTaskResponse["status"]) => {
+    event.preventDefault();
+    const draggedTaskId = Number(event.dataTransfer.getData("text/plain") || draggingTaskId);
+    const task = dashboard?.tasks.find((item) => item.id === draggedTaskId);
+
+    setDraggingTaskId(null);
+    setDropTargetStatus(null);
+
+    if (task) {
+      void updateTaskStatus(task, nextStatus);
+    }
+  };
+
+  const handleColumnDragLeave = (event: React.DragEvent<HTMLElement>, status: MemberTaskResponse["status"]) => {
+    const nextElement = event.relatedTarget;
+    if (nextElement instanceof Node && event.currentTarget.contains(nextElement)) {
       return;
     }
 
-    const nextStatus = taskStatusOrder[currentIndex + 1];
-    return updateTaskStatus(task, nextStatus);
+    setDropTargetStatus((current) => (current === status ? null : current));
   };
 
   const handleSwitchWorkspace = async (workspaceId: number) => {
@@ -215,12 +235,20 @@ const MemberDashboard: React.FC = () => {
     { label: "Due soon", value: dashboard?.dueSoonTasks ?? 0, tone: "purple" },
   ];
 
-  const renderTaskCard = (task: MemberTaskResponse) => (
+  const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => (
     <article
       key={task.id}
-      className={styles.taskCard}
+      className={`${styles.taskCard} ${options?.draggable ? styles.draggableTaskCard : ""} ${
+        draggingTaskId === task.id ? styles.draggingTaskCard : ""
+      } ${statusUpdateTaskId === task.id ? styles.updatingTaskCard : ""}`}
       role="button"
       tabIndex={0}
+      draggable={options?.draggable}
+      onDragStart={options?.draggable ? (event) => handleTaskDragStart(event, task) : undefined}
+      onDragEnd={options?.draggable ? () => {
+        setDraggingTaskId(null);
+        setDropTargetStatus(null);
+      } : undefined}
       onClick={() => setSelectedTask(task)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -248,22 +276,7 @@ const MemberDashboard: React.FC = () => {
             setSelectedTask(task);
           }}
         >
-          Details
-        </button>
-        <button
-          type="button"
-          className={styles.taskActionButton}
-          onClick={(event) => {
-            event.stopPropagation();
-            void advanceTaskStatus(task);
-          }}
-          disabled={actionLoading === task.id || task.status === "DONE"}
-        >
-          {task.status === "DONE"
-            ? "Completed"
-            : actionLoading === task.id
-              ? "Updating..."
-              : `Move to ${taskStatusOrder[taskStatusOrder.indexOf(task.status) + 1]}`}
+          {statusUpdateTaskId === task.id ? "Updating..." : "Details"}
         </button>
       </div>
     </article>
@@ -379,10 +392,6 @@ const MemberDashboard: React.FC = () => {
             </div>
             <div className={styles.headerActions}>
               <span className={styles.pill}>Member</span>
-              <button className={styles.primaryButton} type="button" onClick={() => setActiveTab("tasks")}>
-                <i className="bi bi-plus" />
-                <span>View tasks</span>
-              </button>
             </div>
           </div>
 
@@ -469,7 +478,7 @@ const MemberDashboard: React.FC = () => {
                     <span>{filteredTasks.length} tasks</span>
                   </div>
                   <div className={styles.taskList}>
-                    {filteredTasks.slice(0, 5).map(renderTaskCard)}
+                    {filteredTasks.slice(0, 5).map((task) => renderTaskCard(task))}
                   </div>
                 </section>
 
@@ -522,49 +531,34 @@ const MemberDashboard: React.FC = () => {
                 <span>{filteredTasks.length} total</span>
               </div>
               <div className={styles.taskList}>
-                {filteredTasks.map(renderTaskCard)}
+                {filteredTasks.map((task) => renderTaskCard(task))}
               </div>
             </section>
           )}
 
           {!loading && !error && dashboard && activeTab === "board" && (
             <div className={styles.boardGrid}>
-              <section className={styles.boardColumn}>
-                <div className={styles.panelHeader}>
-                  <h2>To do</h2>
-                  <span>{groupedTasks.TODO.length}</span>
-                </div>
-                <div className={styles.boardList}>
-                  {groupedTasks.TODO.map(renderTaskCard)}
-                </div>
-              </section>
-              <section className={styles.boardColumn}>
-                <div className={styles.panelHeader}>
-                  <h2>In progress</h2>
-                  <span>{groupedTasks.IN_PROGRESS.length}</span>
-                </div>
-                <div className={styles.boardList}>
-                  {groupedTasks.IN_PROGRESS.map(renderTaskCard)}
-                </div>
-              </section>
-              <section className={styles.boardColumn}>
-                <div className={styles.panelHeader}>
-                  <h2>Review</h2>
-                  <span>{groupedTasks.REVIEW.length}</span>
-                </div>
-                <div className={styles.boardList}>
-                  {groupedTasks.REVIEW.map(renderTaskCard)}
-                </div>
-              </section>
-              <section className={styles.boardColumn}>
-                <div className={styles.panelHeader}>
-                  <h2>Done</h2>
-                  <span>{groupedTasks.DONE.length}</span>
-                </div>
-                <div className={styles.boardList}>
-                  {groupedTasks.DONE.map(renderTaskCard)}
-                </div>
-              </section>
+              {taskStatusColumns.map((column) => (
+                <section
+                  key={column.status}
+                  className={`${styles.boardColumn} ${dropTargetStatus === column.status ? styles.boardColumnDropTarget : ""}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                    setDropTargetStatus(column.status);
+                  }}
+                  onDragLeave={(event) => handleColumnDragLeave(event, column.status)}
+                  onDrop={(event) => handleTaskDrop(event, column.status)}
+                >
+                  <div className={styles.panelHeader}>
+                    <h2>{column.label}</h2>
+                    <span>{column.tasks.length}</span>
+                  </div>
+                  <div className={styles.boardList}>
+                    {column.tasks.map((task) => renderTaskCard(task, { draggable: true }))}
+                  </div>
+                </section>
+              ))}
             </div>
           )}
 
@@ -632,41 +626,6 @@ const MemberDashboard: React.FC = () => {
                         {selectedTask.description || "No description provided."}
                       </div>
                     </div>
-                  </div>
-
-                  <div className={styles.detailActions}>
-                    <button
-                      type="button"
-                      className={styles.actionButton}
-                      onClick={() => void updateTaskStatus(selectedTask, "TODO")}
-                      disabled={actionLoading === selectedTask.id || selectedTask.status === "TODO"}
-                    >
-                      To do
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.actionButton}
-                      onClick={() => void updateTaskStatus(selectedTask, "IN_PROGRESS")}
-                      disabled={actionLoading === selectedTask.id || selectedTask.status === "IN_PROGRESS"}
-                    >
-                      In progress
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.actionButton}
-                      onClick={() => void updateTaskStatus(selectedTask, "REVIEW")}
-                      disabled={actionLoading === selectedTask.id || selectedTask.status === "REVIEW"}
-                    >
-                      Review
-                    </button>
-                    <button
-                      type="button"
-                      className={styles.actionButton}
-                      onClick={() => void updateTaskStatus(selectedTask, "DONE")}
-                      disabled={actionLoading === selectedTask.id || selectedTask.status === "DONE"}
-                    >
-                      Done
-                    </button>
                   </div>
                 </div>
               </div>

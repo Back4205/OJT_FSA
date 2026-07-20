@@ -4,7 +4,16 @@
   display: flex;
   background: #f4f7fb;
   color: #0f172a;
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  text-align: left;
+}
+
+.shell button,
+.shell input,
+.shell select,
+.shell textarea,
+.shell table {
+  font: inherit;
 }
 
 .sidebar {
@@ -729,6 +738,26 @@
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
 }
 
+.draggableTaskCard {
+  cursor: grab;
+}
+
+.draggableTaskCard:active {
+  cursor: grabbing;
+}
+
+.draggingTaskCard {
+  opacity: 0.58;
+  transform: scale(0.98);
+  border-color: #818cf8;
+  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.14);
+}
+
+.updatingTaskCard {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
 .taskCard:hover {
   transform: translateY(-2px);
   border-color: #c7d2fe;
@@ -1181,6 +1210,17 @@
 .boardColumn {
   min-width: 0;
   background: transparent;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 8px;
+  min-height: 280px;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.boardColumnDropTarget {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.12);
 }
 
 .modalOverlay {
@@ -1359,6 +1399,367 @@
   outline-offset: 2px;
 }
 
+/* Align Member dashboard with Leader / Workspace Admin visual system */
+.shell {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.sidebar {
+  width: 250px;
+  background: #0b0f19;
+  color: #94a3b8;
+  padding: 0;
+  gap: 0;
+  border-right: 1px solid #1e293b;
+  box-shadow: none;
+}
+
+.brand {
+  gap: 10px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.brandMark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #6366f1, #a855f7);
+  font-size: 1.1rem;
+  font-weight: 700;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+.brandTitle {
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.brandSub {
+  color: #6366f1;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+
+.workspaceSelectorContainer {
+  padding: 16px;
+  border-bottom: 1px solid #1e293b;
+}
+
+.workspaceSelectorBtn {
+  gap: 12px;
+  padding: 10px 12px;
+  background: #111827;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.workspaceSelectorBtn:hover {
+  transform: none;
+  background: #162032;
+  border-color: #334155;
+  box-shadow: none;
+}
+
+.workspaceAvatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  background: #4f46e5;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.workspaceActiveName,
+.workspaceDropdownName,
+.workspaceSwitcherName {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.workspaceActiveRole,
+.workspaceDropdownRole,
+.workspaceSwitcherRole {
+  color: #9ca3af;
+  font-size: 0.7rem;
+}
+
+.workspaceDropdown {
+  left: 16px;
+  right: 16px;
+  margin-top: 6px;
+  border-radius: 8px;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.dropdownSectionTitle {
+  padding: 12px 16px 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.workspaceDropdownItem,
+.dropdownActionBtn {
+  padding: 10px 16px;
+  font-size: 0.82rem;
+  font-weight: 550;
+  transition: background 0.15s, color 0.15s;
+}
+
+.workspaceDropdownItem:hover:not(:disabled),
+.dropdownActionBtn:hover {
+  transform: none;
+  background: #f1f5f9;
+}
+
+.nav {
+  flex: 1;
+  gap: 4px;
+  padding: 20px 12px;
+}
+
+.navItem {
+  gap: 12px;
+  padding: 10px 16px;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+  will-change: auto;
+}
+
+.navItem:hover,
+.active {
+  transform: none;
+  background: #1e293b;
+  color: #ffffff;
+}
+
+.logoutButton {
+  width: calc(100% - 48px);
+  margin: auto 24px 16px;
+  padding: 8px 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #f87171;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.logoutButton:hover {
+  transform: none;
+  background: transparent;
+  box-shadow: none;
+  color: #f87171;
+  opacity: 0.8;
+}
+
+.topbar {
+  height: 64px;
+  padding: 0 32px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  backdrop-filter: none;
+}
+
+.searchBox {
+  width: 320px;
+  min-width: 320px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  background: #f8fafc;
+  box-shadow: none;
+  font-size: 0.82rem;
+}
+
+.searchBox:hover {
+  transform: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+.userAvatar {
+  width: 32px;
+  height: 32px;
+  background: #818cf8;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.userName {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.userRole {
+  font-size: 0.68rem;
+}
+
+.content {
+  padding: 32px;
+}
+
+.breadcrumb {
+  font-size: 0.8rem;
+}
+
+.title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.subtitle {
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.filterInput,
+.filterSelect,
+.textArea {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: none;
+  font-size: 0.82rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.filterInput:hover,
+.filterSelect:hover,
+.textArea:hover,
+.filterInput:focus,
+.filterSelect:focus,
+.textArea:focus {
+  transform: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+  outline: none;
+}
+
+.primaryButton,
+.filterButtonSecondary,
+.taskActionButton,
+.actionButton {
+  height: auto;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.primaryButton,
+.taskActionButton,
+.actionButton {
+  background: #4f46e5;
+  color: #ffffff;
+}
+
+.filterButtonSecondary,
+.secondaryTaskActionButton {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+}
+
+.primaryButton:hover,
+.taskActionButton:hover:not(:disabled),
+.actionButton:hover:not(:disabled),
+.filterButtonSecondary:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.statCard,
+.workspaceSummaryCard,
+.panel,
+.focusPanel,
+.profilePanel,
+.taskCard,
+.detailSection,
+.detailStatCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.statCard:hover,
+.workspaceSummaryCard:hover,
+.panel:hover,
+.focusPanel:hover,
+.profilePanel:hover,
+.taskCard:hover {
+  transform: none;
+  border-color: #e2e8f0;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.statLabel,
+.summaryLabel {
+  color: #64748b;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.statValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.summaryValue,
+.rowTitle,
+.taskCard h3,
+.profileName {
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.rowSub,
+.activityTime,
+.deadline,
+.taskCard p,
+.summaryMeta,
+.profileRow {
+  color: #64748b;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.statusBadge,
+.priorityBadge,
+.pill {
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.modalContent {
+  border-radius: 12px;
+}
+
+.modalHeader h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
 @keyframes overlayFadeIn {
   from {
     opacity: 0;
@@ -1426,4 +1827,39 @@
   .headerRow {
     flex-direction: column;
   }
+}
+
+.draggableTaskCard {
+  cursor: grab;
+}
+
+.draggableTaskCard:active {
+  cursor: grabbing;
+}
+
+.draggingTaskCard,
+.taskCard.draggingTaskCard:hover {
+  opacity: 0.58;
+  transform: scale(0.98);
+  border-color: #818cf8;
+  box-shadow: 0 18px 34px rgba(79, 70, 229, 0.14);
+}
+
+.updatingTaskCard {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.boardColumn {
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 8px;
+  min-height: 280px;
+  transition: background 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.boardColumnDropTarget {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.12);
 }
