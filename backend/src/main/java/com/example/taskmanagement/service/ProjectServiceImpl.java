@@ -61,9 +61,17 @@ public class ProjectServiceImpl implements ProjectService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProjectResponse> getProjectsByWorkspace(Long workspaceId) {
-        return projectRepository.findByWorkspaceId(workspaceId)
-                .stream()
+    public List<ProjectResponse> getProjectsByWorkspace(Long workspaceId, Long currentUserId, String currentRole) {
+        List<Project> projects = projectRepository.findByWorkspaceId(workspaceId);
+
+        if (!"WORKSPACE_ADMIN".equals(currentRole)) {
+            projects = projects.stream()
+                    .filter(p -> p.getLeader().getId().equals(currentUserId) ||
+                            p.getMembers().stream().anyMatch(m -> m.getId().equals(currentUserId)))
+                    .collect(Collectors.toList());
+        }
+
+        return projects.stream()
                 .map(ProjectResponse::from)
                 .collect(Collectors.toList());
     }

@@ -57,12 +57,16 @@ const buildLinePath = (points: number[], w: number, h: number) => {
 };
 
 // ── Component ──────────────────────────────────────────────────────────────
-type ActiveTab = "dashboard" | "projects" | "members" | "tasks" | "kanban" | "profile";
+type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile";
 
 const LeaderDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [projectViewMode, setProjectViewMode] = useState<"list" | "board">("list");
+  const [listCurrentPage, setListCurrentPage] = useState<number>(1);
 
   // Data
   const [projects, setProjects]   = useState<ProjectResponse[]>([]);
@@ -81,6 +85,7 @@ const LeaderDashboard: React.FC = () => {
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [showCreateTask, setShowCreateTask]       = useState(false);
   const [showInvite, setShowInvite]               = useState(false);
+  const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false);
 
   // Forms
   const [projName, setProjName]   = useState("");
@@ -92,6 +97,14 @@ const LeaderDashboard: React.FC = () => {
   const [taskProject, setTaskProject]   = useState<number>(0);
   const [taskAssignee, setTaskAssignee] = useState<number>(0);
   const [inviteEmail, setInviteEmail]   = useState("");
+
+  // Create Workspace Form
+  const [newWSNameInput, setNewWSNameInput] = useState("");
+  const [newWSDescInput, setNewWSDescInput] = useState("");
+  const [joinWSCodeInput, setJoinWSCodeInput] = useState("");
+  const [wsModalLoading, setWsModalLoading] = useState(false);
+  const [wsModalError, setWsModalError] = useState("");
+  const [wsModalSuccess, setWsModalSuccess] = useState("");
 
   // Auto-clear messages
   useEffect(() => {
@@ -106,7 +119,7 @@ const LeaderDashboard: React.FC = () => {
     try {
       const [projs, mems, wsData] = await Promise.all([
         leaderService.getProjects(),
-        leaderService.getWorkspaceMembers(),
+        leaderService.getWorkspaceMembers().catch(() => []), // Catch 403 for MEMBER
         leaderService.getUserWorkspaces(),
       ]);
       console.log("[LeaderDashboard] Projects loaded:", projs);
@@ -141,6 +154,53 @@ const LeaderDashboard: React.FC = () => {
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Chuyển workspace thất bại.");
       setLoading(false);
+    }
+  };
+
+  const handleCreateNewWorkspaceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWSNameInput.trim()) {
+      setWsModalError("Tên Workspace không được để trống.");
+      return;
+    }
+    setWsModalLoading(true);
+    setWsModalError("");
+    setWsModalSuccess("");
+    try {
+      await workspaceService.createWorkspace(newWSNameInput.trim(), newWSDescInput.trim());
+      setWsModalSuccess("Khởi tạo Workspace mới thành công! Đang chuyển hướng...");
+      setNewWSNameInput("");
+      setNewWSDescInput("");
+      await checkAuth();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      setWsModalError(err.response?.data?.message || "Tạo Workspace thất bại.");
+      setWsModalLoading(false);
+    }
+  };
+
+  const handleJoinNewWorkspaceSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinWSCodeInput.trim()) {
+      setWsModalError("Mã mời không được để trống.");
+      return;
+    }
+    setWsModalLoading(true);
+    setWsModalError("");
+    setWsModalSuccess("");
+    try {
+      await workspaceService.joinWorkspace(joinWSCodeInput.trim());
+      setWsModalSuccess("Tham gia Workspace thành công! Đang chuyển hướng...");
+      setJoinWSCodeInput("");
+      await checkAuth();
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err: any) {
+      setWsModalError(err.response?.data?.message || "Mã mời không hợp lệ hoặc đã hết hạn.");
+      setWsModalLoading(false);
     }
   };
 
@@ -303,6 +363,18 @@ const LeaderDashboard: React.FC = () => {
                   {ws.workspaceId === user?.workspaceId && <i className="bi bi-check" style={{ color: "#6366f1" }} />}
                 </button>
               ))}
+              <div style={{ padding: "8px" }}>
+                <button
+                  style={{ width: "100%", padding: "8px", background: "rgba(255,255,255,0.05)", border: "1px dashed rgba(255,255,255,0.2)", borderRadius: "6px", color: "#cbd5e1", fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+                  onClick={() => {
+                    setWsDdOpen(false);
+                    setShowCreateWorkspaceModal(true);
+                  }}
+                >
+                  <i className="bi bi-plus-lg" />
+                  <span>Create / Join workspace</span>
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -314,9 +386,7 @@ const LeaderDashboard: React.FC = () => {
             [
               { key: "dashboard", icon: "bi-grid-fill",        label: "Dashboard"    },
               { key: "projects",  icon: "bi-folder-fill",       label: "My projects"  },
-              { key: "members",   icon: "bi-people-fill",        label: "Members"      },
-              { key: "tasks",     icon: "bi-check2-square",      label: "Tasks"        },
-              { key: "kanban",    icon: "bi-kanban-fill",        label: "Kanban board" },
+              ...(user?.role !== "MEMBER" ? [{ key: "members", icon: "bi-people-fill", label: "Members" }] : []),
               { key: "profile",   icon: "bi-person-fill",        label: "Profile"      },
             ] as { key: ActiveTab; icon: string; label: string }[]
           ).map(({ key, icon, label }) => (
@@ -338,7 +408,7 @@ const LeaderDashboard: React.FC = () => {
             <span>Logout</span>
           </button>
         </div>
-        <div className={styles["sidebar-role-badge"]}>⬡ Leader</div>
+        <div className={styles["sidebar-role-badge"]}>⬡ {user?.role === "MEMBER" ? "Member" : "Leader"}</div>
       </aside>
 
       {/* ═══════════════════════════════════════ MAIN ═════════════════════ */}
@@ -439,17 +509,19 @@ const LeaderDashboard: React.FC = () => {
                     <div className={styles["empty-state"]}>
                       <i className={`bi bi-folder-x ${styles["empty-icon"]}`} />
                       <p className={styles["empty-title"]}>No projects yet</p>
-                      <p className={styles["empty-sub"]}>Create your first project to get started</p>
-                      <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
-                        <i className="bi bi-plus-lg" /> New project
-                      </button>
+                      <p className={styles["empty-sub"]}>No projects available.</p>
+                      {user?.role !== "MEMBER" && (
+                        <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
+                          <i className="bi bi-plus-lg" /> New project
+                        </button>
+                      )}
                     </div>
                   ) : (
                     projects.map(p => {
                       const pct = p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0;
                       const firstDeadline = allTasks.find(t => t.projectId === p.id)?.deadline;
                       return (
-                        <div key={p.id} className={styles["project-row"]} onClick={() => setActiveTab("projects")}>
+                        <div key={p.id} className={styles["project-row"]} onClick={() => { setSelectedProjectId(p.id); setActiveTab("project_detail"); }}>
                           <div className={styles["project-row-top"]}>
                             <span className={styles["project-name"]}>{p.name}</span>
                             {firstDeadline && (
@@ -498,9 +570,11 @@ const LeaderDashboard: React.FC = () => {
                   {wsMembers.length === 0 && (
                     <div className={styles["empty-state"]}>
                       <p className={styles["empty-sub"]}>No members yet</p>
-                      <button className={styles["btn-primary"]} onClick={() => setShowInvite(true)}>
-                        Invite member
-                      </button>
+                      {user?.role !== "MEMBER" && (
+                        <button className={styles["btn-primary"]} onClick={() => setShowInvite(true)}>
+                          Invite member
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -612,9 +686,11 @@ const LeaderDashboard: React.FC = () => {
                   <h1 className={styles["page-title"]}>My Projects</h1>
                   <p className={styles["page-sub"]}>Projects you lead in this workspace</p>
                 </div>
-                <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
-                  <i className="bi bi-plus-lg" /> New project
-                </button>
+                {user?.role !== "MEMBER" && (
+                  <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
+                    <i className="bi bi-plus-lg" /> New project
+                  </button>
+                )}
               </div>
 
               {projects.length === 0 ? (
@@ -622,16 +698,18 @@ const LeaderDashboard: React.FC = () => {
                   <i className={`bi bi-folder-x ${styles["empty-icon"]}`} />
                   <p className={styles["empty-title"]}>No projects</p>
                   <p className={styles["empty-sub"]}>Create your first project</p>
-                  <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
-                    <i className="bi bi-plus-lg" /> New project
-                  </button>
+                  {user?.role !== "MEMBER" && (
+                    <button className={styles["btn-primary"]} onClick={() => setShowCreateProject(true)}>
+                      <i className="bi bi-plus-lg" /> New project
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
                   {projects.map((p, i) => {
                     const pct = p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0;
                     return (
-                      <div key={p.id} className={styles["card"]} style={{ cursor: "pointer" }}>
+                      <div key={p.id} className={styles["card"]} style={{ cursor: "pointer" }} onClick={() => { setSelectedProjectId(p.id); setActiveTab("project_detail"); }}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                           <div className={`${styles["member-avatar"]} ${styles[avatarColor(i)]}`} style={{ borderRadius: "10px" }}>
                             {getInitials(p.name)}
@@ -693,81 +771,235 @@ const LeaderDashboard: React.FC = () => {
             </>
           )}
 
-          {/* ══════════════ TAB: TASKS ══════════════ */}
-          {activeTab === "tasks" && (
-            <>
-              <div className={styles["page-header-row"]}>
-                <div>
-                  <h1 className={styles["page-title"]}>Tasks</h1>
-                  <p className={styles["page-sub"]}>All tasks across your projects</p>
-                </div>
-                <button className={styles["btn-primary"]} onClick={() => setShowCreateTask(true)}>
-                  <i className="bi bi-plus-lg" /> New task
-                </button>
-              </div>
+          {/* ══════════════ TAB: PROJECT DETAIL ══════════════ */}
+          {activeTab === "project_detail" && selectedProjectId !== null && (() => {
+            const project = projects.find(p => p.id === selectedProjectId);
+            if (!project) return null;
+            const projectTasks = allTasks.filter(t => t.projectId === selectedProjectId);
+            
+            // Pagination logic for list
+            const pageSize = 10;
+            const totalPages = Math.ceil(projectTasks.length / pageSize) || 1;
+            const paginatedTasks = projectTasks.slice((listCurrentPage - 1) * pageSize, listCurrentPage * pageSize);
 
-              <div className={styles["card"]}>
-                {allTasks.map(t => (
-                  <div key={t.id} className={styles["task-row"]}>
-                    <div className={`${styles["task-checkbox"]} ${t.status === "DONE" ? styles["done"] : ""}`}>
-                      {t.status === "DONE" && <i className="bi bi-check" style={{ color: "#fff", fontSize: "0.65rem" }} />}
-                    </div>
-                    <div className={styles["task-info"]}>
-                      <div className={styles["task-title"]}>{t.title}</div>
-                      <div className={styles["task-due"]}>{t.projectName} · {t.status.replace("_", " ")} {t.assigneeUsername ? `· ${t.assigneeUsername}` : ""}</div>
-                    </div>
-                    <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
-                    {t.deadline && (
-                      <span style={{ fontSize: "0.72rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b", whiteSpace: "nowrap" }}>
-                        {formatDue(t.deadline)}
-                      </span>
-                    )}
+            return (
+              <>
+                <div className={styles["breadcrumb"]} style={{ marginBottom: "16px" }}>
+                  <span style={{ cursor: "pointer" }} onClick={() => setActiveTab("projects")}>Home</span>
+                  <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
+                  <span style={{ cursor: "pointer" }} onClick={() => setActiveTab("projects")}>Projects</span>
+                  <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
+                  <span style={{ color: "#0f172a", fontWeight: 600 }}>{project.name}</span>
+                </div>
+
+                <div className={styles["page-header-row"]} style={{ marginBottom: "16px" }}>
+                  <div>
+                    <h1 className={styles["page-title"]}>{project.name}</h1>
+                    <p className={styles["page-sub"]}>Welcome back — here's what's happening today.</p>
                   </div>
-                ))}
-                {allTasks.length === 0 && (
-                  <div className={styles["empty-state"]}>
-                    <i className={`bi bi-check2-all ${styles["empty-icon"]}`} />
-                    <p className={styles["empty-title"]}>No tasks yet</p>
-                    <button className={styles["btn-primary"]} onClick={() => setShowCreateTask(true)}>Create task</button>
+                  <button className={styles["btn-primary"]} onClick={() => { setTaskProject(project.id); setShowCreateTask(true); }}>
+                    <i className="bi bi-plus-lg" /> New task
+                  </button>
+                </div>
+
+                <div className={styles["view-toggle"]}>
+                  <button className={`${styles["view-btn"]} ${projectViewMode === "list" ? styles["active"] : ""}`} onClick={() => setProjectViewMode("list")}>
+                    <i className="bi bi-list-task" /> List
+                  </button>
+                  <button className={`${styles["view-btn"]} ${projectViewMode === "board" ? styles["active"] : ""}`} onClick={() => setProjectViewMode("board")}>
+                    <i className="bi bi-kanban" /> Board
+                  </button>
+                </div>
+
+                {projectViewMode === "list" && (
+                  <div className={styles["card"]} style={{ padding: "0" }}>
+                    <div style={{ padding: "16px 24px", borderBottom: "1px solid #e2e8f0", display: "flex", gap: "16px" }}>
+                       <span style={{ fontSize: "0.85rem", color: "#64748b" }}>Filters</span>
+                    </div>
+                    <table className={styles["task-table"]}>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Task</th>
+                          <th>Status</th>
+                          <th>Priority</th>
+                          <th>Assignee</th>
+                          <th>Due</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginatedTasks.map(t => (
+                          <tr key={t.id} onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }} style={{ cursor: "pointer" }}>
+                            <td style={{ color: "#94a3b8" }}>#{t.id}</td>
+                            <td>
+                               <div style={{ fontWeight: 600 }}>{t.title}</div>
+                               <div style={{ fontSize: "0.75rem", color: "#64748b" }}>in {t.projectName}</div>
+                            </td>
+                            <td>
+                              <span className={`${styles["status-badge"]} ${styles[t.status]}`}>{t.status.replace("_", " ")}</span>
+                            </td>
+                            <td>
+                              <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
+                            </td>
+                            <td>
+                               {t.assigneeUsername ? (
+                                 <div className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "24px", height: "24px", fontSize: "0.6rem" }}>
+                                   {getInitials(t.assigneeUsername)}
+                                 </div>
+                               ) : "-"}
+                            </td>
+                            <td style={{ fontSize: "0.8rem", color: t.deadline && isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>
+                               {t.deadline ? formatDue(t.deadline) : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    
+                    {/* Pagination */}
+                    <div style={{ padding: "16px 24px", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0" }}>
+                      <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                        Showing {(listCurrentPage - 1) * pageSize + (projectTasks.length > 0 ? 1 : 0)}-{Math.min(listCurrentPage * pageSize, projectTasks.length)} of {projectTasks.length} tasks
+                      </span>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button className={styles["page-btn"]} disabled={listCurrentPage === 1} onClick={() => setListCurrentPage(prev => prev - 1)}>
+                          <i className="bi bi-chevron-left" />
+                        </button>
+                        {Array.from({ length: totalPages }).map((_, idx) => (
+                          <button key={idx} className={`${styles["page-btn"]} ${listCurrentPage === idx + 1 ? styles["active"] : ""}`} onClick={() => setListCurrentPage(idx + 1)}>
+                            {idx + 1}
+                          </button>
+                        ))}
+                        <button className={styles["page-btn"]} disabled={listCurrentPage === totalPages} onClick={() => setListCurrentPage(prev => prev + 1)}>
+                          <i className="bi bi-chevron-right" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
-              </div>
-            </>
-          )}
 
-          {/* ══════════════ TAB: KANBAN ══════════════ */}
-          {activeTab === "kanban" && (
-            <>
-              <div className={styles["page-header-row"]}>
-                <h1 className={styles["page-title"]}>Kanban board</h1>
-              </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
-                {(["TODO", "IN_PROGRESS", "REVIEW", "DONE"] as TaskStatus[]).map(s => (
-                  <div key={s} className={styles["card"]}>
-                    <div className={styles["card-header"]}>
-                      <span className={styles["card-title"]} style={{ fontSize: "0.82rem" }}>
-                        {s.replace("_", " ")}
-                      </span>
-                      <span className={styles["card-badge"]}>{allTasks.filter(t => t.status === s).length}</span>
-                    </div>
-                    {allTasks.filter(t => t.status === s).map(t => (
-                      <div key={t.id} style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", marginBottom: "8px", border: "1px solid #e2e8f0" }}>
-                        <div style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "4px" }}>{t.title}</div>
-                        <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{t.projectName}</div>
-                        <div style={{ marginTop: "8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
-                          {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
+                {projectViewMode === "board" && (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginTop: "16px" }}>
+                    {(["TODO", "IN_PROGRESS", "REVIEW", "DONE"] as TaskStatus[]).map(s => (
+                      <div key={s} className={styles["card"]} style={{ background: "#f8fafc" }}>
+                        <div className={styles["card-header"]}>
+                          <span className={styles["card-title"]} style={{ fontSize: "0.82rem" }}>
+                            {s.replace("_", " ")}
+                          </span>
+                          <span className={styles["card-badge"]}>{projectTasks.filter(t => t.status === s).length}</span>
                         </div>
+                        {projectTasks.filter(t => t.status === s).map(t => (
+                          <div key={t.id} onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }} style={{ background: "#fff", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "1px solid #e2e8f0", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                            <div style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "8px" }}>{t.title}</div>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                              <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
+                              {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
+                            </div>
+                          </div>
+                        ))}
+                        {projectTasks.filter(t => t.status === s).length === 0 && (
+                          <p style={{ fontSize: "0.78rem", color: "#94a3b8", textAlign: "center", padding: "20px 0" }}>Empty</p>
+                        )}
                       </div>
                     ))}
-                    {allTasks.filter(t => t.status === s).length === 0 && (
-                      <p style={{ fontSize: "0.78rem", color: "#94a3b8", textAlign: "center", padding: "20px 0" }}>Empty</p>
-                    )}
                   </div>
-                ))}
-              </div>
-            </>
-          )}
+                )}
+              </>
+            );
+          })()}
+
+          {/* ══════════════ TAB: TASK DETAIL ══════════════ */}
+          {activeTab === "task_detail" && selectedTaskId !== null && (() => {
+            const task = allTasks.find(t => t.id === selectedTaskId);
+            if (!task) return null;
+            const project = projects.find(p => p.id === task.projectId);
+
+            return (
+              <>
+                <div className={styles["breadcrumb"]} style={{ marginBottom: "16px" }}>
+                  <span style={{ cursor: "pointer" }} onClick={() => setActiveTab("projects")}>Home</span>
+                  <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
+                  <span style={{ cursor: "pointer" }} onClick={() => setActiveTab("projects")}>Projects</span>
+                  <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
+                  <span style={{ cursor: "pointer" }} onClick={() => { setSelectedProjectId(task.projectId); setActiveTab("project_detail"); }}>{project?.name || task.projectName}</span>
+                  <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
+                  <span style={{ color: "#0f172a", fontWeight: 600 }}>Task #{task.id}</span>
+                </div>
+
+                <div className={styles["page-header-row"]} style={{ marginBottom: "16px" }}>
+                  <div>
+                    <h1 className={styles["page-title"]}>Task detail</h1>
+                    <p className={styles["page-sub"]}>Welcome back — here's what's happening today.</p>
+                  </div>
+                  <div className={styles["header-actions"]}>
+                     <button className={styles["btn-outline"]}><i className="bi bi-link-45deg"/> Copy link</button>
+                  </div>
+                </div>
+
+                <div className={styles["task-detail-grid"]}>
+                  <div className={styles["task-detail-main"]}>
+                    <div className={styles["card"]} style={{ marginBottom: "16px" }}>
+                       <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "8px" }}>#{task.id} in {task.projectName}</div>
+                       <h2 style={{ fontSize: "1.25rem", fontWeight: 700, marginBottom: "16px" }}>{task.title}</h2>
+                       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+                          <span className={`${styles["status-badge"]} ${styles[task.status]}`}>{task.status.replace("_", " ")}</span>
+                          <span className={`${styles["priority-badge"]} ${styles[task.priority]}`}>{task.priority}</span>
+                          {task.deadline && (
+                            <span style={{ fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "4px", color: "#64748b", background: "#f1f5f9", padding: "2px 8px", borderRadius: "12px" }}>
+                               <i className="bi bi-clock" /> Due {formatDue(task.deadline)}
+                            </span>
+                          )}
+                       </div>
+                    </div>
+                    
+                    <div className={styles["card"]}>
+                       <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "12px" }}>Description</h3>
+                       <div style={{ fontSize: "0.9rem", color: "#334155", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                         {task.description || "No description provided."}
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className={styles["task-detail-sidebar"]}>
+                     <div className={styles["card"]}>
+                        <h3 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>Properties</h3>
+                        
+                        <div className={styles["property-row"]}>
+                           <div className={styles["property-label"]}><i className="bi bi-flag"/> Status</div>
+                           <div className={styles["property-value"]}><span className={`${styles["status-badge"]} ${styles[task.status]}`}>{task.status.replace("_", " ")}</span></div>
+                        </div>
+                        
+                        <div className={styles["property-row"]}>
+                           <div className={styles["property-label"]}><i className="bi bi-exclamation-triangle"/> Priority</div>
+                           <div className={styles["property-value"]}><span className={`${styles["priority-badge"]} ${styles[task.priority]}`}>{task.priority}</span></div>
+                        </div>
+
+                        <div className={styles["property-row"]}>
+                           <div className={styles["property-label"]}><i className="bi bi-person"/> Assignee</div>
+                           <div className={styles["property-value"]}>
+                             {task.assigneeUsername ? (
+                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                 <div className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "20px", height: "20px", fontSize: "0.6rem" }}>
+                                   {getInitials(task.assigneeUsername)}
+                                 </div>
+                                 <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>{task.assigneeUsername}</span>
+                               </div>
+                             ) : <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>Unassigned</span>}
+                           </div>
+                        </div>
+
+                        <div className={styles["property-row"]}>
+                           <div className={styles["property-label"]}><i className="bi bi-calendar-event"/> Deadline</div>
+                           <div className={styles["property-value"]} style={{ fontSize: "0.85rem", color: "#334155" }}>
+                              {task.deadline ? formatDue(task.deadline) : "None"}
+                           </div>
+                        </div>
+                     </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
 
           {/* ══════════════ TAB: PROFILE ══════════════ */}
           {activeTab === "profile" && (
@@ -898,6 +1130,94 @@ const LeaderDashboard: React.FC = () => {
                 <button type="submit" className={styles["btn-primary"]}>Send invite</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create / Join Workspace Modal */}
+      {showCreateWorkspaceModal && (
+        <div className={styles["modal-overlay"]} onClick={() => setShowCreateWorkspaceModal(false)}>
+          <div className={styles["modal"]} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 className={styles["modal-title"]} style={{ margin: 0 }}>Thêm Workspace mới</h2>
+              <button style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b" }} onClick={() => setShowCreateWorkspaceModal(false)}>&times;</button>
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+              {wsModalError && (
+                <div style={{ padding: "10px", background: "#fef2f2", color: "#b91c1c", borderRadius: "8px", fontSize: "0.85rem", border: "1px solid #fca5a5" }}>
+                  <i className="bi bi-exclamation-triangle-fill" style={{ marginRight: "6px" }}></i>
+                  {wsModalError}
+                </div>
+              )}
+              {wsModalSuccess && (
+                <div style={{ padding: "10px", background: "#f0fdf4", color: "#15803d", borderRadius: "8px", fontSize: "0.85rem", border: "1px solid #86efac" }}>
+                  <i className="bi bi-check-circle-fill" style={{ marginRight: "6px" }}></i>
+                  {wsModalSuccess}
+                </div>
+              )}
+
+              {/* Phần tạo mới */}
+              <div>
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                  Tạo Workspace mới
+                </h3>
+                <form onSubmit={handleCreateNewWorkspaceSubmit}>
+                  <div className={styles["form-group"]}>
+                    <label className={styles["form-label"]}>Tên Workspace <span style={{ color: "red" }}>*</span></label>
+                    <input
+                      type="text"
+                      className={styles["form-input"]}
+                      placeholder="Ví dụ: Team Alpha..."
+                      value={newWSNameInput}
+                      onChange={(e) => setNewWSNameInput(e.target.value)}
+                      disabled={wsModalLoading}
+                    />
+                  </div>
+                  <div className={styles["form-group"]}>
+                    <label className={styles["form-label"]}>Mô tả (Không bắt buộc)</label>
+                    <textarea
+                      className={styles["form-textarea"]}
+                      placeholder="Nhập mô tả ngắn gọn về không gian làm việc này..."
+                      value={newWSDescInput}
+                      onChange={(e) => setNewWSDescInput(e.target.value)}
+                      disabled={wsModalLoading}
+                      rows={2}
+                    ></textarea>
+                  </div>
+                  <div style={{ textAlign: "right", marginTop: "12px" }}>
+                    <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
+                      {wsModalLoading ? "Đang xử lý..." : "Khởi tạo"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Phần tham gia */}
+              <div>
+                <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
+                  Hoặc Tham gia bằng Mã mời
+                </h3>
+                <form onSubmit={handleJoinNewWorkspaceSubmit}>
+                  <div className={styles["form-group"]}>
+                    <label className={styles["form-label"]}>Mã mời (Invite Code) <span style={{ color: "red" }}>*</span></label>
+                    <input
+                      type="text"
+                      className={styles["form-input"]}
+                      placeholder="Nhập mã mời 6 chữ số..."
+                      value={joinWSCodeInput}
+                      onChange={(e) => setJoinWSCodeInput(e.target.value.toUpperCase())}
+                      disabled={wsModalLoading}
+                    />
+                  </div>
+                  <div style={{ textAlign: "right", marginTop: "12px" }}>
+                    <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
+                      {wsModalLoading ? "Đang xử lý..." : "Tham gia ngay"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       )}

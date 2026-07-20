@@ -21,9 +21,9 @@ public interface ProjectService {
     ProjectResponse createProject(CreateProjectRequest request, Long currentUserId, Long workspaceId);
 
     /**
-     * Lấy danh sách tất cả project trong workspace.
+     * Lấy danh sách project theo workspace (đã filter theo role)
      */
-    List<ProjectResponse> getProjectsByWorkspace(Long workspaceId);
+    List<ProjectResponse> getProjectsByWorkspace(Long workspaceId, Long currentUserId, String currentRole);
 
     /**
      * Lấy chi tiết project (kèm members và tasks).

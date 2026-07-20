@@ -923,3 +923,148 @@
 .av-amber   { background: linear-gradient(135deg, #d97706, #fcd34d); }
 .av-rose    { background: linear-gradient(135deg, #e11d48, #fda4af); }
 .av-indigo  { background: linear-gradient(135deg, #4f46e5, #818cf8); }
+
+/* ── Project Details View ────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.view-btn {
+  background: transparent;
+  border: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 8px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  transition: color 0.15s;
+}
+
+.view-btn:hover {
+  color: var(--admin-primary);
+}
+
+.view-btn.active {
+  color: var(--admin-primary);
+}
+
+.view-btn.active::after {
+  content: "";
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--admin-primary);
+  border-radius: 2px 2px 0 0;
+}
+
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.task-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  padding: 12px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.task-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  color: var(--admin-text-main);
+  vertical-align: middle;
+}
+
+.task-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.page-btn {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--admin-primary);
+  color: var(--admin-primary);
+}
+
+.page-btn.active {
+  background: var(--admin-primary);
+  border-color: var(--admin-primary);
+  color: #fff;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Task Details View ───────────────────────────────────── */
+.task-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 24px;
+  align-items: start;
+}
+
+.task-detail-main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.task-detail-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.property-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.property-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.property-label {
+  font-size: 0.85rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.property-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+

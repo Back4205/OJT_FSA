@@ -43,11 +43,15 @@ public class ProjectController {
     @GetMapping
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
     public ResponseEntity<ApiResponse<List<ProjectResponse>>> getProjects(
+            Authentication authentication,
             HttpServletRequest request) {
 
         Long workspaceId = extractWorkspaceId(request);
+        Long currentUserId = extractCurrentUserId(authentication);
+        String currentRole = authentication.getAuthorities().stream()
+                .findFirst().map(a -> a.getAuthority().replace("ROLE_", "")).orElse("");
 
-        List<ProjectResponse> projects = projectService.getProjectsByWorkspace(workspaceId);
+        List<ProjectResponse> projects = projectService.getProjectsByWorkspace(workspaceId, currentUserId, currentRole);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách project thành công", projects));
     }
 
