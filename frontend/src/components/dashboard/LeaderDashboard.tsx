@@ -336,45 +336,57 @@ const LeaderDashboard: React.FC = () => {
         </div>
 
         {/* Workspace selector */}
-        <div className={styles["ws-selector"]}>
-          <button className={styles["ws-btn"]} onClick={() => setWsDdOpen(!wsDdOpen)}>
-            <div className={styles["ws-avatar"]}>{getInitials(currentWsName)}</div>
-            <div className={styles["ws-meta"]}>
-              <span className={styles["ws-name"]}>{currentWsName}</span>
-              <span className={styles["ws-role"]}>Leader · Team</span>
+        <div className={styles["workspace-selector-container"]}>
+          <button
+            className={styles["workspace-selector-btn"]}
+            onClick={() => setWsDdOpen(!wsDdOpen)}
+          >
+            <div className={styles["workspace-avatar"]}>
+              {getInitials(currentWsName)}
             </div>
-            <i className={`bi bi-chevron-down ${styles["chevron"]} ${wsDdOpen ? styles["open"] : ""}`} />
+            <div className={styles["workspace-meta"]}>
+              <span className={styles["workspace-active-name"]}>{currentWsName}</span>
+              <span className={styles["workspace-active-role"]}>
+                {user?.role === "MEMBER" ? "Member" : "Leader"} · Team
+              </span>
+            </div>
+            <i className={`bi bi-chevron-down ${styles["chevron-icon"]} ${wsDdOpen ? styles["open"] : ""}`}></i>
           </button>
 
           {wsDdOpen && (
-            <div className={styles["ws-dropdown"]}>
-              <p className={styles["ws-dropdown-title"]}>Your Workspaces</p>
+            <div className={styles["workspace-dropdown"]}>
+              <p className={styles["dropdown-section-title"]}>Your Workspaces</p>
               {userWs.map((ws, i) => (
                 <button
                   key={i}
-                  className={`${styles["ws-dropdown-item"]} ${ws.workspaceId === user?.workspaceId ? styles["active"] : ""}`}
+                  className={`${styles["workspace-dropdown-item"]} ${ws.workspaceId === user?.workspaceId ? styles["active"] : ""}`}
                   onClick={() => handleSwitchWs(ws.workspaceId)}
                 >
-                  <div className={styles["ws-item-avatar"]}>{getInitials(ws.workspaceName)}</div>
-                  <div className={styles["ws-item-meta"]}>
-                    <span className={styles["ws-item-name"]}>{ws.workspaceName}</span>
-                    <span className={styles["ws-item-role"]}>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName} · Team</span>
+                  <div className={styles["workspace-item-avatar"]}>
+                    {getInitials(ws.workspaceName)}
                   </div>
-                  {ws.workspaceId === user?.workspaceId && <i className="bi bi-check" style={{ color: "#6366f1" }} />}
+                  <div className={styles["workspace-item-meta"]}>
+                    <span className={styles["workspace-item-name"]}>{ws.workspaceName}</span>
+                    <span className={styles["workspace-item-role"]}>
+                      {ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName} · Team
+                    </span>
+                  </div>
+                  {ws.workspaceId === user?.workspaceId && (
+                    <i className={`bi bi-check ${styles["check-icon"]}`}></i>
+                  )}
                 </button>
               ))}
-              <div style={{ padding: "8px" }}>
-                <button
-                  style={{ width: "100%", padding: "8px", background: "rgba(255,255,255,0.05)", border: "1px dashed rgba(255,255,255,0.2)", borderRadius: "6px", color: "#cbd5e1", fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                  onClick={() => {
-                    setWsDdOpen(false);
-                    setShowCreateWorkspaceModal(true);
-                  }}
-                >
-                  <i className="bi bi-plus-lg" />
-                  <span>Create / Join workspace</span>
-                </button>
-              </div>
+
+              <button
+                className={styles["dropdown-action-btn"]}
+                onClick={() => {
+                  setWsDdOpen(false);
+                  setShowCreateWorkspaceModal(true);
+                }}
+              >
+                <i className={`bi bi-plus-lg ${styles["action-icon"]}`}></i>
+                <span>Create workspace</span>
+              </button>
             </div>
           )}
         </div>
