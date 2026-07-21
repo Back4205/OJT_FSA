@@ -8,6 +8,7 @@ const menuItems = [
   { key: "dashboard", label: "Dashboard", icon: "bi-grid" },
   { key: "tasks", label: "My tasks", icon: "bi-check2-square" },
   { key: "board", label: "Kanban board", icon: "bi-kanban" },
+  { key: "history", label: "Workspace history", icon: "bi-clock-history" },
   { key: "profile", label: "Profile", icon: "bi-person" }
 ] as const;
 
@@ -317,7 +318,7 @@ const MemberDashboard: React.FC = () => {
               {userWorkspaces.length === 0 && (
                 <div className={styles.workspaceEmpty}>No joined workspaces yet.</div>
               )}
-              {userWorkspaces.map((workspace) => {
+              {userWorkspaces.filter(ws => ws.uncompletedTaskCount > 0).map((workspace) => {
                 const isActive = workspace.workspaceId === dashboard?.workspaceId;
                 return (
                   <button
@@ -577,6 +578,97 @@ const MemberDashboard: React.FC = () => {
                   <div className={styles.profileRow}>Joined workspaces: {userWorkspaces.length}</div>
                   <div className={styles.profileRow}>Account status: Active</div>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {!loading && !error && dashboard && activeTab === "history" && (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <h2>Workspace History</h2>
+                <span>Lịch sử các Workspace và các task hoàn thành</span>
+              </div>
+              <div className={styles["history-list"]}>
+                {userWorkspaces.length === 0 ? (
+                  <div className={styles["empty-state-history"]}>
+                    <i className="bi bi-clock-history"></i>
+                    <p>Bạn chưa tham gia Workspace nào.</p>
+                  </div>
+                ) : (
+                  userWorkspaces.map((ws) => {
+                    const isActive = ws.workspaceId === dashboard?.workspaceId;
+                    return (
+                      <div
+                        key={ws.workspaceId}
+                        className={`${styles["history-card"]} ${!isActive ? styles["history-card-clickable"] : ""}`}
+                        onClick={() => {
+                          if (!isActive) {
+                            handleSwitchWorkspace(ws.workspaceId);
+                          }
+                        }}
+                      >
+                        <div className={styles["history-card-header"]}>
+                          <div className={styles["history-card-info"]}>
+                            <div className={styles["history-avatar"]}>
+                              {ws.workspaceName.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <h3 className={styles["history-ws-name"]}>
+                                {ws.workspaceName}
+                                {isActive ? (
+                                  <span className={styles["active-badge"]}>Active</span>
+                                ) : (
+                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
+                                )}
+                              </h3>
+                              <p className={styles["history-ws-meta"]}>
+                                Vai trò: <strong>{formatWorkspaceRole(ws.roleName)}</strong>
+                              </p>
+                            </div>
+                          </div>
+
+                        <div className={styles["history-ws-stats"]}>
+                          <span className={styles["stat-count-badge"]}>
+                            <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                          </span>
+                          <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
+                            <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Completed tasks inside this workspace */}
+                      <div className={styles["history-tasks-section"]}>
+                        <h4 className={styles["history-tasks-title"]}>
+                          <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                        </h4>
+                        
+                        {!ws.completedTasks || ws.completedTasks.length === 0 ? (
+                          <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                        ) : (
+                          <div className={styles["history-tasks-grid"]}>
+                            {ws.completedTasks.map((t) => (
+                              <div key={t.id} className={styles["history-task-item"]}>
+                                <div className={styles["history-task-top"]}>
+                                  <span className={styles["history-task-proj"]}>{t.projectName}</span>
+                                  <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
+                                    {t.priority}
+                                  </span>
+                                </div>
+                                <h5 className={styles["history-task-title"]}>{t.title}</h5>
+                                {t.deadline && (
+                                  <div className={styles["history-task-deadline"]}>
+                                    <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }))}
               </div>
             </section>
           )}

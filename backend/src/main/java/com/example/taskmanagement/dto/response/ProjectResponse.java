@@ -22,6 +22,7 @@ public class ProjectResponse {
     private List<UserSummaryResponse> members;
     private int taskCount;
     private int completedTaskCount;
+    private Integer maxMembers;
 
     @Getter
     @Setter
@@ -59,7 +60,8 @@ public class ProjectResponse {
                 project.getWorkspace().getId(),
                 memberList,
                 taskCount,
-                completedTaskCount
+                completedTaskCount,
+                project.getMaxMembers()
         );
     }
 }

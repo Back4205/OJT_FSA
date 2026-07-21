@@ -14,7 +14,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
   
   // Trạng thái tab hiển thị
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "projects" | "settings" | "profile">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "projects" | "settings" | "profile" | "history">("dashboard");
 
   // Dữ liệu ứng dụng
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
@@ -48,6 +48,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const [newProjName, setNewProjName] = useState<string>("");
   const [newProjDesc, setNewProjDesc] = useState<string>("");
   const [newProjLeader, setNewProjLeader] = useState<number>(0);
+  const [newProjMaxMembers, setNewProjMaxMembers] = useState<number>(10);
   const [showProjModal, setShowProjModal] = useState<boolean>(false);
 
   // 3. Tạo workspace mới (mock notice modal)
@@ -227,13 +228,15 @@ const WorkspaceAdminDashboard: React.FC = () => {
       await workspaceService.createProject({
         name: newProjName.trim(),
         description: newProjDesc,
-        leaderId: newProjLeader
+        leaderId: newProjLeader,
+        maxMembers: newProjMaxMembers
       });
       setSuccessMsg("Tạo dự án mới thành công.");
       setShowProjModal(false);
       setNewProjName("");
       setNewProjDesc("");
       setNewProjLeader(0);
+      setNewProjMaxMembers(10);
       // Nạp lại dự án
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
@@ -243,6 +246,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
   };
 
   const handleAddToProjectDetail = async (projectId: number, userId: number) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      const currentMemberCount = proj.members ? proj.members.length : 0;
+      if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount >= proj.maxMembers) {
+        setErrorMsg(`Không thể thêm thành viên. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
+        return;
+      }
+    }
     try {
       await workspaceService.addProjectMember(projectId, userId);
       setSuccessMsg("Đã thêm thành viên vào dự án thành công.");
@@ -582,7 +593,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
           {workspaceDropdownOpen && (
             <div className={styles["workspace-dropdown"]}>
               <p className={styles["dropdown-section-title"]}>Your Workspaces</p>
-              {userWorkspaces.map((ws, i) => (
+              {userWorkspaces.filter(ws => ws.uncompletedTaskCount > 0).map((ws, i) => (
                 <button
                   key={i}
                   className={`${styles["workspace-dropdown-item"]} ${ws.workspaceId === (workspace?.id || user?.workspaceId) ? styles["active"] : ""}`}
@@ -649,6 +660,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
           >
             <i className={`bi bi-gear-fill ${styles["menu-item-icon"]}`}></i>
             <span>Workspace settings</span>
+          </div>
+
+          <div
+            className={`${styles["menu-item"]} ${activeTab === "history" ? styles["active"] : ""}`}
+            onClick={() => setActiveTab("history")}
+          >
+            <i className={`bi bi-clock-history ${styles["menu-item-icon"]}`}></i>
+            <span>Workspace history</span>
           </div>
 
           <div
@@ -1342,7 +1361,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 <span className={styles["proj-stat-label"]}>Done</span>
                               </div>
                               <div className={styles["proj-stat-item"]}>
-                                <span className={styles["proj-stat-value"]}>{proj.members?.length || 0}</span>
+                                <span className={styles["proj-stat-value"]}>
+                                  {proj.members?.length || 0}
+                                  {proj.maxMembers ? ` / ${proj.maxMembers}` : ""}
+                                </span>
                                 <span className={styles["proj-stat-label"]}>Members</span>
                               </div>
                             </div>
@@ -1402,7 +1424,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                               </td>
                               <td style={{ fontSize: "0.88rem", fontWeight: 600 }}>{proj.taskCount}</td>
                               <td style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--admin-success)" }}>{proj.completedTaskCount}</td>
-                              <td style={{ fontSize: "0.88rem" }}>{proj.members?.length || 0}</td>
+                              <td style={{ fontSize: "0.88rem" }}>
+                                {proj.members?.length || 0}
+                                {proj.maxMembers ? ` / ${proj.maxMembers}` : ""}
+                              </td>
                             </tr>
                           );
                         })}
@@ -1493,6 +1518,101 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     Trạng thái tài khoản: <span style={{ color: "var(--admin-success)", fontWeight: "bold" }}>Hoạt động</span>
                   </div>
                 </div>
+              </div>
+            </>
+          )}
+
+          {/* TAB 6: WORKSPACE HISTORY VIEW */}
+          {activeTab === "history" && (
+            <>
+              <div className={styles["page-header"]}>
+                <div className={styles["header-title-area"]}>
+                  <h1 className={styles["header-title"]}>Workspace History</h1>
+                  <span className={styles["header-subtitle"]}>Lịch sử hoạt động và các task đã hoàn thành trên các Workspace.</span>
+                </div>
+              </div>
+
+              <div className={styles["history-list"]}>
+                {userWorkspaces.length === 0 ? (
+                  <div className={styles["empty-state-history"]}>
+                    <i className="bi bi-clock-history"></i>
+                    <p>Bạn chưa tham gia Workspace nào.</p>
+                  </div>
+                ) : (
+                  userWorkspaces.map((ws) => {
+                    const isActive = ws.workspaceId === (workspace?.id || user?.workspaceId);
+                    return (
+                      <div
+                        key={ws.workspaceId}
+                        className={`${styles["history-card"]} ${!isActive ? styles["history-card-clickable"] : ""}`}
+                        onClick={() => {
+                          if (!isActive) {
+                            handleSwitchWorkspace(ws.workspaceId);
+                          }
+                        }}
+                      >
+                        <div className={styles["history-card-header"]}>
+                          <div className={styles["history-card-info"]}>
+                            <div className={styles["history-avatar"]}>
+                              {getInitials(ws.workspaceName)}
+                            </div>
+                            <div>
+                              <h3 className={styles["history-ws-name"]}>
+                                {ws.workspaceName}
+                                {isActive ? (
+                                  <span className={styles["active-badge"]}>Active</span>
+                                ) : (
+                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
+                                )}
+                              </h3>
+                              <p className={styles["history-ws-meta"]}>
+                                Vai trò: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
+                              </p>
+                            </div>
+                          </div>
+
+                        <div className={styles["history-ws-stats"]}>
+                          <span className={styles["stat-count-badge"]}>
+                            <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                          </span>
+                          <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
+                            <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Completed tasks inside this workspace */}
+                      <div className={styles["history-tasks-section"]}>
+                        <h4 className={styles["history-tasks-title"]}>
+                          <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                        </h4>
+                        
+                        {!ws.completedTasks || ws.completedTasks.length === 0 ? (
+                          <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                        ) : (
+                          <div className={styles["history-tasks-grid"]}>
+                            {ws.completedTasks.map((t) => (
+                              <div key={t.id} className={styles["history-task-item"]}>
+                                <div className={styles["history-task-top"]}>
+                                  <span className={styles["history-task-proj"]}>{t.projectName}</span>
+                                  <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
+                                    {t.priority}
+                                  </span>
+                                </div>
+                                <h5 className={styles["history-task-title"]}>{t.title}</h5>
+                                {t.deadline && (
+                                  <div className={styles["history-task-deadline"]}>
+                                    <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }))}
               </div>
             </>
           )}
@@ -1604,6 +1724,20 @@ const WorkspaceAdminDashboard: React.FC = () => {
                         </option>
                       ))}
                   </select>
+                </div>
+
+                <div className={styles["form-group"]}>
+                  <label htmlFor="proj-max-members">Số lượng thành viên tối đa (Max members)*</label>
+                  <input
+                    type="number"
+                    id="proj-max-members"
+                    className={styles["form-control"]}
+                    placeholder="Nhập số lượng thành viên tối đa (Ví dụ: 10)"
+                    value={newProjMaxMembers}
+                    onChange={(e) => setNewProjMaxMembers(Number(e.target.value))}
+                    min={1}
+                    required
+                  />
                 </div>
               </div>
 

@@ -1,4 +1,5 @@
 import api from "./api";
+import { type UserWorkspaceResponse } from "./workspaceService";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,7 @@ export interface ProjectResponse {
   members: ProjectMember[];
   taskCount: number;
   completedTaskCount: number;
+  maxMembers?: number;
 }
 
 export interface TaskResponse {
@@ -40,6 +42,7 @@ export interface TaskResponse {
 export interface CreateProjectRequest {
   name: string;
   description?: string;
+  maxMembers?: number;
 }
 
 export interface UpdateProjectRequest {
@@ -172,9 +175,9 @@ export const leaderService = {
   },
 
   // User workspaces (switch) ------------------------------------------------
-  getUserWorkspaces: async () => {
+  getUserWorkspaces: async (): Promise<UserWorkspaceResponse[]> => {
     const res = await api.get("/auth/workspaces");
-    return res.data.data as { workspaceId: number; workspaceName: string; roleName: string }[];
+    return res.data.data as UserWorkspaceResponse[];
   },
 
   switchWorkspace: async (workspaceId: number) => {

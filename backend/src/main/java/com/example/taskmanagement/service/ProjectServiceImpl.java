@@ -49,6 +49,7 @@ public class ProjectServiceImpl implements ProjectService {
         project.setDescription(request.getDescription());
         project.setLeader(leader);
         project.setWorkspace(workspace);
+        project.setMaxMembers(request.getMaxMembers());
 
         // Tự động thêm leader vào danh sách member của project
         project.getMembers().add(leader);
@@ -142,6 +143,10 @@ public class ProjectServiceImpl implements ProjectService {
 
         if (project.getMembers().contains(newMember)) {
             throw new IllegalArgumentException("User đã là member của project này rồi");
+        }
+
+        if (project.getMaxMembers() != null && project.getMembers().size() >= project.getMaxMembers()) {
+            throw new IllegalArgumentException("Dự án đã đạt giới hạn số lượng thành viên tối đa quy định (" + project.getMaxMembers() + ")");
         }
 
         project.getMembers().add(newMember);

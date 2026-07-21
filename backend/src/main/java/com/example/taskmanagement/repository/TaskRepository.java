@@ -19,6 +19,15 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByAssigneeIdAndProjectWorkspaceIdAndStatus(Long assigneeId, Long workspaceId, TaskStatus status);
     long countByProjectWorkspaceId(Long workspaceId);
 
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.assignee.id = :assigneeId AND t.project.workspace.id = :workspaceId AND t.status != com.example.taskmanagement.model.enums.TaskStatus.DONE")
+    long countUncompletedTasksByAssigneeIdAndWorkspaceId(@Param("assigneeId") Long assigneeId, @Param("workspaceId") Long workspaceId);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.assignee.id = :assigneeId AND t.project.workspace.id = :workspaceId AND t.status = com.example.taskmanagement.model.enums.TaskStatus.DONE")
+    long countCompletedTasksByAssigneeIdAndWorkspaceId(@Param("assigneeId") Long assigneeId, @Param("workspaceId") Long workspaceId);
+
+    @Query("SELECT t FROM Task t WHERE t.assignee.id = :assigneeId AND t.project.workspace.id = :workspaceId AND t.status = com.example.taskmanagement.model.enums.TaskStatus.DONE ORDER BY t.id DESC")
+    List<Task> findCompletedTasksByAssigneeIdAndWorkspaceId(@Param("assigneeId") Long assigneeId, @Param("workspaceId") Long workspaceId);
+
     long countByProjectWorkspaceIdAndStatus(Long workspaceId, TaskStatus status);
 
     long countByProjectWorkspaceIdAndPriority(Long workspaceId, TaskPriority priority);

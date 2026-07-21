@@ -307,6 +307,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         project.setDescription(request.getDescription());
         project.setLeader(leaderMembership.getUser());
         project.setWorkspace(workspace);
+        project.setMaxMembers(request.getMaxMembers());
 
         // Tự động thêm leader làm thành viên đầu tiên của dự án
         project.getMembers().add(leaderMembership.getUser());
@@ -332,6 +333,14 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
 
         if (!membership.isActive()) {
             throw new IllegalArgumentException("Tài khoản thành viên cần thêm đang bị khóa");
+        }
+
+        if (project.getMembers().contains(membership.getUser())) {
+            throw new IllegalArgumentException("Thành viên đã có trong dự án này");
+        }
+
+        if (project.getMaxMembers() != null && project.getMembers().size() >= project.getMaxMembers()) {
+            throw new IllegalArgumentException("Dự án đã đạt giới hạn số lượng thành viên tối đa quy định (" + project.getMaxMembers() + ")");
         }
 
         // Add vào project

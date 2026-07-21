@@ -57,7 +57,7 @@ const buildLinePath = (points: number[], w: number, h: number) => {
 };
 
 // ── Component ──────────────────────────────────────────────────────────────
-type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile";
+type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile" | "history";
 
 const LeaderDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
@@ -276,6 +276,15 @@ const LeaderDashboard: React.FC = () => {
       return;
     }
 
+    const proj = projects.find(p => p.id === projectId);
+    if (proj) {
+      const currentMemberCount = proj.members ? proj.members.length : 0;
+      if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount >= proj.maxMembers) {
+        setErrorMsg(`Không thể thêm thành viên. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
+        return;
+      }
+    }
+
     if (projectMemberActionLoading) {
       return;
     }
@@ -383,7 +392,7 @@ const LeaderDashboard: React.FC = () => {
           {wsDdOpen && (
             <div className={styles["workspace-dropdown"]}>
               <p className={styles["dropdown-section-title"]}>Your Workspaces</p>
-              {userWs.map((ws, i) => (
+              {userWs.filter(ws => ws.uncompletedTaskCount > 0).map((ws, i) => (
                 <button
                   key={i}
                   className={`${styles["workspace-dropdown-item"]} ${ws.workspaceId === user?.workspaceId ? styles["active"] : ""}`}
@@ -426,6 +435,7 @@ const LeaderDashboard: React.FC = () => {
               { key: "dashboard", icon: "bi-grid-fill",        label: "Dashboard"    },
               { key: "projects",  icon: "bi-folder-fill",       label: "My projects"  },
               ...(user?.role !== "MEMBER" ? [{ key: "members", icon: "bi-people-fill", label: "Members" }] : []),
+              { key: "history",   icon: "bi-clock-history",     label: "Workspace history" },
               { key: "profile",   icon: "bi-person-fill",        label: "Profile"      },
             ] as { key: ActiveTab; icon: string; label: string }[]
           ).map(({ key, icon, label }) => (
@@ -755,7 +765,7 @@ const LeaderDashboard: React.FC = () => {
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{p.name}</div>
-                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{p.members.length} members · {p.taskCount} tasks</div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{p.members.length}{p.maxMembers ? `/${p.maxMembers}` : ""} members · {p.taskCount} tasks</div>
                           </div>
                         </div>
                         {p.description && <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "14px" }}>{p.description}</p>}
@@ -844,7 +854,7 @@ const LeaderDashboard: React.FC = () => {
                 <div className={styles["card"]} style={{ marginBottom: "16px" }}>
                   <div className={styles["card-header"]} style={{ marginBottom: "12px" }}>
                     <h2 className={styles["card-title"]}>Project members</h2>
-                    <span className={styles["card-badge"]}>{project.members.length} members</span>
+                    <span className={styles["card-badge"]}>{project.members.length}{project.maxMembers ? ` / ${project.maxMembers}` : ""} members</span>
                   </div>
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
@@ -1131,6 +1141,99 @@ const LeaderDashboard: React.FC = () => {
                   <label className={styles["form-label"]}>Email</label>
                   <input className={styles["form-input"]} value={user?.email || ""} readOnly />
                 </div>
+              </div>
+            </>
+          )}
+          {activeTab === "history" && (
+            <>
+              <div className={styles["page-header-row"]}>
+                <div>
+                  <h1 className={styles["page-title"]}>Workspace History</h1>
+                  <p className={styles["page-sub"]}>Lịch sử hoạt động và các task đã hoàn thành trên các Workspace.</p>
+                </div>
+              </div>
+
+              <div className={styles["history-list"]}>
+                {userWs.length === 0 ? (
+                  <div className={styles["empty-state-history"]}>
+                    <i className="bi bi-clock-history"></i>
+                    <p>Bạn chưa tham gia Workspace nào.</p>
+                  </div>
+                ) : (
+                  userWs.map((ws) => {
+                    const isActive = ws.workspaceId === user?.workspaceId;
+                    return (
+                      <div
+                        key={ws.workspaceId}
+                        className={`${styles["history-card"]} ${!isActive ? styles["history-card-clickable"] : ""}`}
+                        onClick={() => {
+                          if (!isActive) {
+                            handleSwitchWs(ws.workspaceId);
+                          }
+                        }}
+                      >
+                        <div className={styles["history-card-header"]}>
+                          <div className={styles["history-card-info"]}>
+                            <div className={styles["history-avatar"]}>
+                              {getInitials(ws.workspaceName)}
+                            </div>
+                            <div>
+                              <h3 className={styles["history-ws-name"]}>
+                                {ws.workspaceName}
+                                {isActive ? (
+                                  <span className={styles["active-badge"]}>Active</span>
+                                ) : (
+                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
+                                )}
+                              </h3>
+                              <p className={styles["history-ws-meta"]}>
+                                Vai trò: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
+                              </p>
+                            </div>
+                          </div>
+
+                        <div className={styles["history-ws-stats"]}>
+                          <span className={styles["stat-count-badge"]}>
+                            <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                          </span>
+                          <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
+                            <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Completed tasks inside this workspace */}
+                      <div className={styles["history-tasks-section"]}>
+                        <h4 className={styles["history-tasks-title"]}>
+                          <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                        </h4>
+                        
+                        {!ws.completedTasks || ws.completedTasks.length === 0 ? (
+                          <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                        ) : (
+                          <div className={styles["history-tasks-grid"]}>
+                            {ws.completedTasks.map((t) => (
+                              <div key={t.id} className={styles["history-task-item"]}>
+                                <div className={styles["history-task-top"]}>
+                                  <span className={styles["history-task-proj"]}>{t.projectName}</span>
+                                  <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
+                                    {t.priority}
+                                  </span>
+                                </div>
+                                <h5 className={styles["history-task-title"]}>{t.title}</h5>
+                                {t.deadline && (
+                                  <div className={styles["history-task-deadline"]}>
+                                    <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }))}
               </div>
             </>
           )}

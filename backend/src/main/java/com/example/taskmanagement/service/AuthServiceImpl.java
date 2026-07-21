@@ -41,6 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
     private final VerificationTokenRepository verificationTokenRepository;
     private final EmailService emailService;
+    private final TaskRepository taskRepository;
 
     @Value("${app.backend-base-url:http://localhost:8080/taskmanager}")
     private String backendBaseUrl;
@@ -400,11 +401,30 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new IllegalStateException("User does not exist"));
         List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
         return memberships.stream()
-                .map(m -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse(
-                        m.getWorkspace().getId(),
-                        m.getWorkspace().getName(),
-                        m.getRole().getName().name()
-                ))
+                .map(m -> {
+                    long uncompleted = taskRepository.countUncompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
+                    long completed = taskRepository.countCompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
+                    
+                    List<Task> completedTaskList = taskRepository.findCompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
+                    List<com.example.taskmanagement.dto.response.UserWorkspaceResponse.CompletedTaskInfo> completedTasks = completedTaskList.stream()
+                            .map(t -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse.CompletedTaskInfo(
+                                    t.getId(),
+                                    t.getTitle(),
+                                    t.getProject() != null ? t.getProject().getName() : "General",
+                                    t.getPriority() != null ? t.getPriority().name() : "MEDIUM",
+                                    t.getDeadline() != null ? t.getDeadline().toString() : null
+                            ))
+                            .collect(java.util.stream.Collectors.toList());
+
+                    return new com.example.taskmanagement.dto.response.UserWorkspaceResponse(
+                            m.getWorkspace().getId(),
+                            m.getWorkspace().getName(),
+                            m.getRole().getName().name(),
+                            uncompleted,
+                            completed,
+                            completedTasks
+                    );
+                })
                 .collect(java.util.stream.Collectors.toList());
     }
 

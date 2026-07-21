@@ -34,7 +34,6 @@ public class Project {
     @JoinColumn(name = "workspace_id", nullable = false)
     private Workspace workspace;
 
-    // Bảng trung gian project_members để quản lý Member trong Project
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "project_members",
@@ -42,6 +41,9 @@ public class Project {
         inverseJoinColumns = @JoinColumn(name = "user_id")
     )
     private Set<User> members = new HashSet<>();
+
+    @Column(name = "max_members")
+    private Integer maxMembers;
     
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Task> tasks = new HashSet<>();

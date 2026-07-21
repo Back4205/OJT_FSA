@@ -19,4 +19,6 @@ public class CreateProjectRequest {
     private String name;
 
     private String description;
+
+    private Integer maxMembers;
 }

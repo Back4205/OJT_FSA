@@ -53,12 +53,14 @@ export interface ProjectResponse {
   }>;
   taskCount: number;
   completedTaskCount: number;
+  maxMembers?: number;
 }
 
 export interface ProjectCreateRequest {
   name: string;
   description: string;
   leaderId: number;
+  maxMembers: number;
 }
 
 export interface ProjectMemberRequest {
@@ -73,10 +75,21 @@ export interface DashboardStatsResponse {
   tasksByPriority: Record<string, number>;
 }
 
+export interface CompletedTaskInfo {
+  id: number;
+  title: string;
+  projectName: string;
+  priority: string;
+  deadline?: string | null;
+}
+
 export interface UserWorkspaceResponse {
   workspaceId: number;
   workspaceName: string;
   roleName: string;
+  uncompletedTaskCount: number;
+  completedTaskCount: number;
+  completedTasks: CompletedTaskInfo[];
 }
 
 export const workspaceService = {
