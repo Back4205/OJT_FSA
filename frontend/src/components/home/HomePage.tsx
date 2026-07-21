@@ -6,6 +6,31 @@ type HomePageProps = {
   onRegister?: () => void;
 };
 
+const navItems = ["Product", "Customers", "Pricing", "Docs"];
+
+const roleCards = [
+  {
+    title: "Super admin",
+    description: "Manage every workspace on the platform.",
+    icon: "bi-shield"
+  },
+  {
+    title: "Workspace admin",
+    description: "Run one company, its users and projects.",
+    icon: "bi-building"
+  },
+  {
+    title: "Leader",
+    description: "Lead projects, assign tasks, review work.",
+    icon: "bi-person-gear"
+  },
+  {
+    title: "Member",
+    description: "Focus on your assigned tasks and updates.",
+    icon: "bi-person"
+  }
+];
+
 export default function HomePage({ onLogin, onRegister }: HomePageProps) {
   return (
     <div className={styles.page}>
@@ -19,6 +44,14 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
             <small>TASK OS</small>
           </span>
         </Link>
+
+        <nav className={styles.nav} aria-label="Primary navigation">
+          {navItems.map((item) => (
+            <a key={item} href={`#${item.toLowerCase()}`}>
+              {item}
+            </a>
+          ))}
+        </nav>
 
         <div className={styles.actions}>
           <Link to="/taskmanager/login" className={styles.textLink} onClick={onLogin}>
@@ -71,6 +104,21 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
                 Built for teams
               </span>
             </div>
+          </div>
+        </section>
+
+        <section className={styles.rolesSection} aria-labelledby="roles-title">
+          <p className={styles.sectionLabel} id="roles-title">
+            Explore by role
+          </p>
+          <div className={styles.roleGrid}>
+            {roleCards.map((role) => (
+              <article key={role.title} className={styles.roleCard}>
+                <i className={`bi ${role.icon}`} aria-hidden="true" />
+                <h2>{role.title}</h2>
+                <p>{role.description}</p>
+              </article>
+            ))}
           </div>
         </section>
       </main>

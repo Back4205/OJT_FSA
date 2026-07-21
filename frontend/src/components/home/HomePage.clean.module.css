@@ -87,7 +87,28 @@
   letter-spacing: 0.24em;
 }
 
+.nav {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 34px;
+}
+
+.nav a {
+  color: rgba(247, 248, 255, 0.92);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 600;
+  transition: color 0.18s ease, transform 0.18s ease;
+}
+
+.nav a:hover {
+  color: #fff;
+  transform: translateY(-1px);
+}
+
 .actions {
+  justify-self: end;
   display: inline-flex;
   align-items: center;
   gap: 14px;
@@ -246,6 +267,61 @@
   font-size: 0.9rem;
 }
 
+.rolesSection {
+  margin: -10px auto 0;
+  width: min(990px, 100%);
+}
+
+.sectionLabel {
+  margin: 0 0 16px;
+  text-align: center;
+  color: rgba(216, 226, 255, 0.76);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.roleGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.roleCard {
+  min-height: 145px;
+  padding: 24px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  text-align: left;
+}
+
+.roleCard i {
+  display: inline-flex;
+  margin-bottom: 22px;
+  color: #12d9a2;
+  font-size: 1.05rem;
+}
+
+.roleCard h2 {
+  margin: 0 0 8px;
+  color: #fff;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.roleCard p {
+  margin: 0;
+  color: rgba(231, 236, 248, 0.72);
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .primaryButton:hover,
 .textLink:hover,
 .ctaPrimary:hover,
@@ -257,6 +333,21 @@
   .header {
     grid-template-columns: 1fr;
     justify-items: center;
+  }
+
+  .nav {
+    order: 3;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px 24px;
+  }
+
+  .actions {
+    justify-self: center;
+  }
+
+  .roleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
 }
@@ -296,6 +387,23 @@
 
   .trustRow {
     gap: 12px 18px;
+  }
+
+  .nav {
+    width: 100%;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .rolesSection {
+    margin-top: -18px;
+  }
+
+  .roleGrid {
+    grid-template-columns: 1fr;
   }
 
 }
