@@ -434,6 +434,7 @@ const LeaderDashboard: React.FC = () => {
   // ── Render helpers ────────────────────────────────────────────────────────
   const currentWsName = user?.workspaceName || "Workspace";
   const currentWsObj = userWs.find(ws => ws.workspaceId === user?.workspaceId);
+  const isWorkspaceLocked = currentWsObj ? (currentWsObj as any).locked : false;
   const uncompletedTaskCount = currentWsObj ? currentWsObj.uncompletedTaskCount : 0;
 
   const renderStatusDonutChart = () => {
