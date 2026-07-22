@@ -54,6 +54,7 @@ export interface ProjectResponse {
   taskCount: number;
   completedTaskCount: number;
   maxMembers?: number;
+  isDeleted?: boolean;
 }
 
 export interface ProjectCreateRequest {
@@ -73,6 +74,8 @@ export interface DashboardStatsResponse {
   totalTasks: number;
   tasksByStatus: Record<string, number>;
   tasksByPriority: Record<string, number>;
+  createdTasksWeekly?: number[];
+  completedTasksWeekly?: number[];
 }
 
 export interface CompletedTaskInfo {
@@ -163,6 +166,16 @@ export const workspaceService = {
   // Cập nhật vai trò của thành viên trong dự án
   updateProjectMemberRole: async (projectId: number, userId: number, roleName: "LEADER" | "MEMBER"): Promise<void> => {
     await api.put(`/workspaces/current/projects/${projectId}/members/${userId}/role`, { roleName });
+  },
+
+  // Kết thúc dự án (Xóa mềm)
+  completeProject: async (projectId: number): Promise<void> => {
+    await api.put(`/workspaces/current/projects/${projectId}/complete`);
+  },
+
+  // Kích hoạt lại dự án đã kết thúc
+  reactivateProject: async (projectId: number): Promise<void> => {
+    await api.put(`/workspaces/current/projects/${projectId}/reactivate`);
   },
 
   // Lấy thống kê của Dashboard

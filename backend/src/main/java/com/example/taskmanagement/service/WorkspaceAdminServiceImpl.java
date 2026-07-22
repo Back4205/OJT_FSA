@@ -30,6 +30,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     private final ProjectRepository projectRepository;
     private final TaskRepository taskRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ActivityLogRepository activityLogRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -80,6 +81,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 })
                 .map(m -> {
                     List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                            .filter(p -> p.getIsDeleted() == null || !p.getIsDeleted())
                             .filter(p -> p.getMembers().contains(m.getUser()) || p.getLeader().equals(m.getUser()))
                             .map(p -> {
                                 String role = p.getLeader().equals(m.getUser()) ? "LEADER" : "MEMBER";
@@ -189,6 +191,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
 
         List<com.example.taskmanagement.model.Project> projects = projectRepository.findByWorkspaceId(workspaceId);
         List<MembershipResponse.ProjectDetail> userProjects = projects.stream()
+                .filter(p -> p.getIsDeleted() == null || !p.getIsDeleted())
                 .filter(p -> p.getMembers().contains(savedMembership.getUser()) || p.getLeader().equals(savedMembership.getUser()))
                 .map(p -> {
                     String role = p.getLeader().equals(savedMembership.getUser()) ? "LEADER" : "MEMBER";
@@ -373,28 +376,70 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Override
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(Long workspaceId) {
-        long totalProjects = projectRepository.countByWorkspaceId(workspaceId);
+        // Lấy danh sách các project đang hoạt động (chưa hoàn thành / soft delete)
+        List<Project> activeProjects = projectRepository.findByWorkspaceId(workspaceId).stream()
+                .filter(p -> p.getIsDeleted() == null || !p.getIsDeleted())
+                .collect(Collectors.toList());
+
+        long totalProjects = activeProjects.size();
 
         // Đếm tổng số thành viên đang hoạt động trong Workspace
         long totalMembers = workspaceMembershipRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(WorkspaceMembership::isActive)
                 .count();
 
-        long totalTasks = taskRepository.countByProjectWorkspaceId(workspaceId);
+        // Lấy danh sách ID của các project đang hoạt động
+        List<Long> activeProjectIds = activeProjects.stream()
+                .map(Project::getId)
+                .collect(Collectors.toList());
 
-        // Báo cáo số lượng task theo Status
+        // Lấy tất cả task thuộc các project đang hoạt động
+        List<Task> activeTasks = activeProjectIds.isEmpty() ? new java.util.ArrayList<>()
+                : taskRepository.findAll().stream()
+                        .filter(t -> activeProjectIds.contains(t.getProject().getId()))
+                        .collect(Collectors.toList());
+
+        long totalTasks = activeTasks.size();
+
+        // Báo cáo số lượng task theo Status cho các project đang hoạt động
         Map<String, Long> tasksByStatus = new HashMap<>();
         for (TaskStatus status : TaskStatus.values()) {
-            long countStr = taskRepository.countByProjectWorkspaceIdAndStatus(workspaceId, status);
+            long countStr = activeTasks.stream().filter(t -> t.getStatus() == status).count();
             tasksByStatus.put(status.name(), countStr);
         }
 
-        // Báo cáo số lượng task theo mức độ ưu tiên Priority
+        // Báo cáo số lượng task theo mức độ ưu tiên Priority cho các project đang hoạt động
         Map<String, Long> tasksByPriority = new HashMap<>();
         for (TaskPriority priority : TaskPriority.values()) {
-            long countPri = taskRepository.countByProjectWorkspaceIdAndPriority(workspaceId, priority);
+            long countPri = activeTasks.stream().filter(t -> t.getPriority() == priority).count();
             tasksByPriority.put(priority.name(), countPri);
         }
+
+        // Tính toán số lượng task được tạo và hoàn thành trong tuần này (Monday - Sunday)
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime startOfWeek = now.with(java.time.DayOfWeek.MONDAY).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        java.time.LocalDateTime endOfWeek = startOfWeek.plusDays(7);
+
+        List<ActivityLog> logs = activityLogRepository.findTaskActivitiesInWorkspaceThisWeek(workspaceId, startOfWeek, endOfWeek);
+
+        Long[] createdWeeklyArray = new Long[]{0L, 0L, 0L, 0L, 0L, 0L, 0L};
+        Long[] completedWeeklyArray = new Long[]{0L, 0L, 0L, 0L, 0L, 0L, 0L};
+
+        for (ActivityLog log : logs) {
+            int dayIndex = log.getTimestamp().getDayOfWeek().getValue() - 1; // Monday is 1 -> index 0, Sunday is 7 -> index 6
+            if (dayIndex >= 0 && dayIndex < 7) {
+                if (log.getAction() == ActionType.CREATE_TASK) {
+                    createdWeeklyArray[dayIndex]++;
+                } else if (log.getAction() == ActionType.CHANGE_TASK_STATUS && 
+                           log.getDescription() != null && 
+                           log.getDescription().contains("→ DONE")) {
+                    completedWeeklyArray[dayIndex]++;
+                }
+            }
+        }
+
+        List<Long> createdTasksWeekly = java.util.Arrays.asList(createdWeeklyArray);
+        List<Long> completedTasksWeekly = java.util.Arrays.asList(completedWeeklyArray);
 
         return DashboardStatsResponse.builder()
                 .totalProjects(totalProjects)
@@ -402,14 +447,28 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 .totalTasks(totalTasks)
                 .tasksByStatus(tasksByStatus)
                 .tasksByPriority(tasksByPriority)
+                .createdTasksWeekly(createdTasksWeekly)
+                .completedTasksWeekly(completedTasksWeekly)
                 .build();
     }
 
-    // @Override
-    // public ProjectResponse changeProjectLeader(Long workspaceId, Long projectId, Long newLeaderUserId) {
-    //     // TODO Auto-generated method stub
-    //     throw new UnsupportedOperationException("Unimplemented method 'changeProjectLeader'");
-    // }
+    @Override
+    @Transactional
+    public void completeProject(Long workspaceId, Long projectId) {
+        Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
+                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+        project.setIsDeleted(true);
+        projectRepository.save(project);
+    }
+
+    @Override
+    @Transactional
+    public void reactivateProject(Long workspaceId, Long projectId) {
+        Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
+                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+        project.setIsDeleted(false);
+        projectRepository.save(project);
+    }
 
     /**
      * [Phương án B] Helper: Tự động nâng workspace membership role lên LEADER

@@ -36,6 +36,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
   // Search & Filter state for Projects
   const [projectSearchQuery, setProjectSearchQuery] = useState<string>("");
+  const [projectStatusFilter, setProjectStatusFilter] = useState<"ACTIVE" | "COMPLETED" | "ALL">("ACTIVE");
   const [projectViewMode, setProjectViewMode] = useState<"grid" | "list">("grid");
 
   // Modals & Form States
@@ -85,6 +86,15 @@ const WorkspaceAdminDashboard: React.FC = () => {
       // 4. Lấy dữ liệu thống kê stats
       try {
         const statsData = await workspaceService.getDashboardStats();
+        if (statsData && statsData.tasksByStatus) {
+          const raw = statsData.tasksByStatus;
+          statsData.tasksByStatus = {
+            COMPLETED: raw.DONE || 0,
+            IN_PROGRESS: raw.IN_PROGRESS || 0,
+            TODO: raw.TODO || 0,
+            REVIEW: raw.REVIEW || 0,
+          };
+        }
         setStats(statsData);
       } catch (err: any) {
         console.error("Mất kết nối lấy thống kê", err);
@@ -245,6 +255,34 @@ const WorkspaceAdminDashboard: React.FC = () => {
     }
   };
 
+  const handleCompleteProject = async (projectId: number) => {
+    if (!window.confirm("Bạn có chắc chắn muốn kết thúc dự án này? Dự án sẽ được chuyển sang danh sách dự án đã xong.")) return;
+    try {
+      await workspaceService.completeProject(projectId);
+      setSuccessMsg("Kết thúc dự án thành công.");
+      const projectsData = await workspaceService.getProjects();
+      setProjects(projectsData);
+      const membersData = await workspaceService.getMembers();
+      setMembers(membersData);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể kết thúc dự án.");
+    }
+  };
+
+  const handleReopenProject = async (projectId: number) => {
+    if (!window.confirm("Bạn có chắc chắn muốn kích hoạt lại dự án này?")) return;
+    try {
+      await workspaceService.reactivateProject(projectId);
+      setSuccessMsg("Kích hoạt lại dự án thành công.");
+      const projectsData = await workspaceService.getProjects();
+      setProjects(projectsData);
+      const membersData = await workspaceService.getMembers();
+      setMembers(membersData);
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Không thể kích hoạt lại dự án.");
+    }
+  };
+
   const handleAddToProjectDetail = async (projectId: number, userId: number) => {
     const proj = projects.find(p => p.id === projectId);
     if (proj) {
@@ -341,16 +379,16 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const renderStatusDonutChart = () => {
     const defaultData = {
       COMPLETED: stats?.tasksByStatus?.COMPLETED || 0,
-      PENDING: stats?.tasksByStatus?.PENDING || 0,
+      TODO: stats?.tasksByStatus?.TODO || 0,
       IN_PROGRESS: stats?.tasksByStatus?.IN_PROGRESS || 0,
-      BLOCKED: stats?.tasksByStatus?.BLOCKED || 0,
+      REVIEW: stats?.tasksByStatus?.REVIEW || 0,
     };
 
-    const total = defaultData.COMPLETED + defaultData.PENDING + defaultData.IN_PROGRESS + defaultData.BLOCKED;
+    const total = defaultData.COMPLETED + defaultData.TODO + defaultData.IN_PROGRESS + defaultData.REVIEW;
     
     // Nếu tổng thống kê số task bằng 0 thì gán giả định trực quan để sinh động màu
-    const plotData = total > 0 ? defaultData : { COMPLETED: 6914, IN_PROGRESS: 2014, PENDING: 2868, BLOCKED: 270 };
-    const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.PENDING + plotData.BLOCKED;
+    const plotData = total > 0 ? defaultData : { COMPLETED: 6914, IN_PROGRESS: 2014, TODO: 2868, REVIEW: 270 };
+    const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.TODO + plotData.REVIEW;
 
     const r = 40;
     const circ = 2 * Math.PI * r;
@@ -359,11 +397,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
     const items = [
       { key: "COMPLETED", value: plotData.COMPLETED, color: "var(--admin-success)" },
       { key: "IN_PROGRESS", value: plotData.IN_PROGRESS, color: "var(--admin-info)" },
-      { key: "PENDING", value: plotData.PENDING, color: "var(--admin-warning)" },
-      { key: "BLOCKED", value: plotData.BLOCKED, color: "var(--admin-danger)" },
+      { key: "TODO", value: plotData.TODO, color: "var(--admin-warning)" },
+      { key: "REVIEW", value: plotData.REVIEW, color: "var(--admin-danger)" },
     ];
 
-    let accumulatedPercentage = 0;
+    let accumulatedLength = 0;
 
     return (
       <div className={styles["donut-chart-container"]}>
@@ -373,8 +411,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
             {items.map((item, idx) => {
               const currentPercentage = (item.value / plotTotal) * 100;
               const strokeLength = (currentPercentage / 100) * circ;
-              const strokeOffset = circ - ((accumulatedPercentage / 100) * circ);
-              accumulatedPercentage += currentPercentage;
+              const strokeOffset = -accumulatedLength;
+              accumulatedLength += strokeLength;
               return (
                 <circle
                   key={idx}
@@ -415,16 +453,16 @@ const WorkspaceAdminDashboard: React.FC = () => {
           <div className={styles["legend-item"]}>
             <div className={styles["legend-label-group"]}>
               <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
-              <span>Pending</span>
+              <span>Todo</span>
             </div>
-            <span className={styles["legend-value"]}>{defaultData.PENDING.toLocaleString()}</span>
+            <span className={styles["legend-value"]}>{defaultData.TODO.toLocaleString()}</span>
           </div>
           <div className={styles["legend-item"]}>
             <div className={styles["legend-label-group"]}>
               <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
-              <span>Blocked</span>
+              <span>Review</span>
             </div>
-            <span className={styles["legend-value"]}>{defaultData.BLOCKED.toLocaleString()}</span>
+            <span className={styles["legend-value"]}>{defaultData.REVIEW.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -433,27 +471,40 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
   // SVGs cho Area/Line Chart
   const renderWeeklyActivityChart = () => {
-    const total = stats?.totalTasks ?? 0;
+    const today = new Date();
+    let currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const todayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+
+    const createdData = (stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+    const completedData = (stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+
+    const maxVal = Math.max(...createdData, ...completedData, 5);
+
+    const xCoords = [50, 150, 250, 350, 450, 550, 650];
     
-    // Nếu tổng thống kê bằng 0 thì vẽ đường thẳng 0 hoạt động (vị trí y = 135)
-    // Ngược lại vẽ đường sóng trực quan
-    const createdPath = total > 0 
-      ? "M 50,75 C 100,50 150,90 200,85 C 250,80 300,58 350,52 C 400,45 450,38 500,40 C 550,42 600,105 650,102"
-      : "M 50,135 L 650,135";
-    
-    const createdArea = total > 0
-      ? "M 50,75 C 100,50 150,90 200,85 C 250,80 300,58 350,52 C 400,45 450,38 500,40 C 550,42 600,105 650,102 L 650,136 L 50,136 Z"
-      : "M 50,135 L 650,135 L 650,136 L 50,136 Z";
+    const createdPoints = createdData.map((val, i) => ({
+      x: xCoords[i],
+      y: 110 - (val / maxVal) * 90
+    }));
 
-    const completedPath = total > 0
-      ? "M 50,90 C 100,85 150,100 200,95 C 250,91 300,75 350,68 C 400,62 450,52 500,48 C 550,50 600,110 650,108"
-      : "M 50,135 L 650,135";
+    const completedPoints = completedData.map((val, i) => ({
+      x: xCoords[i],
+      y: 110 - (val / maxVal) * 90
+    }));
 
-    const completedArea = total > 0
-      ? "M 50,90 C 100,85 150,100 200,95 C 250,91 300,75 350,68 C 400,62 450,52 500,48 C 550,50 600,110 650,108 L 650,136 L 50,136 Z"
-      : "M 50,135 L 650,135 L 650,136 L 50,136 Z";
+    const createdPath = createdPoints.length > 0 
+      ? `M ${createdPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
+      : "";
+    const createdArea = createdPoints.length > 0
+      ? `${createdPath} L ${createdPoints[createdPoints.length - 1].x},120 L 50,120 Z`
+      : "";
 
-    const hasDots = total > 0;
+    const completedPath = completedPoints.length > 0
+      ? `M ${completedPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
+      : "";
+    const completedArea = completedPoints.length > 0
+      ? `${completedPath} L ${completedPoints[completedPoints.length - 1].x},120 L 50,120 Z`
+      : "";
 
     return (
       <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
@@ -470,10 +521,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
         
         <div className={styles["line-chart-wrapper"]}>
           <div className={styles["axis-y-labels"]}>
-            <span>100</span>
-            <span>75</span>
-            <span>50</span>
-            <span>25</span>
+            <span>{Math.round(maxVal)}</span>
+            <span>{Math.round(maxVal * 0.75)}</span>
+            <span>{Math.round(maxVal * 0.5)}</span>
+            <span>{Math.round(maxVal * 0.25)}</span>
             <span>0</span>
           </div>
 
@@ -506,13 +557,13 @@ const WorkspaceAdminDashboard: React.FC = () => {
             {/* Stroke line Completed */}
             <path d={completedPath} fill="transparent" stroke="#10b981" strokeWidth="2.5" />
             
-            {/* Draw dots only if workspace has active tasks */}
-            {hasDots && (
-              <>
-                <circle cx="350" cy="52" r="4" fill="#6366f1" />
-                <circle cx="500" cy="48" r="4" fill="#10b981" />
-              </>
-            )}
+            {/* Draw dots */}
+            {createdPoints.map((pt, i) => (
+              <circle key={`c-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1" />
+            ))}
+            {completedPoints.map((pt, i) => (
+              <circle key={`cp-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#10b981" stroke="#fff" strokeWidth="1" />
+            ))}
           </svg>
 
           <div className={styles["axis-x-labels"]}>
@@ -528,6 +579,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
       </div>
     );
   };
+
 
   // Helper tính toán tỉ lệ % tăng trưởng động của từng Workspace
   const getGrowth = (value: number, multiplier: number, prefix: string = "+") => {
@@ -545,7 +597,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const projectStats = getGrowth(stats?.totalProjects ?? 0, 15, "+");
   const taskStats = getGrowth(stats?.totalTasks ?? 0, 8.5, "+");
   const completedStats = getGrowth(stats?.tasksByStatus?.COMPLETED ?? 0, 12, "+");
-  const pendingStats = getGrowth(stats?.tasksByStatus?.PENDING ?? 0, 4.5, "-");
+  const todoStats = getGrowth(stats?.tasksByStatus?.TODO ?? 0, 6.5, "+");
+  const reviewStats = getGrowth(stats?.tasksByStatus?.REVIEW ?? 0, 3.5, "+");
 
   if (loading) {
     return (
@@ -858,15 +911,30 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 <div className={styles["stat-card"]}>
                   <div className={styles["stat-card-row"]}>
                     <div className={styles["stat-icon-wrapper"]}>
-                      <i className="bi bi-clock-history"></i>
+                      <i className="bi bi-list-task"></i>
                     </div>
-                    <span className={`${styles["stat-badge"]} ${pendingStats.isUp ? styles["badge-up"] : styles["badge-down"]}`}>
-                      <i className={`bi ${pendingStats.isUp ? "bi-arrow-up-right" : "bi-arrow-down-left"}`}></i> {pendingStats.text}
+                    <span className={`${styles["stat-badge"]} ${todoStats.isUp ? styles["badge-up"] : styles["badge-down"]}`}>
+                      <i className={`bi ${todoStats.isUp ? "bi-arrow-up-right" : "bi-arrow-down-left"}`}></i> {todoStats.text}
                     </span>
                   </div>
                   <div className={styles["stat-content"]}>
-                    <div className={styles["stat-value"]}>{(stats?.tasksByStatus?.PENDING ?? 0).toLocaleString()}</div>
-                    <div className={styles["stat-label"]}>Pending</div>
+                    <div className={styles["stat-value"]}>{(stats?.tasksByStatus?.TODO ?? 0).toLocaleString()}</div>
+                    <div className={styles["stat-label"]}>Todo</div>
+                  </div>
+                </div>
+
+                <div className={styles["stat-card"]}>
+                  <div className={styles["stat-card-row"]}>
+                    <div className={styles["stat-icon-wrapper"]}>
+                      <i className="bi bi-clock-history"></i>
+                    </div>
+                    <span className={`${styles["stat-badge"]} ${reviewStats.isUp ? styles["badge-up"] : styles["badge-down"]}`}>
+                      <i className={`bi ${reviewStats.isUp ? "bi-arrow-up-right" : "bi-arrow-down-left"}`}></i> {reviewStats.text}
+                    </span>
+                  </div>
+                  <div className={styles["stat-content"]}>
+                    <div className={styles["stat-value"]}>{(stats?.tasksByStatus?.REVIEW ?? 0).toLocaleString()}</div>
+                    <div className={styles["stat-label"]}>Review</div>
                   </div>
                 </div>
               </div>
@@ -893,8 +961,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     <span>Recent users</span>
                     <button className={styles["btn-text-action"]} onClick={() => setActiveTab("users")}>View all</button>
                   </h3>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    {members.slice(0, 4).map((member, i) => (
+                  <div style={{ display: "flex", flexDirection: "column", maxHeight: "280px", overflowY: "auto" }}>
+                    {members.slice(0, 15).map((member, i) => (
                       <div key={i} className={styles["user-row"]}>
                         <div className={styles["list-user-meta"]}>
                           <div className={styles["avatar-round-sm"]}>
@@ -919,10 +987,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     <span>Recent projects</span>
                     <button className={styles["btn-text-action"]} onClick={() => setActiveTab("projects")}>View all</button>
                   </h3>
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    {projects.slice(0, 4).map((proj, i) => {
-                      const percentages = [92, 70, 45, 32];
-                      const pct = percentages[i % 4];
+                  <div style={{ display: "flex", flexDirection: "column", maxHeight: "280px", overflowY: "auto" }}>
+                    {projects.slice(0, 15).map((proj, i) => {
+                      const totalTasks = proj.taskCount || 0;
+                      const completedTasks = proj.completedTaskCount || 0;
+                      const pct = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                       return (
                         <div key={i} className={styles["project-row"]}>
                           <div className={styles["project-info-group"]}>
@@ -939,13 +1008,13 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Panel 3: Activity Timeline and mini Calendar */}
+                {/* Panel 3: Activity Timeline */}
                 <div className={styles["chart-card"]}>
                   <h3 className={styles["chart-title"]} style={{ borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
                     Notifications & Activities
                   </h3>
                   
-                  <div className={styles["timeline-box"]}>
+                  <div className={styles["timeline-box"]} style={{ height: "auto", maxHeight: "280px", overflowY: "auto" }}>
                     <div className={styles["timeline-item"]}>
                       <span className={styles["timeline-indicator"]}></span>
                       <div className={styles["timeline-content"]}>
@@ -967,49 +1036,96 @@ const WorkspaceAdminDashboard: React.FC = () => {
                         <span className={styles["timeline-time"]}>45m ago</span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className={styles["calendar-widget"]}>
-                    <div className={styles["calendar-header"]}>
-                      <span>July 2026</span>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <i className="bi bi-chevron-left" style={{ cursor: "pointer" }}></i>
-                        <i className="bi bi-chevron-right" style={{ cursor: "pointer" }}></i>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Workspace created by <strong>vuongbach4205@gmail.com</strong></span>
+                        <span className={styles["timeline-time"]}>2h ago</span>
                       </div>
                     </div>
-
-                    <div className={styles["calendar-days-grid"]}>
-                      <div className={styles["cal-header-day"]}>M</div>
-                      <div className={styles["cal-header-day"]}>T</div>
-                      <div className={styles["cal-header-day"]}>W</div>
-                      <div className={styles["cal-header-day"]}>T</div>
-                      <div className={styles["cal-header-day"]}>F</div>
-                      <div className={styles["cal-header-day"]}>S</div>
-                      <div className={styles["cal-header-day"]}>S</div>
-                      
-                      <div className={styles["cal-day"]}>29</div>
-                      <div className={styles["cal-day"]}>30</div>
-                      <div className={styles["cal-day"]}>1</div>
-                      <div className={styles["cal-day"]}>2</div>
-                      <div className={styles["cal-day"]}>3</div>
-                      <div className={styles["cal-day"]}>4</div>
-                      <div className={styles["cal-day"]}>5</div>
-                      
-                      <div className={styles["cal-day"]}>6</div>
-                      <div className={styles["cal-day"]}>7</div>
-                      <div className={styles["cal-day"]}>8</div>
-                      <div className={styles["cal-day"]}>9</div>
-                      <div className={styles["cal-day"]}>10</div>
-                      <div className={styles["cal-day"]}>11</div>
-                      <div className={styles["cal-day"]}>12</div>
-
-                      <div className={styles["cal-day"]}>13</div>
-                      <div className={styles["cal-day"]}>14</div>
-                      <div className={styles["cal-day"]}>15</div>
-                      <div className={styles["cal-day"]}>16</div>
-                      <div className={styles["cal-day"]}>17</div>
-                      <div className={styles["cal-day"]}>18</div>
-                      <div className={`${styles["cal-day"]} ${styles["active-day"]}`}>19</div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Project <strong>"task1 22/7/2026"</strong> completed successfully</span>
+                        <span className={styles["timeline-time"]}>3h ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>User <strong>recept1</strong> joined the workspace</span>
+                        <span className={styles["timeline-time"]}>5h ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-info)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Task <strong>"Review UI/UX"</strong> moved to In Progress</span>
+                        <span className={styles["timeline-time"]}>6h ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Leader updated project description for <strong>"Atlas"</strong></span>
+                        <span className={styles["timeline-time"]}>8h ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Critical bug reported on <strong>Billing Module</strong></span>
+                        <span className={styles["timeline-time"]}>1d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Database backup completed successfully</span>
+                        <span className={styles["timeline-time"]}>1d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>New member <strong>lisa1234</strong> promoted to Leader</span>
+                        <span className={styles["timeline-time"]}>2d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Server CPU usage warning: 85% load detected</span>
+                        <span className={styles["timeline-time"]}>2d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>System settings updated by Admin</span>
+                        <span className={styles["timeline-time"]}>3d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Weekly activity report generated</span>
+                        <span className={styles["timeline-time"]}>4d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-info)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Task <strong>"Write documentation"</strong> assigned to recept1</span>
+                        <span className={styles["timeline-time"]}>5d ago</span>
+                      </div>
+                    </div>
+                    <div className={styles["timeline-item"]}>
+                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
+                      <div className={styles["timeline-content"]}>
+                        <span className={styles["timeline-txt"]}>Integration test failed on main branch</span>
+                        <span className={styles["timeline-time"]}>6d ago</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1213,10 +1329,18 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
           {/* TAB 3: PROJECTS MANAGEMENT */}
           {activeTab === "projects" && (() => {
-            const filteredProjects = projects.filter(p =>
-              p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
-              (p.description || "").toLowerCase().includes(projectSearchQuery.toLowerCase())
-            );
+            const filteredProjects = projects.filter(p => {
+              const matchesSearch = p.name.toLowerCase().includes(projectSearchQuery.toLowerCase()) ||
+                (p.description || "").toLowerCase().includes(projectSearchQuery.toLowerCase());
+              if (!matchesSearch) return false;
+
+              if (projectStatusFilter === "ACTIVE") {
+                return !p.isDeleted;
+              } else if (projectStatusFilter === "COMPLETED") {
+                return p.isDeleted;
+              }
+              return true;
+            });
 
             // Progress = completedTaskCount / taskCount (real data from DB)
             const getProgress = (proj: ProjectResponse) => {
@@ -1271,8 +1395,18 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["proj-filter-chips"]}>
-                    <div className={styles["proj-filter-chip"]}>
-                      <i className="bi bi-funnel"></i> Status: All
+                    <div className={styles["filter-select-wrapper"]} style={{ height: "36px", padding: "0 10px", display: "flex", alignItems: "center", border: "1px solid var(--admin-border)", borderRadius: "8px", background: "#fff", gap: "6px" }}>
+                      <i className="bi bi-funnel" style={{ color: "var(--admin-text-secondary)", fontSize: "0.85rem" }}></i>
+                      <select
+                        className={styles["filter-select-input"]}
+                        style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.85rem", cursor: "pointer", color: "var(--admin-text-secondary)", fontWeight: 600, paddingRight: "4px" }}
+                        value={projectStatusFilter}
+                        onChange={(e) => setProjectStatusFilter(e.target.value as any)}
+                      >
+                        <option value="ACTIVE">Status: Active</option>
+                        <option value="COMPLETED">Status: Completed</option>
+                        <option value="ALL">Status: All</option>
+                      </select>
                     </div>
                     <div className={styles["proj-filter-chip"]}>
                       <i className="bi bi-person"></i> Owner: Anyone
@@ -1308,7 +1442,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     ) : (
                       filteredProjects.map((proj) => {
                         const progress = getProgress(proj);
-                        const status = getStatus(progress, proj.taskCount);
+                        const status = proj.isDeleted
+                          ? { label: "Đã kết thúc", cls: "proj-status-notask" }
+                          : getStatus(progress, proj.taskCount);
 
                         return (
                           <div key={proj.id} className={styles["proj-card"]}>
@@ -1368,6 +1504,33 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 <span className={styles["proj-stat-label"]}>Members</span>
                               </div>
                             </div>
+
+                            {/* Card Actions */}
+                            <div className={styles["proj-card-actions"]} style={{ marginTop: "12px", borderTop: "1px solid var(--admin-border)", paddingTop: "12px" }}>
+                              {proj.isDeleted ? (
+                                <button
+                                  className={styles["proj-action-btn"]}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleReopenProject(proj.id);
+                                  }}
+                                  style={{ borderColor: "var(--admin-success)", color: "var(--admin-success)", width: "100%" }}
+                                >
+                                  <i className="bi bi-arrow-counterclockwise"></i> Kích hoạt lại
+                                </button>
+                              ) : (
+                                <button
+                                  className={styles["proj-action-btn"]}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCompleteProject(proj.id);
+                                  }}
+                                  style={{ borderColor: "#ef4444", color: "#ef4444", width: "100%" }}
+                                >
+                                  <i className="bi bi-check-circle"></i> Kết thúc dự án
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })
@@ -1388,12 +1551,15 @@ const WorkspaceAdminDashboard: React.FC = () => {
                           <th>Tasks</th>
                           <th>Done</th>
                           <th>Members</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filteredProjects.map((proj) => {
                           const progress = getProgress(proj);
-                          const status = getStatus(progress, proj.taskCount);
+                          const status = proj.isDeleted
+                            ? { label: "Đã kết thúc", cls: "proj-status-notask" }
+                            : getStatus(progress, proj.taskCount);
                           return (
                             <tr key={proj.id}>
                               <td>
@@ -1427,6 +1593,25 @@ const WorkspaceAdminDashboard: React.FC = () => {
                               <td style={{ fontSize: "0.88rem" }}>
                                 {proj.members?.length || 0}
                                 {proj.maxMembers ? ` / ${proj.maxMembers}` : ""}
+                              </td>
+                              <td>
+                                {proj.isDeleted ? (
+                                  <button
+                                    className={styles["btn-text"]}
+                                    onClick={() => handleReopenProject(proj.id)}
+                                    style={{ color: "var(--admin-success)", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
+                                  >
+                                    Kích hoạt lại
+                                  </button>
+                                ) : (
+                                  <button
+                                    className={styles["btn-text"]}
+                                    onClick={() => handleCompleteProject(proj.id)}
+                                    style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
+                                  >
+                                    Kết thúc
+                                  </button>
+                                )}
                               </td>
                             </tr>
                           );

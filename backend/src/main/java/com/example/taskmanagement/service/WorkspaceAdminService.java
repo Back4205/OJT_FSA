@@ -101,6 +101,16 @@ public interface WorkspaceAdminService {
     ProjectResponse removeProjectMember(Long workspaceId, Long projectId, Long userId);
 
     /**
+     * Kết thúc dự án (Xóa mềm).
+     */
+    void completeProject(Long workspaceId, Long projectId);
+
+    /**
+     * Kích hoạt lại dự án đã kết thúc.
+     */
+    void reactivateProject(Long workspaceId, Long projectId);
+
+    /**
      * Lấy dữ liệu thống kê tổng hợp của Workspace để hiển thị trên dashboard.
      * @param workspaceId ID của workspace đang hoạt động
      * @return DashboardStatsResponse thống kê dự án, thành viên, và các task theo trạng thái/mức độ ưu tiên

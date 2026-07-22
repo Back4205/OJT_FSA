@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.util.List;
 import java.util.Map;
 
 @Getter
@@ -18,4 +19,6 @@ public class DashboardStatsResponse {
     private long totalTasks;
     private Map<String, Long> tasksByStatus;
     private Map<String, Long> tasksByPriority;
+    private List<Long> createdTasksWeekly;
+    private List<Long> completedTasksWeekly;
 }
