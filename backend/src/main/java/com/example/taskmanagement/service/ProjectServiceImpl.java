@@ -67,6 +67,7 @@ public class ProjectServiceImpl implements ProjectService {
 
         if (!"WORKSPACE_ADMIN".equals(currentRole)) {
             projects = projects.stream()
+                    .filter(p -> p.getIsDeleted() == null || !p.getIsDeleted())
                     .filter(p -> p.getLeader().getId().equals(currentUserId) ||
                             p.getMembers().stream().anyMatch(m -> m.getId().equals(currentUserId)))
                     .collect(Collectors.toList());

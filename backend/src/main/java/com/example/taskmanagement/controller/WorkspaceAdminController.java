@@ -266,6 +266,42 @@ public class WorkspaceAdminController {
     }
 
     /**
+     * Kết thúc dự án (Xóa mềm).
+     */
+    @PutMapping("/projects/{projectId}/complete")
+    public ResponseEntity<ApiResponse<Void>> completeProject(
+            @CurrentWorkspaceId Long workspaceId,
+            @PathVariable Long projectId) {
+        if (workspaceId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+        }
+        try {
+            workspaceAdminService.completeProject(workspaceId, projectId);
+            return ResponseEntity.ok(ApiResponse.success("Kết thúc dự án thành công", null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
+     * Kích hoạt lại dự án đã kết thúc.
+     */
+    @PutMapping("/projects/{projectId}/reactivate")
+    public ResponseEntity<ApiResponse<Void>> reactivateProject(
+            @CurrentWorkspaceId Long workspaceId,
+            @PathVariable Long projectId) {
+        if (workspaceId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+        }
+        try {
+            workspaceAdminService.reactivateProject(workspaceId, projectId);
+            return ResponseEntity.ok(ApiResponse.success("Kích hoạt lại dự án thành công", null));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
+
+    /**
      * Lấy các số liệu thống kê tổng hợp phục vụ hiển thị Dashboard của Workspace.
      * @param workspaceId ID của workspace đang đăng nhập
      * @return ApiResponse chứa DashboardStatsResponse (Tổng số dự án, thành viên, và phân bố các trạng thái/mức ưu tiên)

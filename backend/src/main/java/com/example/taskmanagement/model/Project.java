@@ -48,4 +48,7 @@ public class Project {
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Task> tasks = new HashSet<>();
 
+    @Column(name = "is_deleted")
+    private Boolean isDeleted = false;
+
 }

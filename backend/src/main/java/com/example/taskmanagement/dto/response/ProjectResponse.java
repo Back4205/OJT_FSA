@@ -5,6 +5,7 @@ import com.example.taskmanagement.model.enums.TaskStatus;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,6 +24,9 @@ public class ProjectResponse {
     private int taskCount;
     private int completedTaskCount;
     private Integer maxMembers;
+
+    @JsonProperty("isDeleted")
+    private boolean isDeleted;
 
     @Getter
     @Setter
@@ -61,7 +65,8 @@ public class ProjectResponse {
                 memberList,
                 taskCount,
                 completedTaskCount,
-                project.getMaxMembers()
+                project.getMaxMembers(),
+                project.getIsDeleted() != null ? project.getIsDeleted() : false
         );
     }
 }
