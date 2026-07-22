@@ -64,11 +64,17 @@ const LeaderDashboard: React.FC = () => {
   const [taskStatusFilter, setTaskStatusFilter] = useState<"ALL" | TaskStatus>("ALL");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<"ALL" | TaskPriority>("ALL");
 
+  // Drag and Drop state
+  const [statusUpdateTaskId, setStatusUpdateTaskId] = useState<number | null>(null);
+  const [draggingTaskId, setDraggingTaskId] = useState<number | null>(null);
+  const [dropTargetStatus, setDropTargetStatus] = useState<TaskStatus | null>(null);
+
   // Data
   const [projects, setProjects] = useState<ProjectResponse[]>([]);
   const [wsMembers, setWsMembers] = useState<WorkspaceMemberShort[]>([]);
   const [allTasks, setAllTasks] = useState<TaskResponse[]>([]);
   const [userWs, setUserWs] = useState<UserWorkspaceResponse[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
 
@@ -95,8 +101,11 @@ const LeaderDashboard: React.FC = () => {
   const [taskProject, setTaskProject] = useState<number>(0);
   const [taskAssignee, setTaskAssignee] = useState<number>(0);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [projectMemberToAdd, setProjectMemberToAdd] = useState<number>(0);
-  const [projectMemberActionLoading, setProjectMemberActionLoading] = useState(false);
+  const [showManageMembersModal, setShowManageMembersModal] = useState(false);
+  const [manageMembersProjectId, setManageMembersProjectId] = useState<number | null>(null);
+  const [manageMembersSearch, setManageMembersSearch] = useState("");
+  const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
+  const [manageMembersActionLoading, setManageMembersActionLoading] = useState(false);
 
   // Create Workspace Form
   const [newWSNameInput, setNewWSNameInput] = useState("");
@@ -117,16 +126,18 @@ const LeaderDashboard: React.FC = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [projs, mems, wsData] = await Promise.all([
+      const [projs, mems, wsData, statsData] = await Promise.all([
         leaderService.getProjects(),
         leaderService.getWorkspaceMembers().catch(() => []), // Catch 403 for MEMBER
         leaderService.getUserWorkspaces(),
+        leaderService.getDashboardStats().catch(() => null),
       ]);
       console.log("[LeaderDashboard] Projects loaded:", projs);
       console.log("[LeaderDashboard] Members loaded:", mems);
       setProjects(projs);
       setWsMembers(mems);
       setUserWs(wsData);
+      setStats(statsData);
 
       // Fetch tasks for all projects (limited: first 3 projects)
       const taskPromises = projs.slice(0, 5).map(p =>
@@ -169,9 +180,7 @@ const LeaderDashboard: React.FC = () => {
     }
   }, [activeTab, selectedTaskId]);
 
-  useEffect(() => {
-    setProjectMemberToAdd(0);
-  }, [selectedProjectId]);
+
 
   // ── Workspace switch ─────────────────────────────────────────────────────
   const handleSwitchWs = async (wsId: number) => {
@@ -305,6 +314,40 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
+  const handleTaskDragStart = (event: React.DragEvent<HTMLDivElement>, task: TaskResponse) => {
+    setDraggingTaskId(task.id);
+    event.dataTransfer.setData("application/json", JSON.stringify(task));
+    event.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleColumnDragLeave = (event: React.DragEvent<HTMLElement>, status: TaskStatus) => {
+    event.preventDefault();
+    if (dropTargetStatus === status) {
+      setDropTargetStatus(null);
+    }
+  };
+
+  const handleTaskDrop = async (event: React.DragEvent<HTMLElement>, status: TaskStatus) => {
+    event.preventDefault();
+    setDropTargetStatus(null);
+    setDraggingTaskId(null);
+
+    const taskData = event.dataTransfer.getData("application/json");
+    if (!taskData) return;
+
+    try {
+      const parsedTask = JSON.parse(taskData) as TaskResponse;
+      if (parsedTask.status === status) return; // No change
+
+      setStatusUpdateTaskId(parsedTask.id);
+      await handleUpdateTaskStatus(parsedTask.id, status);
+    } catch (e) {
+      console.error("Drop failed", e);
+    } finally {
+      setStatusUpdateTaskId(null);
+    }
+  };
+
   // ── Invite member ────────────────────────────────────────────────────────
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -321,43 +364,58 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  const handleAddMemberToProject = async (projectId: number) => {
-    if (!projectMemberToAdd) {
-      setErrorMsg("Vui lòng chọn member để thêm vào project.");
-      return;
-    }
-
+  const handleOpenAddMembers = (projectId: number) => {
     const proj = projects.find(p => p.id === projectId);
-    if (proj) {
-      const currentMemberCount = proj.members ? proj.members.length : 0;
-      if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount >= proj.maxMembers) {
-        setErrorMsg(`Không thể thêm thành viên. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
-        return;
-      }
-    }
+    if (!proj) return;
+    setManageMembersProjectId(projectId);
+    setSelectedMemberIds([]);
+    setManageMembersSearch("");
+    setShowManageMembersModal(true);
+  };
 
-    if (projectMemberActionLoading) {
+  const handleToggleManageMember = (memberId: number) => {
+    setSelectedMemberIds(prev => 
+      prev.includes(memberId) ? prev.filter(id => id !== memberId) : [...prev, memberId]
+    );
+  };
+
+  const handleSaveAddMembers = async () => {
+    if (manageMembersProjectId === null) return;
+    const proj = projects.find(p => p.id === manageMembersProjectId);
+    if (!proj) return;
+
+    if (selectedMemberIds.length === 0) {
+      setErrorMsg("Vui lòng chọn ít nhất một thành viên để thêm.");
       return;
     }
 
-    setProjectMemberActionLoading(true);
+    const currentMemberCount = proj.members ? proj.members.length : 0;
+    if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount + selectedMemberIds.length > proj.maxMembers) {
+      setErrorMsg(`Không thể thêm. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
+      return;
+    }
+
+    if (manageMembersActionLoading) return;
+    setManageMembersActionLoading(true);
     setErrorMsg("");
+
     try {
-      await leaderService.addProjectMember(projectId, projectMemberToAdd);
-      setSuccessMsg("Đã thêm member vào project.");
-      setProjectMemberToAdd(0);
+      const addPromises = selectedMemberIds.map(id => leaderService.addProjectMember(manageMembersProjectId, id));
+      await Promise.all(addPromises);
+      
+      setSuccessMsg("Đã thêm thành viên vào Project thành công.");
+      setShowManageMembersModal(false);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể thêm member vào project.");
+      setErrorMsg(err.response?.data?.message || "Đã xảy ra lỗi khi thêm thành viên.");
     } finally {
-      setProjectMemberActionLoading(false);
+      setManageMembersActionLoading(false);
     }
   };
 
-  // ── Remove member from project ──────────────────────────────────────────
   const handleRemoveMemberFromProject = async (projectId: number, memberId: number, memberUsername: string) => {
     if (!window.confirm(`Bạn có chắc muốn xóa ${memberUsername} khỏi project này không?`)) return;
-    setProjectMemberActionLoading(true);
+    setManageMembersActionLoading(true);
     setErrorMsg("");
     try {
       await leaderService.removeProjectMember(projectId, memberId);
@@ -366,34 +424,31 @@ const LeaderDashboard: React.FC = () => {
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Không thể xóa member.");
     } finally {
-      setProjectMemberActionLoading(false);
+      setManageMembersActionLoading(false);
     }
   };
 
   // ── Derived data ─────────────────────────────────────────────────────────
   const todoTasks = allTasks.filter(t => t.status === "TODO" || t.status === "IN_PROGRESS");
   const doneTasks = allTasks.filter(t => t.status === "DONE");
-  // Pending tasks: all tasks not DONE, assigned to current user or from projects where user is leader
-  const pendingTaskCount = allTasks.filter(t => t.status !== "DONE").length;
-
   // ── Render helpers ────────────────────────────────────────────────────────
   const currentWsName = user?.workspaceName || "Workspace";
-  const currentWorkspace = userWs.find((ws) => ws.workspaceId === user?.workspaceId);
-  const isWorkspaceLocked = currentWorkspace?.active === false;
+  const currentWsObj = userWs.find(ws => ws.workspaceId === user?.workspaceId);
+  const uncompletedTaskCount = currentWsObj ? currentWsObj.uncompletedTaskCount : 0;
 
   const renderStatusDonutChart = () => {
     const defaultData = {
-      COMPLETED: allTasks.filter(t => t.status === "DONE").length,
-      IN_PROGRESS: allTasks.filter(t => t.status === "IN_PROGRESS").length,
-      REVIEW: allTasks.filter(t => t.status === "REVIEW").length,
-      PENDING: allTasks.filter(t => t.status === "TODO").length,
+      COMPLETED: stats?.tasksByStatus?.COMPLETED || 0,
+      TODO: stats?.tasksByStatus?.TODO || 0,
+      IN_PROGRESS: stats?.tasksByStatus?.IN_PROGRESS || 0,
+      REVIEW: stats?.tasksByStatus?.REVIEW || 0,
     };
 
-    const total = allTasks.length;
-    
+    const total = defaultData.COMPLETED + defaultData.TODO + defaultData.IN_PROGRESS + defaultData.REVIEW;
+
     // Nếu tổng thống kê số task bằng 0 thì gán giả định trực quan để sinh động màu
-    const plotData = total > 0 ? defaultData : { COMPLETED: 1, IN_PROGRESS: 1, REVIEW: 1, PENDING: 1 };
-    const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.REVIEW + plotData.PENDING;
+    const plotData = total > 0 ? defaultData : { COMPLETED: 6914, IN_PROGRESS: 2014, TODO: 2868, REVIEW: 270 };
+    const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.TODO + plotData.REVIEW;
 
     const r = 40;
     const circ = 2 * Math.PI * r;
@@ -402,11 +457,11 @@ const LeaderDashboard: React.FC = () => {
     const items = [
       { key: "COMPLETED", value: plotData.COMPLETED, color: "var(--admin-success)" },
       { key: "IN_PROGRESS", value: plotData.IN_PROGRESS, color: "var(--admin-info)" },
-      { key: "REVIEW", value: plotData.REVIEW, color: "var(--admin-primary)" },
-      { key: "PENDING", value: plotData.PENDING, color: "var(--admin-warning)" },
+      { key: "TODO", value: plotData.TODO, color: "var(--admin-warning)" },
+      { key: "REVIEW", value: plotData.REVIEW, color: "var(--admin-danger)" },
     ];
 
-    let accumulatedPercentage = 0;
+    let accumulatedLength = 0;
 
     return (
       <div className={styles["donut-chart-container"]}>
@@ -414,11 +469,10 @@ const LeaderDashboard: React.FC = () => {
           <svg width="100%" height="100%" viewBox="0 0 100 100">
             <circle cx="50" cy="50" r={r} fill="transparent" stroke="#f1f5f9" strokeWidth="12" />
             {items.map((item, idx) => {
-              if (item.value === 0 && total > 0) return null;
               const currentPercentage = (item.value / plotTotal) * 100;
               const strokeLength = (currentPercentage / 100) * circ;
-              const strokeOffset = circ - ((accumulatedPercentage / 100) * circ);
-              accumulatedPercentage += currentPercentage;
+              const strokeOffset = -accumulatedLength;
+              accumulatedLength += strokeLength;
               return (
                 <circle
                   key={idx}
@@ -436,7 +490,7 @@ const LeaderDashboard: React.FC = () => {
             })}
           </svg>
           <div className={styles["donut-center-text"]}>
-            <div className={styles["donut-center-value"]}>{total.toLocaleString()}</div>
+            <div className={styles["donut-center-value"]}>{(stats?.totalTasks || 0).toLocaleString()}</div>
             <div className={styles["donut-center-lbl"]}>Total tasks</div>
           </div>
         </div>
@@ -445,16 +499,9 @@ const LeaderDashboard: React.FC = () => {
           <div className={styles["legend-item"]}>
             <div className={styles["legend-label-group"]}>
               <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
-              <span>Done</span>
+              <span>Completed</span>
             </div>
             <span className={styles["legend-value"]}>{defaultData.COMPLETED.toLocaleString()}</span>
-          </div>
-          <div className={styles["legend-item"]}>
-            <div className={styles["legend-label-group"]}>
-              <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-primary)" }}></span>
-              <span>Review</span>
-            </div>
-            <span className={styles["legend-value"]}>{defaultData.REVIEW.toLocaleString()}</span>
           </div>
           <div className={styles["legend-item"]}>
             <div className={styles["legend-label-group"]}>
@@ -468,7 +515,14 @@ const LeaderDashboard: React.FC = () => {
               <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
               <span>To Do</span>
             </div>
-            <span className={styles["legend-value"]}>{defaultData.PENDING.toLocaleString()}</span>
+            <span className={styles["legend-value"]}>{defaultData.TODO.toLocaleString()}</span>
+          </div>
+          <div className={styles["legend-item"]}>
+            <div className={styles["legend-label-group"]}>
+              <span className={styles["legend-color"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
+              <span>Review</span>
+            </div>
+            <span className={styles["legend-value"]}>{defaultData.REVIEW.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -476,42 +530,40 @@ const LeaderDashboard: React.FC = () => {
   };
 
   const renderWeeklyActivityChart = () => {
-    const total = allTasks.length;
-    
-    const createdData = [0];
-    const completedData = [0];
-    
-    for (let i = 1; i <= 6; i++) {
-        const factor = Math.pow(i / 6, 1.5);
-        createdData.push(Math.round(total * factor));
-        completedData.push(Math.round(doneTasks.length * factor * 0.9));
-    }
-    createdData[6] = total;
-    completedData[6] = doneTasks.length;
+    const today = new Date();
+    let currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const todayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
 
-    const maxVal = Math.max(total, 1);
-    
-    const buildPath = (data: number[]) => {
-      const xs = data.map((_, i) => 50 + (i / 6) * 600);
-      const ys = data.map(v => 135 - (v / maxVal) * 110);
-      let d = `M ${xs[0]},${ys[0]} `;
-      for (let i = 1; i < xs.length; i++) {
-        const cp1x = xs[i - 1] + (xs[i] - xs[i - 1]) / 2;
-        const cp1y = ys[i - 1];
-        const cp2x = xs[i - 1] + (xs[i] - xs[i - 1]) / 2;
-        const cp2y = ys[i];
-        d += `C ${cp1x},${cp1y} ${cp2x},${cp2y} ${xs[i]},${ys[i]} `;
-      }
-      return d;
-    };
-    
-    const createdPath = buildPath(createdData);
-    const completedPath = buildPath(completedData);
-    
-    const createdArea = `${createdPath} L 650,136 L 50,136 Z`;
-    const completedArea = `${completedPath} L 650,136 L 50,136 Z`;
+    const createdData = (stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+    const completedData = (stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
 
-    const hasDots = total > 0;
+    const maxVal = Math.max(...createdData, ...completedData, 5);
+
+    const xCoords = [50, 150, 250, 350, 450, 550, 650];
+
+    const createdPoints = createdData.map((val, i) => ({
+      x: xCoords[i],
+      y: 110 - (val / maxVal) * 90
+    }));
+
+    const completedPoints = completedData.map((val, i) => ({
+      x: xCoords[i],
+      y: 110 - (val / maxVal) * 90
+    }));
+
+    const createdPath = createdPoints.length > 0
+      ? `M ${createdPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
+      : "";
+    const createdArea = createdPoints.length > 0
+      ? `${createdPath} L ${createdPoints[createdPoints.length - 1].x},120 L 50,120 Z`
+      : "";
+
+    const completedPath = completedPoints.length > 0
+      ? `M ${completedPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
+      : "";
+    const completedArea = completedPoints.length > 0
+      ? `${completedPath} L ${completedPoints[completedPoints.length - 1].x},120 L 50,120 Z`
+      : "";
 
     return (
       <div style={{ flexGrow: 1, display: "flex", flexDirection: "column" }}>
@@ -525,10 +577,10 @@ const LeaderDashboard: React.FC = () => {
             <span>Completed tasks</span>
           </div>
         </div>
-        
+
         <div className={styles["line-chart-wrapper"]}>
           <div className={styles["axis-y-labels"]}>
-            <span>{maxVal}</span>
+            <span>{Math.round(maxVal)}</span>
             <span>{Math.round(maxVal * 0.75)}</span>
             <span>{Math.round(maxVal * 0.5)}</span>
             <span>{Math.round(maxVal * 0.25)}</span>
@@ -546,30 +598,31 @@ const LeaderDashboard: React.FC = () => {
             <defs>
               <linearGradient id="createdGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
               </linearGradient>
               <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
-                <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
               </linearGradient>
             </defs>
 
-            {/* Vùng (Area) */}
+            {/* Area Created */}
             <path d={createdArea} fill="url(#createdGrad)" />
+            {/* Stroke line Created */}
+            <path d={createdPath} fill="transparent" stroke="#6366f1" strokeWidth="2.5" />
+
+            {/* Area Completed */}
             <path d={completedArea} fill="url(#completedGrad)" />
+            {/* Stroke line Completed */}
+            <path d={completedPath} fill="transparent" stroke="#10b981" strokeWidth="2.5" />
 
-            {/* Đường viền (Line) */}
-            <path d={createdPath} fill="none" stroke="#6366f1" strokeWidth="3" strokeLinecap="round" />
-            <path d={completedPath} fill="none" stroke="#10b981" strokeWidth="3" strokeLinecap="round" />
-
-            {/* Điểm (Dots) - Chỉ hiển thị trên completed data cho sinh động */}
-            {hasDots && completedData.map((val, idx) => {
-              const cx = 50 + (idx / 6) * 600;
-              const cy = 135 - (val / maxVal) * 110;
-              return (
-                <circle key={idx} cx={cx} cy={cy} r="4" fill="#fff" stroke="#10b981" strokeWidth="2" />
-              );
-            })}
+            {/* Draw dots */}
+            {createdPoints.map((pt, i) => (
+              <circle key={`c-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1" />
+            ))}
+            {completedPoints.map((pt, i) => (
+              <circle key={`cp-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#10b981" stroke="#fff" strokeWidth="1" />
+            ))}
           </svg>
 
           <div className={styles["axis-x-labels"]}>
@@ -625,7 +678,7 @@ const LeaderDashboard: React.FC = () => {
             <div className={styles["workspace-meta"]}>
               <span className={styles["workspace-active-name"]}>{currentWsName}</span>
               <span className={styles["workspace-active-role"]}>
-                {pendingTaskCount} Uncompleted
+                {uncompletedTaskCount} Uncompleted
               </span>
             </div>
             <i className={`bi bi-chevron-down ${styles["chevron-icon"]} ${wsDdOpen ? styles["open"] : ""}`}></i>
@@ -778,18 +831,6 @@ const LeaderDashboard: React.FC = () => {
                   <p className={styles["page-sub"]}>Welcome back, {user?.username}!</p>
                 </div>
                 <div className={styles["header-actions"]}>
-                  {/* Workspace stat card */}
-                  <div style={{ display: "flex", alignItems: "center", gap: "16px", padding: "12px 20px", background: "linear-gradient(135deg, #4f46e5, #7c3aed)", borderRadius: "12px", color: "#fff", minWidth: "220px", boxShadow: "0 4px 12px rgba(79,70,229,0.3)" }}>
-                    <i className="bi bi-building" style={{ fontSize: "1.4rem", opacity: 0.9 }} />
-                    <div>
-                      <div style={{ fontSize: "0.72rem", opacity: 0.8, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" }}>Active Workspace</div>
-                      <div style={{ fontWeight: 700, fontSize: "0.95rem", lineHeight: 1.2 }}>{currentWsName}</div>
-                      <div style={{ fontSize: "0.78rem", opacity: 0.85, marginTop: "2px" }}>
-                        <i className="bi bi-list-task" style={{ marginRight: "4px" }} />
-                        <strong>{pendingTaskCount}</strong> tasks chưa hoàn thành
-                      </div>
-                    </div>
-                  </div>
                   {user?.role !== "MEMBER" && (
                     <button className={styles["btn-primary"]} onClick={() => setShowCreateTask(true)}>
                       <i className="bi bi-plus-lg" /> Assign task
@@ -849,13 +890,13 @@ const LeaderDashboard: React.FC = () => {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", padding: "12px 0" }}>
                     {wsMembers.filter(m => m.active).slice(0, 7).map((m, i) => (
-                      <div 
-                        key={m.id} 
-                        className={`${styles["member-avatar"]} ${styles[avatarColor(i)]}`} 
+                      <div
+                        key={m.id}
+                        className={`${styles["member-avatar"]} ${styles[avatarColor(i)]}`}
                         title={`${m.username} - ${m.roleName}`}
-                        style={{ 
-                          width: "42px", 
-                          height: "42px", 
+                        style={{
+                          width: "42px",
+                          height: "42px",
                           fontSize: "1.1rem",
                           border: "2px solid #fff",
                           marginLeft: i > 0 ? "-12px" : "0",
@@ -867,13 +908,13 @@ const LeaderDashboard: React.FC = () => {
                       </div>
                     ))}
                     {wsMembers.filter(m => m.active).length > 7 && (
-                      <div 
-                        className={styles["member-avatar"]} 
-                        style={{ 
-                          width: "42px", 
-                          height: "42px", 
-                          fontSize: "0.95rem", 
-                          backgroundColor: "#f1f5f9", 
+                      <div
+                        className={styles["member-avatar"]}
+                        style={{
+                          width: "42px",
+                          height: "42px",
+                          fontSize: "0.95rem",
+                          backgroundColor: "#f1f5f9",
                           color: "#64748b",
                           border: "2px solid #fff",
                           marginLeft: "-12px",
@@ -1122,11 +1163,14 @@ const LeaderDashboard: React.FC = () => {
                     <span className={styles["card-badge"]}>{project.members.length}{project.maxMembers ? ` / ${project.maxMembers}` : ""} members</span>
                   </div>
 
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
-                    {project.members.map((member) => {
+                    {(() => {
                       const isProjectLeader = project.leaderId === user?.id;
-                      const isSelf = member.id === user?.id;
                       return (
+                        <>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "10px", marginBottom: "16px" }}>
+                            {project.members.map((member) => {
+                              const isSelf = member.id === user?.id;
+                              return (
                         <div
                           key={member.id}
                           style={{
@@ -1154,11 +1198,10 @@ const LeaderDashboard: React.FC = () => {
                             </span>
                             <span style={{ fontSize: "0.72rem", color: "#64748b" }}>{member.email}</span>
                           </div>
-                          {/* Kick button: visible only for project leader, cannot kick themselves or the leader */}
                           {isProjectLeader && !isSelf && member.id !== project.leaderId && (
                             <button
                               title="Xóa khỏi project"
-                              disabled={projectMemberActionLoading}
+                              disabled={manageMembersActionLoading}
                               onClick={() => handleRemoveMemberFromProject(project.id, member.id, member.username)}
                               style={{ marginLeft: "4px", background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: "0.85rem", padding: "2px 4px", borderRadius: "4px", display: "flex", alignItems: "center" }}
                             >
@@ -1170,52 +1213,26 @@ const LeaderDashboard: React.FC = () => {
                     })}
                   </div>
 
-                  <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", padding: "16px", borderRadius: "12px", marginTop: "8px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-                      <i className="bi bi-person-plus" style={{ color: "#4f46e5", fontSize: "1.1rem" }} />
-                      <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.95rem" }}>Invite workspace member to project</span>
-                    </div>
-                    <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-                      <div style={{ flex: "1 1 280px", position: "relative" }}>
-                        <i className="bi bi-search" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: "0.85rem" }} />
-                        <select
-                          className={styles["form-select"]}
-                          style={{ paddingLeft: "34px", cursor: "pointer", background: "#fff", border: "1px solid #cbd5e1", height: "42px" }}
-                          value={projectMemberToAdd}
-                          onChange={(e) => setProjectMemberToAdd(Number(e.target.value))}
-                        >
-                          <option value={0}>Select a member to add...</option>
-                          {wsMembers
-                            .filter((member) => member.active && !project.members.some((projectMember) => projectMember.id === member.userId))
-                            .map((member) => (
-                              <option key={member.userId} value={member.userId}>
-                                {member.username} ({member.email})
-                              </option>
-                            ))}
-                        </select>
+                  {isProjectLeader && (
+                    <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", padding: "16px", borderRadius: "12px", marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <i className="bi bi-person-plus" style={{ color: "#4f46e5", fontSize: "1.1rem" }} />
+                        <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.95rem" }}>Thêm thành viên Project</span>
                       </div>
-
                       <button
                         type="button"
                         className={styles["btn-primary"]}
-                        style={{ height: "42px", padding: "0 20px", display: "flex", alignItems: "center", gap: "8px", borderRadius: "8px", whiteSpace: "nowrap" }}
-                        onClick={() => void handleAddMemberToProject(project.id)}
-                        disabled={projectMemberActionLoading}
+                        style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px", borderRadius: "8px" }}
+                        onClick={() => handleOpenAddMembers(project.id)}
                       >
-                        {projectMemberActionLoading ? (
-                          <>
-                            <i className="bi bi-hourglass-split" />
-                            Adding...
-                          </>
-                        ) : (
-                          <>
-                            <i className="bi bi-plus-lg" />
-                            Add to Project
-                          </>
-                        )}
+                        <i className="bi bi-plus-lg" />
+                        Add Members
                       </button>
                     </div>
-                  </div>
+                  )}
+                </>
+              );
+            })()}
                 </div>
 
                 <div className={styles["view-toggle"]} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
@@ -1353,35 +1370,69 @@ const LeaderDashboard: React.FC = () => {
                 {projectViewMode === "board" && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", marginTop: "16px" }}>
                     {(["TODO", "IN_PROGRESS", "REVIEW", "DONE"] as TaskStatus[]).map(s => (
-                      <div key={s} className={styles["card"]} style={{ background: "#f8fafc" }}>
+                      <div
+                        key={s}
+                        className={`${styles["card"]} ${dropTargetStatus === s ? styles["drag-over"] : ""}`}
+                        style={{ background: dropTargetStatus === s ? "#f1f5f9" : "#f8fafc", transition: "background 0.2s" }}
+                        onDragOver={(event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          setDropTargetStatus(s);
+                        }}
+                        onDragLeave={(event) => handleColumnDragLeave(event, s)}
+                        onDrop={(event) => void handleTaskDrop(event, s)}
+                      >
                         <div className={styles["card-header"]}>
                           <span className={styles["card-title"]} style={{ fontSize: "0.82rem" }}>
                             {s.replace("_", " ")}
                           </span>
                           <span className={styles["card-badge"]}>{projectTasks.filter(t => t.status === s).length}</span>
                         </div>
-                        {projectTasks.filter(t => t.status === s).map(t => (
-                          <div key={t.id} onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }} style={{ background: "#fff", borderRadius: "8px", padding: "12px", marginBottom: "8px", border: "1px solid #e2e8f0", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
-                            <div style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                              <span style={{ paddingRight: "8px" }}>{t.title}</span>
-                              {t.status === "REVIEW" && (
-                                <button
-                                  className={styles["btn-success"]}
-                                  style={{ padding: "2px 6px", fontSize: "0.9rem", borderRadius: "4px", flexShrink: 0 }}
-                                  onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
-                                  disabled={isWorkspaceLocked || t.projectEnded}
-                                  title="Duyệt nhanh (Approve)"
-                                >
-                                  <i className="bi bi-check-lg" />
-                                </button>
-                              )}
+                        {projectTasks.filter(t => t.status === s).map(t => {
+                          const isUpdating = statusUpdateTaskId === t.id;
+                          const isDragging = draggingTaskId === t.id;
+                          return (
+                            <div
+                              key={t.id}
+                              onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }}
+                              draggable
+                              onDragStart={(event) => handleTaskDragStart(event, t)}
+                              onDragEnd={() => {
+                                setDraggingTaskId(null);
+                                setDropTargetStatus(null);
+                              }}
+                              style={{
+                                background: "#fff",
+                                borderRadius: "8px",
+                                padding: "12px",
+                                marginBottom: "8px",
+                                border: "1px solid #e2e8f0",
+                                cursor: "pointer",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                                opacity: isUpdating || isDragging ? 0.5 : 1,
+                                transform: isDragging ? "scale(0.98)" : "none"
+                              }}
+                            >
+                              <div style={{ fontWeight: 600, fontSize: "0.82rem", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                <span style={{ paddingRight: "8px" }}>{t.title}</span>
+                                {t.status === "REVIEW" && (
+                                  <button
+                                    className={styles["btn-success"]}
+                                    style={{ padding: "2px 6px", fontSize: "0.9rem", borderRadius: "4px", flexShrink: 0 }}
+                                    onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
+                                    title="Duyệt nhanh (Approve)"
+                                  >
+                                    <i className="bi bi-check-lg" />
+                                  </button>
+                                )}
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
+                                {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
+                              </div>
                             </div>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                              <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
-                              {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {projectTasks.filter(t => t.status === s).length === 0 && (
                           <p style={{ fontSize: "0.78rem", color: "#94a3b8", textAlign: "center", padding: "20px 0" }}>Empty</p>
                         )}
@@ -1478,8 +1529,8 @@ const LeaderDashboard: React.FC = () => {
                           style={{ minHeight: "80px", marginBottom: "8px", resize: "vertical" }}
                         />
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          <button 
-                            className={styles["btn-primary"]} 
+                          <button
+                            className={styles["btn-primary"]}
                             onClick={() => void handleAddComment()}
                             disabled={!newComment.trim() || isWorkspaceLocked || task.projectEnded}
                           >
@@ -1624,10 +1675,10 @@ const LeaderDashboard: React.FC = () => {
 
                           <div className={styles["history-ws-stats"]}>
                             <span className={styles["stat-count-badge"]}>
-                              <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                              <i className="bi bi-clock"></i> Uncompleted: {ws.uncompletedTaskCount}
                             </span>
                             <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
-                              <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                              <i className="bi bi-check-circle"></i> Completed: {ws.completedTaskCount}
                             </span>
                           </div>
                         </div>
@@ -1857,6 +1908,85 @@ const LeaderDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Manage Members Modal */}
+      {showManageMembersModal && (() => {
+        const proj = projects.find(p => p.id === manageMembersProjectId);
+        const currentMemberIds = proj ? proj.members.map(m => m.id) : [];
+        return (
+        <div className={styles["modal-overlay"]} onClick={() => setShowManageMembersModal(false)}>
+          <div className={styles["modal"]} style={{ maxWidth: "600px", width: "95%" }} onClick={(e) => e.stopPropagation()}>
+            <div className={styles["modal-header"]}>
+              <h2 className={styles["modal-title"]}>Thêm thành viên Project</h2>
+            </div>
+            
+            <div className={styles["modal-body"]}>
+              <div className={styles["manage-members-toolbar"]} style={{ marginBottom: "16px" }}>
+                <div className={`${styles["input-group"]} ${styles["manage-members-search"]}`} style={{ position: "relative", width: "100%" }}>
+                  <i className="bi bi-search input-icon" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#64748b" }} />
+                  <input
+                    type="text"
+                    className={styles["form-input"]}
+                    style={{ paddingLeft: "34px", height: "40px", width: "100%" }}
+                    placeholder="Tìm kiếm theo Tên hoặc Email..."
+                    value={manageMembersSearch}
+                    onChange={(e) => setManageMembersSearch(e.target.value)}
+                  />
+                </div>
+
+              </div>
+
+              <div className={styles["manage-members-list"]}>
+                {wsMembers
+                  .filter(m => m.active && !currentMemberIds.includes(m.userId))
+                  .filter(m => 
+                    m.username.toLowerCase().includes(manageMembersSearch.toLowerCase()) || 
+                    m.email.toLowerCase().includes(manageMembersSearch.toLowerCase())
+                  )
+                  .map(member => (
+                    <label key={member.userId} className={styles["manage-member-row"]}>
+                      <input
+                        type="checkbox"
+                        className={styles["manage-member-checkbox"]}
+                        checked={selectedMemberIds.includes(member.userId)}
+                        onChange={() => handleToggleManageMember(member.userId)}
+                      />
+                      <div className={styles["manage-member-info"]}>
+                        <span className={styles["manage-member-name"]}>{member.username}</span>
+                        <span className={styles["manage-member-email"]}>{member.email}</span>
+                      </div>
+                    </label>
+                  ))}
+              </div>
+            </div>
+
+            <div className={styles["modal-footer"]} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>
+                Đã chọn: {selectedMemberIds.length} thành viên mới
+              </span>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="button"
+                  className={styles["btn-secondary"]}
+                  onClick={() => setShowManageMembersModal(false)}
+                  disabled={manageMembersActionLoading}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  className={styles["btn-primary"]}
+                  onClick={handleSaveAddMembers}
+                  disabled={manageMembersActionLoading}
+                >
+                  {manageMembersActionLoading ? "Đang lưu..." : "Thêm thành viên"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
 
     </div>
   );

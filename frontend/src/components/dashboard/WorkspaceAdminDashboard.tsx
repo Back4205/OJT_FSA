@@ -658,7 +658,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   <div className={styles["workspace-item-meta"]}>
                     <span className={styles["workspace-item-name"]}>{ws.workspaceName}</span>
                     <span className={styles["workspace-item-role"]}>
-                      {ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName} · Team
+                      {ws.roleName === "WORKSPACE_ADMIN" 
+                        ? "Admin · Team" 
+                        : `${ws.uncompletedTaskCount} Uncompleted`}
                     </span>
                   </div>
                   {ws.workspaceId === (workspace?.id || user?.workspaceId) && (
@@ -1751,17 +1753,17 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 )}
                               </h3>
                               <p className={styles["history-ws-meta"]}>
-                                Vai trò: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
+                                Role: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
                               </p>
                             </div>
                           </div>
 
                         <div className={styles["history-ws-stats"]}>
                           <span className={styles["stat-count-badge"]}>
-                            <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                            <i className="bi bi-clock"></i> Uncompleted: {ws.uncompletedTaskCount}
                           </span>
                           <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
-                            <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                            <i className="bi bi-check-circle"></i> Completed: {ws.completedTaskCount}
                           </span>
                         </div>
                       </div>

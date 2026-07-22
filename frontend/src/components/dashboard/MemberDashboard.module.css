@@ -2835,3 +2835,24 @@
   border-color: #3b82f6;
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
+.workspaceItemAvatar {
+  width: 32px;
+  height: 32px;
+  background-color: #e2e8f0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+.workspaceDropdownItemActive .workspaceItemAvatar {
+  background-color: #4f46e5;
+  color: #fff;
+}
+.checkIcon {
+  color: #4f46e5;
+  font-size: 0.9rem;
+  margin-left: auto;
+}

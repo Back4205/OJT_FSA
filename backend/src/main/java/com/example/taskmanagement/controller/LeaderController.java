@@ -80,4 +80,19 @@ public class LeaderController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+
+    /**
+     * Lấy các số liệu thống kê tổng hợp phục vụ hiển thị Dashboard của Leader.
+     * @param workspaceId ID của workspace đang đăng nhập
+     * @return ApiResponse chứa DashboardStatsResponse (Tổng số dự án, thành viên, và phân bố các trạng thái/mức ưu tiên)
+     */
+    @GetMapping("/dashboard-stats")
+    public ResponseEntity<ApiResponse<com.example.taskmanagement.dto.response.DashboardStatsResponse>> getDashboardStats(
+            @CurrentWorkspaceId Long workspaceId) {
+        if (workspaceId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+        }
+        com.example.taskmanagement.dto.response.DashboardStatsResponse response = workspaceAdminService.getDashboardStats(workspaceId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy số liệu thống kê Dashboard thành công", response));
+    }
 }
