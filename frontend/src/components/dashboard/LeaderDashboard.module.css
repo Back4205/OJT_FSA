@@ -1548,3 +1548,117 @@
   flex-direction: column;
   gap: 8px;
 }
+
+.drag-over {
+  border: 2px dashed var(--admin-primary) !important;
+  background-color: var(--admin-primary-light) !important;
+}
+
+/* -- Manage Members Modal Specific -- */
+.manage-members-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.manage-members-toolbar {
+  display: flex;
+  gap: 12px;
+}
+.manage-members-search {
+  flex-grow: 1;
+}
+.manage-members-filter {
+  width: 150px;
+}
+.manage-members-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+.manage-member-row {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.manage-member-row:last-child {
+  border-bottom: none;
+}
+.manage-member-row:hover {
+  background: #f1f5f9;
+}
+.manage-member-checkbox {
+  margin-right: 16px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+.manage-member-info {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+}
+.manage-member-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #0f172a;
+}
+.manage-member-email {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.manage-member-role {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background: #e2e8f0;
+  color: #334155;
+  font-weight: 700;
+  margin-left: auto;
+}
+.manage-member-role.ADMIN {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.manage-member-role.LEADER {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+/* -- Enhanced Modal Buttons -- */
+.close-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.2s, transform 0.2s;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.close-btn:hover {
+  color: #ef4444;
+  background: #fee2e2;
+  transform: scale(1.1);
+}
+
+.btn-secondary {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  background-color: #e2e8f0;
+  color: #0f172a;
+}

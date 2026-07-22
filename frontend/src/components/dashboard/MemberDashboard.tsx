@@ -582,16 +582,18 @@ const MemberDashboard: React.FC = () => {
                     onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
                     disabled={workspaceSwitchingId === workspace.workspaceId || isActive}
                   >
+                    <div className={styles.workspaceItemAvatar}>
+                      {(workspace.workspaceName || "WS").slice(0, 2).toUpperCase()}
+                    </div>
                     <div className={styles.workspaceDropdownMain}>
                       <span className={styles.workspaceDropdownName}>{workspace.workspaceName}</span>
                       <span className={styles.workspaceDropdownRole}>
-                        <i className="bi bi-list-task" style={{ marginRight: "3px" }} />
-                        {workspace.uncompletedTaskCount} tasks chưa xong
+                        {workspace.uncompletedTaskCount} Uncompleted
                       </span>
                     </div>
-                    <span className={styles.workspaceDropdownAction}>
-                      {workspaceSwitchingId === workspace.workspaceId ? "Switching..." : isActive ? "Active" : "Switch"}
-                    </span>
+                    {isActive && (
+                      <i className={`bi bi-check ${styles.checkIcon}`}></i>
+                    )}
                   </button>
                 );
               })}
@@ -1064,13 +1066,13 @@ const MemberDashboard: React.FC = () => {
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <h2>Workspace History</h2>
-                <span>Lịch sử các Workspace và các task hoàn thành</span>
+                <span>History of Workspaces and completed tasks</span>
               </div>
               <div className={styles["history-list"]}>
                 {userWorkspaces.length === 0 ? (
                   <div className={styles["empty-state-history"]}>
                     <i className="bi bi-clock-history"></i>
-                    <p>Bạn chưa tham gia Workspace nào.</p>
+                    <p>You have not joined any workspaces.</p>
                   </div>
                 ) : (
                   userWorkspaces.map((ws) => {
@@ -1100,17 +1102,17 @@ const MemberDashboard: React.FC = () => {
                                 )}
                               </h3>
                               <p className={styles["history-ws-meta"]}>
-                                Vai trò: <strong>{formatWorkspaceRole(ws.roleName)}</strong>
+                                Role: <strong>{formatWorkspaceRole(ws.roleName)}</strong>
                               </p>
                             </div>
                           </div>
 
                           <div className={styles["history-ws-stats"]}>
                             <span className={styles["stat-count-badge"]}>
-                              <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                              <i className="bi bi-clock"></i> Uncompleted: {ws.uncompletedTaskCount}
                             </span>
                             <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
-                              <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                              <i className="bi bi-check-circle"></i> Completed: {ws.completedTaskCount}
                             </span>
                           </div>
                         </div>

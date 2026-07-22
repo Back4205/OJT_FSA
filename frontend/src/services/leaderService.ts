@@ -174,6 +174,11 @@ export const leaderService = {
     await api.post("/leader/members/invite", { email, roleName: "MEMBER" });
   },
 
+  getDashboardStats: async (): Promise<any> => {
+    const res = await api.get("/leader/dashboard-stats");
+    return res.data.data;
+  },
+
   // User workspaces (switch) ------------------------------------------------
   getUserWorkspaces: async (): Promise<UserWorkspaceResponse[]> => {
     const res = await api.get("/auth/workspaces");
