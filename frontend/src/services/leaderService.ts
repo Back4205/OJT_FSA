@@ -24,6 +24,7 @@ export interface ProjectResponse {
   taskCount: number;
   completedTaskCount: number;
   maxMembers?: number;
+  isDeleted?: boolean;
 }
 
 export interface TaskResponse {
@@ -35,6 +36,7 @@ export interface TaskResponse {
   deadline?: string;        // ISO date string "2026-08-01"
   projectId: number;
   projectName: string;
+  projectEnded?: boolean;
   assigneeId?: number;
   assigneeUsername?: string;
 }

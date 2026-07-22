@@ -13,6 +13,7 @@ public class UserWorkspaceResponse {
     private Long workspaceId;
     private String workspaceName;
     private String roleName;
+    private boolean active;
     private Long uncompletedTaskCount;
     private Long completedTaskCount;
     private List<CompletedTaskInfo> completedTasks;

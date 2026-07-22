@@ -19,6 +19,7 @@ public class MemberDashboardResponse {
     private String email;
     private Long workspaceId;
     private String workspaceName;
+    private boolean workspaceActive;
     private String role;
     private long totalAssignedTasks;
     private long completedTasks;

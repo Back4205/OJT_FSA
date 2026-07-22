@@ -24,6 +24,7 @@ public class TaskResponse {
     private LocalDate deadline;
     private Long projectId;
     private String projectName;
+    private boolean projectEnded;
     private Long assigneeId;
     private String assigneeUsername;
 
@@ -37,6 +38,7 @@ public class TaskResponse {
         dto.setDeadline(task.getDeadline());
         dto.setProjectId(task.getProject().getId());
         dto.setProjectName(task.getProject().getName());
+        dto.setProjectEnded(Boolean.TRUE.equals(task.getProject().getIsDeleted()));
         if (task.getAssignee() != null) {
             dto.setAssigneeId(task.getAssignee().getId());
             dto.setAssigneeUsername(task.getAssignee().getUsername());

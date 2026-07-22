@@ -8,9 +8,7 @@ import styles from "./MemberDashboard.module.css";
 const menuItems = [
   { key: "dashboard", label: "Dashboard", icon: "bi-grid" },
   { key: "tasks", label: "My projects", icon: "bi-check2-square" },
-  { key: "board", label: "Kanban board", icon: "bi-kanban" },
   { key: "history", label: "Workspace history", icon: "bi-clock-history" },
-  { key: "notifications", label: "Notification", icon: "bi-bell" },
   { key: "profile", label: "Profile", icon: "bi-person" }
 ] as const;
 
@@ -34,25 +32,19 @@ const MemberDashboard: React.FC = () => {
   const [createWorkspaceLoading, setCreateWorkspaceLoading] = useState(false);
   const [createWorkspaceError, setCreateWorkspaceError] = useState("");
   const [createWorkspaceSuccess, setCreateWorkspaceSuccess] = useState("");
-  const [projectTaskSearch, setProjectTaskSearch] = useState("");
-  const [projectTaskProjectFilter, setProjectTaskProjectFilter] = useState("all");
-  const [projectTaskStatusFilter, setProjectTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
-  const [projectTaskPriorityFilter, setProjectTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
-  const [boardTaskSearch, setBoardTaskSearch] = useState("");
-  const [boardTaskProjectFilter, setBoardTaskProjectFilter] = useState("all");
-  const [boardTaskStatusFilter, setBoardTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
-  const [boardTaskPriorityFilter, setBoardTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
+  const [projectListSearch, setProjectListSearch] = useState("");
+  const [projectBoardSearch, setProjectBoardSearch] = useState("");
   const [selectedTaskProject, setSelectedTaskProject] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<MemberTaskResponse | null>(null);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
-  const [notificationActionId, setNotificationActionId] = useState<number | null>(null);
-  const [markAllNotificationsLoading, setMarkAllNotificationsLoading] = useState(false);
 
-  const loadDashboard = async () => {
-    setLoading(true);
-    setError("");
+  const loadDashboard = async (showSpinner = true) => {
+    if (showSpinner) {
+      setLoading(true);
+      setError("");
+    }
     try {
       const [dashboardResult, workspacesResult, notificationsResult] = await Promise.allSettled([
         memberService.getDashboard(),
@@ -78,14 +70,23 @@ const MemberDashboard: React.FC = () => {
         setNotifications([]);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Unable to load member dashboard.");
+      if (showSpinner) {
+        setError(err.response?.data?.message || "Unable to load member dashboard.");
+      }
     } finally {
-      setLoading(false);
+      if (showSpinner) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    loadDashboard();
+    void loadDashboard();
+    const refreshTimer = window.setInterval(() => {
+      void loadDashboard(false);
+    }, 30000);
+
+    return () => window.clearInterval(refreshTimer);
   }, []);
 
   useEffect(() => {
@@ -101,6 +102,10 @@ const MemberDashboard: React.FC = () => {
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !selectedTask) return;
+    if (isWorkspaceLocked || selectedTask.projectEnded) {
+      showTemporaryError(isWorkspaceLocked ? "Workspace is locked. You can view tasks only." : "Project has ended. You can view tasks only.");
+      return;
+    }
     try {
       const added = await commentService.addCommentToTask(selectedTask.id, newComment);
       setTaskComments(prev => [...prev, added]);
@@ -119,56 +124,37 @@ const MemberDashboard: React.FC = () => {
       userWorkspaces.find((item) => item.workspaceId === dashboard.workspaceId) ?? {
         workspaceId: dashboard.workspaceId,
         workspaceName: dashboard.workspaceName || "Current workspace",
-        roleName: dashboard.role
+        roleName: dashboard.role,
+        active: dashboard.workspaceActive,
+        uncompletedTaskCount: 0,
+        completedTaskCount: 0,
+        completedTasks: []
       }
     );
   }, [dashboard, userWorkspaces]);
-
-  const projectOptions = useMemo(() => {
-    const names = new Set<string>();
-    (dashboard?.tasks ?? []).forEach((task) => {
-      const projectName = task.projectName?.trim() || "General";
-      names.add(projectName);
-    });
-    return Array.from(names).sort((left, right) => left.localeCompare(right));
-  }, [dashboard]);
 
   const unreadNotificationCount = useMemo(
     () => notifications.filter((notification) => !notification.read).length,
     [notifications]
   );
 
-  const filterTasks = (
-    search: string,
-    projectFilter: string,
-    statusFilter: "all" | MemberTaskResponse["status"],
-    priorityFilter: "all" | MemberTaskResponse["priority"]
-  ) => {
+  const filterTasks = (search: string) => {
     const tasks = dashboard?.tasks ?? [];
     const query = search.trim().toLowerCase();
 
     return tasks.filter((task) => {
-      const projectName = task.projectName?.trim() || "General";
       const matchesSearch =
         !query ||
         [task.title, task.description, task.projectName, task.deadline]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
-      const matchesProject = projectFilter === "all" || projectName === projectFilter;
-      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-      const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
-      return matchesSearch && matchesProject && matchesStatus && matchesPriority;
+      return matchesSearch;
     });
   };
 
   const projectFilteredTasks = useMemo(
-    () => filterTasks(projectTaskSearch, projectTaskProjectFilter, projectTaskStatusFilter, projectTaskPriorityFilter),
-    [dashboard, projectTaskSearch, projectTaskProjectFilter, projectTaskStatusFilter, projectTaskPriorityFilter]
-  );
-
-  const boardFilteredTasks = useMemo(
-    () => filterTasks(boardTaskSearch, boardTaskProjectFilter, boardTaskStatusFilter, boardTaskPriorityFilter),
-    [dashboard, boardTaskSearch, boardTaskProjectFilter, boardTaskStatusFilter, boardTaskPriorityFilter]
+    () => filterTasks(projectListSearch),
+    [dashboard, projectListSearch]
   );
 
   const sortTasksForProjectList = (tasks: MemberTaskResponse[]) => {
@@ -199,28 +185,20 @@ const MemberDashboard: React.FC = () => {
     });
   };
 
-  const groupedTasks = useMemo(() => {
-    const tasks = boardFilteredTasks;
-    return {
-      TODO: tasks.filter((task) => task.status === "TODO"),
-      IN_PROGRESS: tasks.filter((task) => task.status === "IN_PROGRESS"),
-      REVIEW: tasks.filter((task) => task.status === "REVIEW"),
-      DONE: tasks.filter((task) => task.status === "DONE"),
-    };
-  }, [boardFilteredTasks]);
-
   const projectSummaries = useMemo(() => {
-    const projects = new Map<string, { name: string; total: number; completed: number; tasks: MemberTaskResponse[] }>();
+    const projects = new Map<string, { name: string; total: number; completed: number; ended: boolean; tasks: MemberTaskResponse[] }>();
     projectFilteredTasks.forEach((task) => {
       const projectName = task.projectName?.trim() || "General";
       const summary = projects.get(projectName) ?? {
         name: projectName,
         total: 0,
         completed: 0,
+        ended: false,
         tasks: []
       };
       summary.total += 1;
       summary.completed += task.status === "DONE" ? 1 : 0;
+      summary.ended = summary.ended || Boolean(task.projectEnded);
       summary.tasks.push(task);
       projects.set(projectName, summary);
     });
@@ -232,9 +210,16 @@ const MemberDashboard: React.FC = () => {
       return [];
     }
     return sortTasksForProjectList(
-      projectFilteredTasks.filter((task) => (task.projectName?.trim() || "General") === selectedTaskProject)
+      filterTasks(projectBoardSearch).filter((task) => (task.projectName?.trim() || "General") === selectedTaskProject)
     );
-  }, [projectFilteredTasks, selectedTaskProject]);
+  }, [dashboard, projectBoardSearch, selectedTaskProject]);
+
+  const selectedProjectTaskColumns = useMemo(() => ({
+    TODO: selectedProjectTasks.filter((task) => task.status === "TODO"),
+    IN_PROGRESS: selectedProjectTasks.filter((task) => task.status === "IN_PROGRESS"),
+    REVIEW: selectedProjectTasks.filter((task) => task.status === "REVIEW"),
+    DONE: selectedProjectTasks.filter((task) => task.status === "DONE"),
+  }), [selectedProjectTasks]);
 
   const getProjectInitials = (name: string) => {
     const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -245,15 +230,35 @@ const MemberDashboard: React.FC = () => {
   };
 
   const currentSectionLabel = menuItems.find((item) => item.key === activeTab)?.label ?? "Dashboard";
+  const isWorkspaceLocked = dashboard?.workspaceActive === false;
+  const selectedProjectEnded = useMemo(() => {
+    if (!selectedTaskProject) {
+      return false;
+    }
+
+    return (dashboard?.tasks ?? []).some((task) =>
+      (task.projectName?.trim() || "General") === selectedTaskProject && task.projectEnded
+    );
+  }, [dashboard, selectedTaskProject]);
+  const selectedProjectReadOnly = isWorkspaceLocked || selectedProjectEnded;
+  const isTaskReadOnly = (task: MemberTaskResponse) => isWorkspaceLocked || Boolean(task.projectEnded);
   const taskStatusColumns: Array<{ status: MemberTaskResponse["status"]; label: string; tasks: MemberTaskResponse[] }> = [
-    { status: "TODO", label: "To do", tasks: groupedTasks.TODO },
-    { status: "IN_PROGRESS", label: "In progress", tasks: groupedTasks.IN_PROGRESS },
-    { status: "REVIEW", label: "Review", tasks: groupedTasks.REVIEW },
-    { status: "DONE", label: "Done", tasks: groupedTasks.DONE }
+    { status: "TODO", label: "To do", tasks: selectedProjectTaskColumns.TODO },
+    { status: "IN_PROGRESS", label: "In progress", tasks: selectedProjectTaskColumns.IN_PROGRESS },
+    { status: "REVIEW", label: "Review", tasks: selectedProjectTaskColumns.REVIEW },
+    { status: "DONE", label: "Done", tasks: selectedProjectTaskColumns.DONE }
   ];
 
   const updateTaskStatus = async (task: MemberTaskResponse, nextStatus: MemberTaskResponse["status"]) => {
     if (task.status === nextStatus || statusUpdateTaskId === task.id) {
+      return;
+    }
+    if (isWorkspaceLocked) {
+      showTemporaryError("Workspace is locked. You can view tasks only.");
+      return;
+    }
+    if (task.projectEnded) {
+      showTemporaryError("Project has ended. You can view tasks only.");
       return;
     }
 
@@ -292,6 +297,14 @@ const MemberDashboard: React.FC = () => {
     setDropTargetStatus(null);
 
     if (task) {
+      if (isWorkspaceLocked) {
+        showTemporaryError("Workspace is locked. You can view tasks only.");
+        return;
+      }
+      if (task.projectEnded) {
+        showTemporaryError("Project has ended. You can view tasks only.");
+        return;
+      }
       if (nextStatus === "DONE") {
         showTemporaryError("Chỉ Leader mới có quyền duyệt task sang DONE.");
         return;
@@ -380,61 +393,6 @@ const MemberDashboard: React.FC = () => {
     return "Member";
   };
 
-  const formatNotificationTime = (timestamp?: string) => {
-    if (!timestamp) {
-      return "Just now";
-    }
-
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) {
-      return timestamp;
-    }
-
-    return date.toLocaleString();
-  };
-
-  const updateNotificationReadState = async (notification: MemberNotificationResponse, read: boolean) => {
-    if (notificationActionId === notification.id || notification.read === read) {
-      return notification;
-    }
-
-    setNotificationActionId(notification.id);
-    setError("");
-    try {
-      const updated = await memberService.updateNotificationReadState(notification.id, read);
-      setNotifications((current) =>
-        current.map((item) => (item.id === updated.id ? updated : item))
-      );
-      return updated;
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Unable to update notification.");
-      return notification;
-    } finally {
-      setNotificationActionId(null);
-    }
-  };
-
-  const toggleNotificationReadState = async (notification: MemberNotificationResponse) => {
-    await updateNotificationReadState(notification, !notification.read);
-  };
-
-  const markAllNotificationsRead = async () => {
-    if (unreadNotificationCount === 0 || markAllNotificationsLoading) {
-      return;
-    }
-
-    setMarkAllNotificationsLoading(true);
-    setError("");
-    try {
-      const updated = await memberService.markAllNotificationsRead();
-      setNotifications(updated);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Unable to mark all notifications as read.");
-    } finally {
-      setMarkAllNotificationsLoading(false);
-    }
-  };
-
   const statCards = [
     { label: "Assigned", value: dashboard?.totalAssignedTasks ?? 0, tone: "blue" },
     { label: "Completed", value: dashboard?.completedTasks ?? 0, tone: "green" },
@@ -486,7 +444,7 @@ const MemberDashboard: React.FC = () => {
 
   const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => {
     const isDone = task.status === "DONE";
-    const canDrag = options?.draggable && !isDone;
+    const canDrag = options?.draggable && !isDone && !isTaskReadOnly(task);
 
     return (
       <article
@@ -614,11 +572,6 @@ const MemberDashboard: React.FC = () => {
             >
               <i className={`bi ${item.icon}`} />
               <span className={styles.navItemLabel}>{item.label}</span>
-              {item.key === "notifications" && unreadNotificationCount > 0 && (
-                <span className={styles.navUnreadBadge} title={`${unreadNotificationCount} unread notifications`}>
-                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
-                </span>
-              )}
             </button>
           ))}
         </nav>
@@ -631,11 +584,22 @@ const MemberDashboard: React.FC = () => {
 
       <main className={styles.main}>
         <header className={styles.topbar}>
-          <div className={styles.userChip}>
-            <div className={styles.userAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
-            <div>
-              <div className={styles.userName}>{user?.username || "Member"}</div>
-              <div className={styles.userRole}>Member</div>
+          <div className={styles.topbarActions}>
+            <button
+              type="button"
+              className={styles.notificationBellButton}
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <i className="bi bi-bell" />
+              {unreadNotificationCount > 0 && <span className={styles.notificationBellDot} />}
+            </button>
+            <div className={styles.userChip}>
+              <div className={styles.userAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
+              <div>
+                <div className={styles.userName}>{user?.username || "Member"}</div>
+                <div className={styles.userRole}>Member</div>
+              </div>
             </div>
           </div>
         </header>
@@ -647,9 +611,6 @@ const MemberDashboard: React.FC = () => {
               <h1 className={styles.title}>{dashboard?.workspaceName ? `Good morning, ${dashboard.username}` : "Member dashboard"}</h1>
               <p className={styles.subtitle}>Your personal workspace view for tasks and updates.</p>
             </div>
-            <div className={styles.headerActions}>
-              <span className={styles.pill}>Member</span>
-            </div>
           </div>
 
           {!loading && !error && dashboard && activeTab === "tasks" && (
@@ -657,113 +618,16 @@ const MemberDashboard: React.FC = () => {
               <input
                 className={styles.filterInput}
                 type="text"
-                placeholder="Search task, project, deadline..."
-                value={projectTaskSearch}
-                onChange={(e) => setProjectTaskSearch(e.target.value)}
-              />
-              <select
-                className={styles.filterSelect}
-                value={projectTaskProjectFilter}
-                onChange={(e) => setProjectTaskProjectFilter(e.target.value)}
-              >
-                <option value="all">All projects</option>
-                {projectOptions.map((projectName) => (
-                  <option key={projectName} value={projectName}>
-                    {projectName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={projectTaskStatusFilter}
-                onChange={(e) => setProjectTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
-              >
-                <option value="all">All statuses</option>
-                <option value="TODO">To do</option>
-                <option value="IN_PROGRESS">In progress</option>
-                <option value="REVIEW">Review</option>
-                <option value="DONE">Done</option>
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={projectTaskPriorityFilter}
-                onChange={(e) => setProjectTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
-              >
-                <option value="all">All priorities</option>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-              <button
-                type="button"
-                className={styles.filterButtonSecondary}
-                onClick={() => {
-                  setProjectTaskSearch("");
-                  setProjectTaskProjectFilter("all");
-                  setProjectTaskStatusFilter("all");
-                  setProjectTaskPriorityFilter("all");
-                  setSelectedTaskProject(null);
+                placeholder={selectedTaskProject ? "Search tasks in this project..." : "Search projects, tasks, deadline..."}
+                value={selectedTaskProject ? projectBoardSearch : projectListSearch}
+                onChange={(e) => {
+                  if (selectedTaskProject) {
+                    setProjectBoardSearch(e.target.value);
+                  } else {
+                    setProjectListSearch(e.target.value);
+                  }
                 }}
-              >
-                Reset
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && dashboard && activeTab === "board" && (
-            <div className={styles.filterBar}>
-              <input
-                className={styles.filterInput}
-                type="text"
-                placeholder="Search task, project, deadline..."
-                value={boardTaskSearch}
-                onChange={(e) => setBoardTaskSearch(e.target.value)}
               />
-              <select
-                className={styles.filterSelect}
-                value={boardTaskProjectFilter}
-                onChange={(e) => setBoardTaskProjectFilter(e.target.value)}
-              >
-                <option value="all">All projects</option>
-                {projectOptions.map((projectName) => (
-                  <option key={projectName} value={projectName}>
-                    {projectName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={boardTaskStatusFilter}
-                onChange={(e) => setBoardTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
-              >
-                <option value="all">All statuses</option>
-                <option value="TODO">To do</option>
-                <option value="IN_PROGRESS">In progress</option>
-                <option value="REVIEW">Review</option>
-                <option value="DONE">Done</option>
-              </select>
-              <select
-                className={styles.filterSelect}
-                value={boardTaskPriorityFilter}
-                onChange={(e) => setBoardTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
-              >
-                <option value="all">All priorities</option>
-                <option value="LOW">Low</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="HIGH">High</option>
-              </select>
-              <button
-                type="button"
-                className={styles.filterButtonSecondary}
-                onClick={() => {
-                  setBoardTaskSearch("");
-                  setBoardTaskProjectFilter("all");
-                  setBoardTaskStatusFilter("all");
-                  setBoardTaskPriorityFilter("all");
-                }}
-              >
-                Reset
-              </button>
             </div>
           )}
 
@@ -904,12 +768,40 @@ const MemberDashboard: React.FC = () => {
                 </div>
               </div>
               {selectedTaskProject ? (
-                <div className={styles.taskList}>
-                  {selectedProjectTasks.map((task) => renderTaskCard(task))}
-                  {selectedProjectTasks.length === 0 && (
-                    <div className={styles.detailListItem}>No tasks found for this project.</div>
+                <>
+                  {selectedProjectReadOnly && (
+                    <div className={styles.lockedWorkspaceNotice}>
+                      <i className="bi bi-lock" />
+                      <span>{isWorkspaceLocked ? "This workspace is locked. Tasks are view only." : "This project has ended. Tasks are view only."}</span>
+                    </div>
                   )}
-                </div>
+                  <div className={`${styles.boardGrid} ${styles.projectBoardGrid}`}>
+                    {taskStatusColumns.map((column) => (
+                      <section
+                        key={column.status}
+                        className={`${styles.boardColumn} ${dropTargetStatus === column.status ? styles.boardColumnDropTarget : ""}`}
+                        onDragOver={!selectedProjectReadOnly ? (event) => {
+                          event.preventDefault();
+                          event.dataTransfer.dropEffect = "move";
+                          setDropTargetStatus(column.status);
+                        } : undefined}
+                        onDragLeave={!selectedProjectReadOnly ? (event) => handleColumnDragLeave(event, column.status) : undefined}
+                        onDrop={!selectedProjectReadOnly ? (event) => handleTaskDrop(event, column.status) : undefined}
+                      >
+                        <div className={styles.panelHeader}>
+                          <h2>{column.label}</h2>
+                          <span>{column.tasks.length}</span>
+                        </div>
+                        <div className={styles.boardList}>
+                          {column.tasks.map((task) => renderTaskCard(task, { draggable: true }))}
+                          {column.tasks.length === 0 && (
+                            <div className={styles.detailListItem}>No tasks.</div>
+                          )}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className={styles.projectGrid}>
                   {projectSummaries.map((project) => {
@@ -919,7 +811,10 @@ const MemberDashboard: React.FC = () => {
                         key={project.name}
                         type="button"
                         className={styles.projectCard}
-                        onClick={() => setSelectedTaskProject(project.name)}
+                        onClick={() => {
+                          setSelectedTaskProject(project.name);
+                          setProjectBoardSearch("");
+                        }}
                       >
                         <div className={styles.projectCardTop}>
                           <div className={styles.projectAvatar}>{getProjectInitials(project.name)}</div>
@@ -927,6 +822,15 @@ const MemberDashboard: React.FC = () => {
                             <div className={styles.projectName}>{project.name}</div>
                             <div className={styles.projectMeta}>{project.total} tasks</div>
                           </div>
+                          {(isWorkspaceLocked || project.ended) && (
+                            <span
+                              className={styles.projectLockedBadge}
+                              title={isWorkspaceLocked ? "Workspace is locked" : "Project has ended"}
+                            >
+                              <i className="bi bi-lock" />
+                              Locked
+                            </span>
+                          )}
                         </div>
                         <div className={styles.projectDescription}>Tasks assigned to you in this project</div>
                         <div className={styles.projectProgressTrack}>
@@ -941,103 +845,6 @@ const MemberDashboard: React.FC = () => {
                   )}
                 </div>
               )}
-            </section>
-          )}
-
-          {!loading && dashboard && activeTab === "board" && (
-            <div className={styles.boardGrid}>
-              {taskStatusColumns.map((column) => (
-                <section
-                  key={column.status}
-                  className={`${styles.boardColumn} ${dropTargetStatus === column.status ? styles.boardColumnDropTarget : ""}`}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    setDropTargetStatus(column.status);
-                  }}
-                  onDragLeave={(event) => handleColumnDragLeave(event, column.status)}
-                  onDrop={(event) => handleTaskDrop(event, column.status)}
-                >
-                  <div className={styles.panelHeader}>
-                    <h2>{column.label}</h2>
-                    <span>{column.tasks.length}</span>
-                  </div>
-                  <div className={styles.boardList}>
-                    {column.tasks.map((task) => renderTaskCard(task, { draggable: true }))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
-
-          {!loading && dashboard && activeTab === "notifications" && (
-            <section className={styles.panel}>
-              <div className={styles.panelHeader}>
-                <div>
-                  <h2>Notification</h2>
-                  <span className={styles.panelSubText}>Task notifications assigned to you</span>
-                </div>
-                <div className={styles.panelHeaderActions}>
-                  <span>{unreadNotificationCount} unread</span>
-                  <button
-                    type="button"
-                    className={styles.filterButtonSecondary}
-                    onClick={() => void markAllNotificationsRead()}
-                    disabled={unreadNotificationCount === 0 || markAllNotificationsLoading}
-                  >
-                    {markAllNotificationsLoading ? "Updating..." : "Read all"}
-                  </button>
-                </div>
-              </div>
-
-              <div className={styles.notificationList}>
-                {notifications.map((notification) => (
-                  <article
-                    key={notification.id}
-                    className={`${styles.notificationCard} ${!notification.read ? styles.notificationCardUnread : ""}`}
-                  >
-                    <div className={styles.notificationMainRow}>
-                      <div className={styles.notificationFacts}>
-                        <div>
-                          <span>Project</span>
-                          <strong>{notification.projectName || "General"}</strong>
-                        </div>
-                        <div>
-                          <span>Assigned</span>
-                          <strong>{formatNotificationTime(notification.timestamp)}</strong>
-                        </div>
-                        <div>
-                          <span>Deadline</span>
-                          <strong>{notification.deadline || "No deadline"}</strong>
-                        </div>
-                      </div>
-                    </div>
-                    <div className={styles.notificationControl}>
-                      <div className={styles.notificationStatusWrap}>
-                        <span className={`${styles.notificationReadDot} ${notification.read ? styles.notificationReadDotMuted : ""}`} />
-                        <span className={styles.notificationState}>
-                          {notification.read ? "Read" : "New"}
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        className={`${styles.taskActionButton} ${notification.read ? styles.secondaryTaskActionButton : ""}`}
-                        onClick={() => void toggleNotificationReadState(notification)}
-                        disabled={notificationActionId === notification.id}
-                      >
-                        <i className={`bi ${notification.read ? "bi-envelope" : "bi-envelope-open"}`} />
-                        {notification.read ? "Mark unread" : "Mark read"}
-                      </button>
-                    </div>
-                  </article>
-                ))}
-                {notifications.length === 0 && (
-                  <div className={styles.emptyNotifications}>
-                    <i className="bi bi-bell" />
-                    <p>No task notifications yet.</p>
-                  </div>
-                )}
-              </div>
             </section>
           )}
 
@@ -1230,12 +1037,13 @@ const MemberDashboard: React.FC = () => {
                         value={newComment}
                         onChange={e => setNewComment(e.target.value)}
                         className={styles["form-input"]}
+                        disabled={isWorkspaceLocked || selectedTask.projectEnded}
                       />
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
                         <button 
                           className={styles.taskActionButton} 
                           onClick={() => void handleAddComment()}
-                          disabled={!newComment.trim()}
+                          disabled={!newComment.trim() || isWorkspaceLocked || selectedTask.projectEnded}
                           style={{ backgroundColor: "#3b82f6", color: "white", border: "none" }}
                         >
                           <i className="bi bi-send" /> Send

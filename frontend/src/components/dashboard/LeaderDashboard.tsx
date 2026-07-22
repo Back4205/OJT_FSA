@@ -145,6 +145,12 @@ const LeaderDashboard: React.FC = () => {
 
   const handleAddComment = async () => {
     if (!newComment.trim() || !selectedTaskId) return;
+    const task = allTasks.find((item) => item.id === selectedTaskId);
+    const taskProjectEnded = task?.projectEnded || projects.find((project) => project.id === task?.projectId)?.isDeleted;
+    if (isWorkspaceLocked || taskProjectEnded) {
+      setErrorMsg(isWorkspaceLocked ? "Workspace is locked. You can view tasks only." : "Project has ended. You can view tasks only.");
+      return;
+    }
     try {
       const added = await commentService.addCommentToTask(selectedTaskId, newComment);
       setTaskComments(prev => [...prev, added]);
@@ -252,6 +258,11 @@ const LeaderDashboard: React.FC = () => {
       setErrorMsg("Vui lòng nhập tiêu đề task và chọn project.");
       return;
     }
+    const selectedProject = projects.find((project) => project.id === taskProject);
+    if (selectedProject?.isDeleted) {
+      setErrorMsg("Project has ended. You can view tasks only.");
+      return;
+    }
     try {
       const req: CreateTaskRequest = {
         title: taskTitle.trim(),
@@ -274,6 +285,17 @@ const LeaderDashboard: React.FC = () => {
 
   // ── Update task status ───────────────────────────────────────────────────
   const handleUpdateTaskStatus = async (taskId: number, newStatus: TaskStatus) => {
+    if (isWorkspaceLocked) {
+      setErrorMsg("Workspace is locked. You can view tasks only.");
+      return;
+    }
+    const task = allTasks.find((item) => item.id === taskId);
+    const taskProjectEnded = task?.projectEnded || projects.find((project) => project.id === task?.projectId)?.isDeleted;
+    if (taskProjectEnded) {
+      setErrorMsg("Project has ended. You can view tasks only.");
+      return;
+    }
+
     try {
       await leaderService.updateTaskStatus(taskId, newStatus);
       setSuccessMsg(`Đã cập nhật trạng thái task thành ${newStatus.replace("_", " ")}.`);
@@ -356,6 +378,8 @@ const LeaderDashboard: React.FC = () => {
 
   // ── Render helpers ────────────────────────────────────────────────────────
   const currentWsName = user?.workspaceName || "Workspace";
+  const currentWorkspace = userWs.find((ws) => ws.workspaceId === user?.workspaceId);
+  const isWorkspaceLocked = currentWorkspace?.active === false;
 
   const renderStatusDonutChart = () => {
     const defaultData = {
@@ -1082,7 +1106,12 @@ const LeaderDashboard: React.FC = () => {
                     <h1 className={styles["page-title"]}>{project.name}</h1>
                     <p className={styles["page-sub"]}>Welcome back — here's what's happening today.</p>
                   </div>
-                  <button className={styles["btn-primary"]} onClick={() => { setTaskProject(project.id); setShowCreateTask(true); }}>
+                  <button
+                    className={styles["btn-primary"]}
+                    onClick={() => { setTaskProject(project.id); setShowCreateTask(true); }}
+                    disabled={isWorkspaceLocked || project.isDeleted}
+                    title={project.isDeleted ? "Project has ended. You can view tasks only." : undefined}
+                  >
                     <i className="bi bi-plus-lg" /> New task
                   </button>
                 </div>
@@ -1287,6 +1316,7 @@ const LeaderDashboard: React.FC = () => {
                                   className={styles["btn-success"]}
                                   style={{ padding: "4px 8px", fontSize: "1rem", borderRadius: "6px", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}
                                   onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
+                                  disabled={isWorkspaceLocked || t.projectEnded}
                                   title="Duyệt nhanh (Approve)"
                                 >
                                   <i className="bi bi-check-lg" />
@@ -1339,6 +1369,7 @@ const LeaderDashboard: React.FC = () => {
                                   className={styles["btn-success"]}
                                   style={{ padding: "2px 6px", fontSize: "0.9rem", borderRadius: "4px", flexShrink: 0 }}
                                   onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
+                                  disabled={isWorkspaceLocked || t.projectEnded}
                                   title="Duyệt nhanh (Approve)"
                                 >
                                   <i className="bi bi-check-lg" />
@@ -1443,13 +1474,14 @@ const LeaderDashboard: React.FC = () => {
                           value={newComment}
                           onChange={e => setNewComment(e.target.value)}
                           className={styles["form-input"]}
+                          disabled={isWorkspaceLocked || task.projectEnded}
                           style={{ minHeight: "80px", marginBottom: "8px", resize: "vertical" }}
                         />
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
                           <button 
                             className={styles["btn-primary"]} 
                             onClick={() => void handleAddComment()}
-                            disabled={!newComment.trim()}
+                            disabled={!newComment.trim() || isWorkspaceLocked || task.projectEnded}
                           >
                             <i className="bi bi-send" /> Send
                           </button>
@@ -1469,6 +1501,7 @@ const LeaderDashboard: React.FC = () => {
                             value={task.status}
                             onChange={(e) => void handleUpdateTaskStatus(task.id, e.target.value as TaskStatus)}
                             className={styles["form-select"]}
+                            disabled={isWorkspaceLocked || task.projectEnded}
                             style={{ padding: "4px 8px", fontSize: "0.85rem", height: "auto", width: "100%", background: task.status === "DONE" ? "#f0fdf4" : "#fff" }}
                           >
                             <option value="TODO">To do</option>
@@ -1677,7 +1710,7 @@ const LeaderDashboard: React.FC = () => {
                 <label className={styles["form-label"]}>Project *</label>
                 <select className={styles["form-select"]} value={taskProject} onChange={e => setTaskProject(Number(e.target.value))} required>
                   <option value={0}>-- Select project --</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.filter(p => !p.isDeleted).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div className={styles["form-group"]}>

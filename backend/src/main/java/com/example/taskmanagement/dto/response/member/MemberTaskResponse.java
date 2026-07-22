@@ -24,6 +24,7 @@ public class MemberTaskResponse {
     private TaskPriority priority;
     private TaskStatus status;
     private LocalDate deadline;
+    private boolean projectEnded;
 
     public static MemberTaskResponse fromEntity(Task task) {
         return MemberTaskResponse.builder()
@@ -34,6 +35,7 @@ public class MemberTaskResponse {
                 .priority(task.getPriority())
                 .status(task.getStatus())
                 .deadline(task.getDeadline())
+                .projectEnded(task.getProject() != null && Boolean.TRUE.equals(task.getProject().getIsDeleted()))
                 .build();
     }
 }

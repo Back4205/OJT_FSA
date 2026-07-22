@@ -9,6 +9,7 @@ import com.example.taskmanagement.repository.CommentRepository;
 import com.example.taskmanagement.repository.TaskRepository;
 import com.example.taskmanagement.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,6 +38,12 @@ public class CommentService {
     public CommentResponse createComment(CreateCommentRequest request, Long userId) {
         Task task = taskRepository.findById(request.getTaskId())
                 .orElseThrow(() -> new IllegalArgumentException("Task not found with ID: " + request.getTaskId()));
+        if (!task.getProject().getWorkspace().isActive()) {
+            throw new AccessDeniedException("Workspace is locked. You can view tasks only.");
+        }
+        if (Boolean.TRUE.equals(task.getProject().getIsDeleted())) {
+            throw new AccessDeniedException("Project has ended. You can view tasks only.");
+        }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));

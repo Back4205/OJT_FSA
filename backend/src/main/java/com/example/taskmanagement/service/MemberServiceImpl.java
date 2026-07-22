@@ -56,6 +56,7 @@ public class MemberServiceImpl implements MemberService {
                     .userId(user.getId())
                     .username(user.getUsername())
                     .email(user.getEmail())
+                    .workspaceActive(false)
                     .role(user.isSuperAdmin() ? RoleName.SUPER_ADMIN.name() : RoleName.MEMBER.name())
                     .totalAssignedTasks(0)
                     .completedTasks(0)
@@ -97,6 +98,7 @@ public class MemberServiceImpl implements MemberService {
                 .email(user.getEmail())
                 .workspaceId(workspace.getId())
                 .workspaceName(workspace.getName())
+                .workspaceActive(workspace.isActive())
                 .role(membership.getRole().getName().name())
                 .totalAssignedTasks(tasks.size())
                 .completedTasks(completedTasks)
@@ -231,6 +233,9 @@ public class MemberServiceImpl implements MemberService {
         if (membership == null) {
             throw new IllegalStateException("No active workspace membership found");
         }
+        if (!membership.getWorkspace().isActive()) {
+            throw new IllegalStateException("Workspace is locked. You can view tasks only.");
+        }
 
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new IllegalArgumentException("Task not found"));
@@ -238,6 +243,10 @@ public class MemberServiceImpl implements MemberService {
         Long taskWorkspaceId = task.getProject().getWorkspace().getId();
         if (!taskWorkspaceId.equals(membership.getWorkspace().getId())) {
             throw new IllegalStateException("Task is outside your active workspace");
+        }
+
+        if (Boolean.TRUE.equals(task.getProject().getIsDeleted())) {
+            throw new IllegalStateException("Project has ended. You can view tasks only.");
         }
 
         if (task.getAssignee() == null || !task.getAssignee().getId().equals(user.getId())) {

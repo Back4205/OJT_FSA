@@ -8,6 +8,7 @@ export interface MemberTaskResponse {
   priority: "LOW" | "MEDIUM" | "HIGH";
   status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   deadline?: string | null;
+  projectEnded?: boolean;
 }
 
 export interface MemberActivityResponse {
@@ -42,6 +43,7 @@ export interface MemberDashboardResponse {
   email: string;
   workspaceId: number | null;
   workspaceName: string | null;
+  workspaceActive: boolean;
   role: string;
   totalAssignedTasks: number;
   completedTasks: number;

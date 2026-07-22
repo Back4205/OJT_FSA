@@ -39,6 +39,10 @@ public class TaskServiceImpl implements TaskService {
         Project project = getProjectInWorkspace(request.getProjectId(), workspaceId);
 
         User currentUser = getUserById(currentUserId);
+        if (!project.getWorkspace().isActive()) {
+            throw new AccessDeniedException("Workspace is locked. You can view tasks only.");
+        }
+        ensureProjectCanBeChanged(project);
 
         Task task = new Task();
         task.setTitle(request.getTitle());
@@ -104,6 +108,7 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse updateTask(Long taskId, UpdateTaskRequest request,
                                    Long currentUserId, String currentRole, Long workspaceId) {
         Task task = getTaskInWorkspace(taskId, workspaceId);
+        ensureProjectCanBeChanged(task.getProject());
         checkTaskEditPermission(task, currentUserId, currentRole);
 
         User currentUser = getUserById(currentUserId);
@@ -157,6 +162,7 @@ public class TaskServiceImpl implements TaskService {
     public void deleteTask(Long taskId, Long currentUserId,
                            String currentRole, Long workspaceId) {
         Task task = getTaskInWorkspace(taskId, workspaceId);
+        ensureProjectCanBeChanged(task.getProject());
         checkTaskEditPermission(task, currentUserId, currentRole);
 
         User currentUser = getUserById(currentUserId);
@@ -179,6 +185,11 @@ public class TaskServiceImpl implements TaskService {
         User currentUser = getUserById(currentUserId);
 
         // MEMBER chỉ được cập nhật status task được gán cho mình
+        if (!task.getProject().getWorkspace().isActive()) {
+            throw new AccessDeniedException("Workspace is locked. You can view tasks only.");
+        }
+        ensureProjectCanBeChanged(task.getProject());
+
         if (RoleName.MEMBER.name().equals(currentRole)) {
             if (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUserId)) {
                 throw new AccessDeniedException("Bạn chỉ có thể cập nhật status của task được gán cho mình");
@@ -222,6 +233,12 @@ public class TaskServiceImpl implements TaskService {
      * - WORKSPACE_ADMIN: luôn được phép
      * - LEADER: chỉ được phép nếu là leader của project chứa task
      */
+    private void ensureProjectCanBeChanged(Project project) {
+        if (project != null && Boolean.TRUE.equals(project.getIsDeleted())) {
+            throw new AccessDeniedException("Project has ended. You can view tasks only.");
+        }
+    }
+
     private void checkTaskEditPermission(Task task, Long currentUserId, String currentRole) {
         if (RoleName.WORKSPACE_ADMIN.name().equals(currentRole)) {
             return;

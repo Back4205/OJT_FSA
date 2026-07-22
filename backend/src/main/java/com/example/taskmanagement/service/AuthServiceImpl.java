@@ -420,6 +420,7 @@ public class AuthServiceImpl implements AuthService {
                             m.getWorkspace().getId(),
                             m.getWorkspace().getName(),
                             m.getRole().getName().name(),
+                            m.getWorkspace().isActive(),
                             uncompleted,
                             completed,
                             completedTasks

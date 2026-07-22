@@ -90,6 +90,7 @@ export interface UserWorkspaceResponse {
   workspaceId: number;
   workspaceName: string;
   roleName: string;
+  active: boolean;
   uncompletedTaskCount: number;
   completedTaskCount: number;
   completedTasks: CompletedTaskInfo[];
