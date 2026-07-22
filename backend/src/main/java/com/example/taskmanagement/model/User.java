@@ -2,6 +2,7 @@ package com.example.taskmanagement.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import com.example.taskmanagement.model.enums.AuthProvider;
@@ -47,7 +48,17 @@ private String providerId;
     @Column(name = "is_email_verified", nullable = false)
     private boolean isEmailVerified = false;
 
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
     @ManyToMany(mappedBy = "members")
     private Set<Project> projects = new HashSet<>();
+
+    @PrePersist
+    void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 
 }

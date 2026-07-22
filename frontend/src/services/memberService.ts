@@ -17,6 +17,25 @@ export interface MemberActivityResponse {
   tone: "neutral" | "info" | "success" | "warning";
 }
 
+export interface MemberWeeklyActivityResponse {
+  day: string;
+  assigned: number;
+  completed: number;
+}
+
+export interface MemberNotificationResponse {
+  id: number;
+  content: string;
+  read: boolean;
+  timestamp: string;
+  taskId?: number | null;
+  taskTitle?: string | null;
+  projectName?: string | null;
+  priority?: MemberTaskResponse["priority"] | null;
+  status?: MemberTaskResponse["status"] | null;
+  deadline?: string | null;
+}
+
 export interface MemberDashboardResponse {
   userId: number;
   username: string;
@@ -32,6 +51,7 @@ export interface MemberDashboardResponse {
   overdueTasks: number;
   tasks: MemberTaskResponse[];
   activities: MemberActivityResponse[];
+  weeklyActivity: MemberWeeklyActivityResponse[];
 }
 
 export const memberService = {
@@ -42,6 +62,23 @@ export const memberService = {
 
   updateTaskStatus: async (taskId: number, status: MemberTaskResponse["status"]): Promise<MemberTaskResponse> => {
     const response = await api.patch(`/member/tasks/${taskId}/status`, { status });
+    return response.data.data;
+  },
+
+  getNotifications: async (): Promise<MemberNotificationResponse[]> => {
+    const response = await api.get("/member/notifications");
+    return response.data.data;
+  },
+
+  updateNotificationReadState: async (notificationId: number, read: boolean): Promise<MemberNotificationResponse> => {
+    const response = await api.patch(`/member/notifications/${notificationId}/read`, null, {
+      params: { read }
+    });
+    return response.data.data;
+  },
+
+  markAllNotificationsRead: async (): Promise<MemberNotificationResponse[]> => {
+    const response = await api.patch("/member/notifications/read-all");
     return response.data.data;
   }
 };

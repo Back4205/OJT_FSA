@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @Getter
 @Setter
 @AllArgsConstructor
@@ -18,6 +20,7 @@ public class AdminUserSummaryResponse {
     private boolean superAdmin;
     private boolean emailVerified;
     private long membershipCount;
+    private LocalDateTime createdAt;
 
     public static AdminUserSummaryResponse fromEntity(User user, long membershipCount) {
         return new AdminUserSummaryResponse(
@@ -28,7 +31,8 @@ public class AdminUserSummaryResponse {
                 user.isActive(),
                 user.isSuperAdmin(),
                 user.isEmailVerified(),
-                membershipCount
+                membershipCount,
+                user.getCreatedAt()
         );
     }
 }

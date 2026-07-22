@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
@@ -45,4 +46,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     long countByIdAndIsActiveFalse(Long id);
     long countByIdAndIsSuperAdminTrue(Long id);
     long countByIdAndIsSuperAdminFalse(Long id);
+    @Query("""
+            select count(u)
+            from User u
+            where u.isSuperAdmin = false
+              and u.createdAt >= :start
+              and u.createdAt < :end
+            """)
+    long countRegularUsersCreatedBetween(@Param("start") LocalDateTime start,
+                                         @Param("end") LocalDateTime end);
 }

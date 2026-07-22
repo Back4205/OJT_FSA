@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { memberService, type MemberDashboardResponse, type MemberTaskResponse } from "../../services/memberService";
+import { memberService, type MemberDashboardResponse, type MemberNotificationResponse, type MemberTaskResponse } from "../../services/memberService";
 import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
 import { commentService, type TaskComment } from "../../services/commentService";
 import styles from "./MemberDashboard.module.css";
 
 const menuItems = [
   { key: "dashboard", label: "Dashboard", icon: "bi-grid" },
-  { key: "tasks", label: "My tasks", icon: "bi-check2-square" },
+  { key: "tasks", label: "My projects", icon: "bi-check2-square" },
   { key: "board", label: "Kanban board", icon: "bi-kanban" },
   { key: "history", label: "Workspace history", icon: "bi-clock-history" },
+  { key: "notifications", label: "Notification", icon: "bi-bell" },
   { key: "profile", label: "Profile", icon: "bi-person" }
 ] as const;
 
@@ -33,20 +34,30 @@ const MemberDashboard: React.FC = () => {
   const [createWorkspaceLoading, setCreateWorkspaceLoading] = useState(false);
   const [createWorkspaceError, setCreateWorkspaceError] = useState("");
   const [createWorkspaceSuccess, setCreateWorkspaceSuccess] = useState("");
-  const [taskSearch, setTaskSearch] = useState("");
-  const [taskStatusFilter, setTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
-  const [taskPriorityFilter, setTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
+  const [projectTaskSearch, setProjectTaskSearch] = useState("");
+  const [projectTaskProjectFilter, setProjectTaskProjectFilter] = useState("all");
+  const [projectTaskStatusFilter, setProjectTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
+  const [projectTaskPriorityFilter, setProjectTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
+  const [boardTaskSearch, setBoardTaskSearch] = useState("");
+  const [boardTaskProjectFilter, setBoardTaskProjectFilter] = useState("all");
+  const [boardTaskStatusFilter, setBoardTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
+  const [boardTaskPriorityFilter, setBoardTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
+  const [selectedTaskProject, setSelectedTaskProject] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<MemberTaskResponse | null>(null);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
+  const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
+  const [notificationActionId, setNotificationActionId] = useState<number | null>(null);
+  const [markAllNotificationsLoading, setMarkAllNotificationsLoading] = useState(false);
 
   const loadDashboard = async () => {
     setLoading(true);
     setError("");
     try {
-      const [dashboardResult, workspacesResult] = await Promise.allSettled([
+      const [dashboardResult, workspacesResult, notificationsResult] = await Promise.allSettled([
         memberService.getDashboard(),
-        workspaceService.getUserWorkspaces()
+        workspaceService.getUserWorkspaces(),
+        memberService.getNotifications()
       ]);
 
       if (dashboardResult.status === "fulfilled") {
@@ -59,6 +70,12 @@ const MemberDashboard: React.FC = () => {
         setUserWorkspaces(workspacesResult.value);
       } else {
         setUserWorkspaces([]);
+      }
+
+      if (notificationsResult.status === "fulfilled") {
+        setNotifications(notificationsResult.value);
+      } else {
+        setNotifications([]);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || "Unable to load member dashboard.");
@@ -107,31 +124,126 @@ const MemberDashboard: React.FC = () => {
     );
   }, [dashboard, userWorkspaces]);
 
-  const filteredTasks = useMemo(() => {
+  const projectOptions = useMemo(() => {
+    const names = new Set<string>();
+    (dashboard?.tasks ?? []).forEach((task) => {
+      const projectName = task.projectName?.trim() || "General";
+      names.add(projectName);
+    });
+    return Array.from(names).sort((left, right) => left.localeCompare(right));
+  }, [dashboard]);
+
+  const unreadNotificationCount = useMemo(
+    () => notifications.filter((notification) => !notification.read).length,
+    [notifications]
+  );
+
+  const filterTasks = (
+    search: string,
+    projectFilter: string,
+    statusFilter: "all" | MemberTaskResponse["status"],
+    priorityFilter: "all" | MemberTaskResponse["priority"]
+  ) => {
     const tasks = dashboard?.tasks ?? [];
-    const query = taskSearch.trim().toLowerCase();
+    const query = search.trim().toLowerCase();
 
     return tasks.filter((task) => {
+      const projectName = task.projectName?.trim() || "General";
       const matchesSearch =
         !query ||
         [task.title, task.description, task.projectName, task.deadline]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(query));
-      const matchesStatus = taskStatusFilter === "all" || task.status === taskStatusFilter;
-      const matchesPriority = taskPriorityFilter === "all" || task.priority === taskPriorityFilter;
-      return matchesSearch && matchesStatus && matchesPriority;
+      const matchesProject = projectFilter === "all" || projectName === projectFilter;
+      const matchesStatus = statusFilter === "all" || task.status === statusFilter;
+      const matchesPriority = priorityFilter === "all" || task.priority === priorityFilter;
+      return matchesSearch && matchesProject && matchesStatus && matchesPriority;
     });
-  }, [dashboard, taskSearch, taskStatusFilter, taskPriorityFilter]);
+  };
+
+  const projectFilteredTasks = useMemo(
+    () => filterTasks(projectTaskSearch, projectTaskProjectFilter, projectTaskStatusFilter, projectTaskPriorityFilter),
+    [dashboard, projectTaskSearch, projectTaskProjectFilter, projectTaskStatusFilter, projectTaskPriorityFilter]
+  );
+
+  const boardFilteredTasks = useMemo(
+    () => filterTasks(boardTaskSearch, boardTaskProjectFilter, boardTaskStatusFilter, boardTaskPriorityFilter),
+    [dashboard, boardTaskSearch, boardTaskProjectFilter, boardTaskStatusFilter, boardTaskPriorityFilter]
+  );
+
+  const sortTasksForProjectList = (tasks: MemberTaskResponse[]) => {
+    const getTaskDateValue = (task: MemberTaskResponse) => {
+      if (!task.deadline) {
+        return 0;
+      }
+      const time = new Date(task.deadline).getTime();
+      return Number.isNaN(time) ? 0 : time;
+    };
+
+    return [...tasks].sort((left, right) => {
+      const leftDone = left.status === "DONE";
+      const rightDone = right.status === "DONE";
+
+      if (leftDone !== rightDone) {
+        return leftDone ? 1 : -1;
+      }
+
+      const leftDate = getTaskDateValue(left);
+      const rightDate = getTaskDateValue(right);
+
+      if (leftDone && rightDone) {
+        return leftDate - rightDate || left.id - right.id;
+      }
+
+      return rightDate - leftDate || right.id - left.id;
+    });
+  };
 
   const groupedTasks = useMemo(() => {
-    const tasks = filteredTasks;
+    const tasks = boardFilteredTasks;
     return {
       TODO: tasks.filter((task) => task.status === "TODO"),
       IN_PROGRESS: tasks.filter((task) => task.status === "IN_PROGRESS"),
       REVIEW: tasks.filter((task) => task.status === "REVIEW"),
       DONE: tasks.filter((task) => task.status === "DONE"),
     };
-  }, [filteredTasks]);
+  }, [boardFilteredTasks]);
+
+  const projectSummaries = useMemo(() => {
+    const projects = new Map<string, { name: string; total: number; completed: number; tasks: MemberTaskResponse[] }>();
+    projectFilteredTasks.forEach((task) => {
+      const projectName = task.projectName?.trim() || "General";
+      const summary = projects.get(projectName) ?? {
+        name: projectName,
+        total: 0,
+        completed: 0,
+        tasks: []
+      };
+      summary.total += 1;
+      summary.completed += task.status === "DONE" ? 1 : 0;
+      summary.tasks.push(task);
+      projects.set(projectName, summary);
+    });
+    return Array.from(projects.values()).sort((left, right) => left.name.localeCompare(right.name));
+  }, [projectFilteredTasks]);
+
+  const selectedProjectTasks = useMemo(() => {
+    if (!selectedTaskProject) {
+      return [];
+    }
+    return sortTasksForProjectList(
+      projectFilteredTasks.filter((task) => (task.projectName?.trim() || "General") === selectedTaskProject)
+    );
+  }, [projectFilteredTasks, selectedTaskProject]);
+
+  const getProjectInitials = (name: string) => {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length > 1) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   const currentSectionLabel = menuItems.find((item) => item.key === activeTab)?.label ?? "Dashboard";
   const taskStatusColumns: Array<{ status: MemberTaskResponse["status"]; label: string; tasks: MemberTaskResponse[] }> = [
     { status: "TODO", label: "To do", tasks: groupedTasks.TODO },
@@ -268,6 +380,61 @@ const MemberDashboard: React.FC = () => {
     return "Member";
   };
 
+  const formatNotificationTime = (timestamp?: string) => {
+    if (!timestamp) {
+      return "Just now";
+    }
+
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) {
+      return timestamp;
+    }
+
+    return date.toLocaleString();
+  };
+
+  const updateNotificationReadState = async (notification: MemberNotificationResponse, read: boolean) => {
+    if (notificationActionId === notification.id || notification.read === read) {
+      return notification;
+    }
+
+    setNotificationActionId(notification.id);
+    setError("");
+    try {
+      const updated = await memberService.updateNotificationReadState(notification.id, read);
+      setNotifications((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      return updated;
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to update notification.");
+      return notification;
+    } finally {
+      setNotificationActionId(null);
+    }
+  };
+
+  const toggleNotificationReadState = async (notification: MemberNotificationResponse) => {
+    await updateNotificationReadState(notification, !notification.read);
+  };
+
+  const markAllNotificationsRead = async () => {
+    if (unreadNotificationCount === 0 || markAllNotificationsLoading) {
+      return;
+    }
+
+    setMarkAllNotificationsLoading(true);
+    setError("");
+    try {
+      const updated = await memberService.markAllNotificationsRead();
+      setNotifications(updated);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to mark all notifications as read.");
+    } finally {
+      setMarkAllNotificationsLoading(false);
+    }
+  };
+
   const statCards = [
     { label: "Assigned", value: dashboard?.totalAssignedTasks ?? 0, tone: "blue" },
     { label: "Completed", value: dashboard?.completedTasks ?? 0, tone: "green" },
@@ -275,6 +442,47 @@ const MemberDashboard: React.FC = () => {
     { label: "Review", value: dashboard?.reviewTasks ?? 0, tone: "purple" },
     { label: "Due soon", value: dashboard?.dueSoonTasks ?? 0, tone: "purple" },
   ];
+
+  const totalTaskCount = dashboard?.totalAssignedTasks ?? 0;
+  const todoTaskCount = Math.max(
+    totalTaskCount - (dashboard?.completedTasks ?? 0) - (dashboard?.inProgressTasks ?? 0) - (dashboard?.reviewTasks ?? 0),
+    0
+  );
+  const taskChartItems = [
+    { label: "To do", value: todoTaskCount, color: "#4f46e5" },
+    { label: "In progress", value: dashboard?.inProgressTasks ?? 0, color: "#f59e0b" },
+    { label: "Review", value: dashboard?.reviewTasks ?? 0, color: "#8b5cf6" },
+    { label: "Done", value: dashboard?.completedTasks ?? 0, color: "#22c55e" },
+  ];
+  const taskChartBackground = totalTaskCount > 0
+    ? `conic-gradient(${taskChartItems
+      .reduce<{ parts: string[]; cursor: number }>((acc, item) => {
+        const size = (item.value / totalTaskCount) * 100;
+        const start = acc.cursor;
+        const end = acc.cursor + size;
+        if (size > 0) {
+          acc.parts.push(`${item.color} ${start}% ${end}%`);
+        }
+        acc.cursor = end;
+        return acc;
+      }, { parts: [], cursor: 0 })
+      .parts.join(", ")})`
+    : "#e2e8f0";
+  const taskCompletionPercent = totalTaskCount > 0
+    ? Math.round(((dashboard?.completedTasks ?? 0) / totalTaskCount) * 100)
+    : 0;
+  const weeklyActivity = dashboard?.weeklyActivity?.length
+    ? dashboard.weeklyActivity
+    : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({ day, assigned: 0, completed: 0 }));
+  const weeklyMaxValue = Math.max(1, ...weeklyActivity.flatMap((item) => [item.assigned, item.completed]));
+  const buildWeeklyLinePoints = (key: "assigned" | "completed") =>
+    weeklyActivity
+      .map((item, index) => {
+        const x = weeklyActivity.length <= 1 ? 50 : (index / (weeklyActivity.length - 1)) * 100;
+        const y = 100 - (item[key] / weeklyMaxValue) * 82 - 8;
+        return `${x},${y}`;
+      })
+      .join(" ");
 
   const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => {
     const isDone = task.status === "DONE";
@@ -405,7 +613,12 @@ const MemberDashboard: React.FC = () => {
               onClick={() => setActiveTab(item.key)}
             >
               <i className={`bi ${item.icon}`} />
-              <span>{item.label}</span>
+              <span className={styles.navItemLabel}>{item.label}</span>
+              {item.key === "notifications" && unreadNotificationCount > 0 && (
+                <span className={styles.navUnreadBadge} title={`${unreadNotificationCount} unread notifications`}>
+                  {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -418,10 +631,6 @@ const MemberDashboard: React.FC = () => {
 
       <main className={styles.main}>
         <header className={styles.topbar}>
-          <div className={styles.searchBox}>
-            <i className="bi bi-search" />
-            <span>Search tasks, projects, comments...</span>
-          </div>
           <div className={styles.userChip}>
             <div className={styles.userAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
             <div>
@@ -443,19 +652,31 @@ const MemberDashboard: React.FC = () => {
             </div>
           </div>
 
-          {!loading && !error && dashboard && (
+          {!loading && !error && dashboard && activeTab === "tasks" && (
             <div className={styles.filterBar}>
               <input
                 className={styles.filterInput}
                 type="text"
                 placeholder="Search task, project, deadline..."
-                value={taskSearch}
-                onChange={(e) => setTaskSearch(e.target.value)}
+                value={projectTaskSearch}
+                onChange={(e) => setProjectTaskSearch(e.target.value)}
               />
               <select
                 className={styles.filterSelect}
-                value={taskStatusFilter}
-                onChange={(e) => setTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
+                value={projectTaskProjectFilter}
+                onChange={(e) => setProjectTaskProjectFilter(e.target.value)}
+              >
+                <option value="all">All projects</option>
+                {projectOptions.map((projectName) => (
+                  <option key={projectName} value={projectName}>
+                    {projectName}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={styles.filterSelect}
+                value={projectTaskStatusFilter}
+                onChange={(e) => setProjectTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
               >
                 <option value="all">All statuses</option>
                 <option value="TODO">To do</option>
@@ -465,8 +686,8 @@ const MemberDashboard: React.FC = () => {
               </select>
               <select
                 className={styles.filterSelect}
-                value={taskPriorityFilter}
-                onChange={(e) => setTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
+                value={projectTaskPriorityFilter}
+                onChange={(e) => setProjectTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
               >
                 <option value="all">All priorities</option>
                 <option value="LOW">Low</option>
@@ -477,9 +698,68 @@ const MemberDashboard: React.FC = () => {
                 type="button"
                 className={styles.filterButtonSecondary}
                 onClick={() => {
-                  setTaskSearch("");
-                  setTaskStatusFilter("all");
-                  setTaskPriorityFilter("all");
+                  setProjectTaskSearch("");
+                  setProjectTaskProjectFilter("all");
+                  setProjectTaskStatusFilter("all");
+                  setProjectTaskPriorityFilter("all");
+                  setSelectedTaskProject(null);
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && dashboard && activeTab === "board" && (
+            <div className={styles.filterBar}>
+              <input
+                className={styles.filterInput}
+                type="text"
+                placeholder="Search task, project, deadline..."
+                value={boardTaskSearch}
+                onChange={(e) => setBoardTaskSearch(e.target.value)}
+              />
+              <select
+                className={styles.filterSelect}
+                value={boardTaskProjectFilter}
+                onChange={(e) => setBoardTaskProjectFilter(e.target.value)}
+              >
+                <option value="all">All projects</option>
+                {projectOptions.map((projectName) => (
+                  <option key={projectName} value={projectName}>
+                    {projectName}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={styles.filterSelect}
+                value={boardTaskStatusFilter}
+                onChange={(e) => setBoardTaskStatusFilter(e.target.value as "all" | MemberTaskResponse["status"])}
+              >
+                <option value="all">All statuses</option>
+                <option value="TODO">To do</option>
+                <option value="IN_PROGRESS">In progress</option>
+                <option value="REVIEW">Review</option>
+                <option value="DONE">Done</option>
+              </select>
+              <select
+                className={styles.filterSelect}
+                value={boardTaskPriorityFilter}
+                onChange={(e) => setBoardTaskPriorityFilter(e.target.value as "all" | MemberTaskResponse["priority"])}
+              >
+                <option value="all">All priorities</option>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+              </select>
+              <button
+                type="button"
+                className={styles.filterButtonSecondary}
+                onClick={() => {
+                  setBoardTaskSearch("");
+                  setBoardTaskProjectFilter("all");
+                  setBoardTaskStatusFilter("all");
+                  setBoardTaskPriorityFilter("all");
                 }}
               >
                 Reset
@@ -503,11 +783,6 @@ const MemberDashboard: React.FC = () => {
                   <div className={styles.summaryValue}>{dashboard.role}</div>
                   <div className={styles.summaryMeta}>Joined workspaces: {userWorkspaces.length}</div>
                 </article>
-                <article className={styles.workspaceSummaryCard}>
-                  <div className={styles.summaryLabel}>Next action</div>
-                  <div className={styles.summaryValue}>{dashboard.dueSoonTasks > 0 ? "Finish due tasks" : "Keep board tidy"}</div>
-                  <div className={styles.summaryMeta}>Open tasks: {dashboard.totalAssignedTasks - dashboard.completedTasks}</div>
-                </article>
               </div>
 
               <div className={styles.statsGrid}>
@@ -519,53 +794,87 @@ const MemberDashboard: React.FC = () => {
                 ))}
               </div>
 
-              <div className={styles.panelGrid}>
-                <section className={styles.panel}>
+              <div className={styles.dashboardChartGrid}>
+                <section className={`${styles.panel} ${styles.chartPanel}`}>
                   <div className={styles.panelHeader}>
-                    <h2>Assigned to me</h2>
-                    <span>{filteredTasks.length} tasks</span>
+                    <h2>Task overview</h2>
+                    <span>{taskCompletionPercent}% done</span>
                   </div>
-                  <div className={styles.taskList}>
-                    {filteredTasks.slice(0, 5).map((task) => renderTaskCard(task))}
+                  <div className={styles.taskChartLayout}>
+                    <div className={styles.taskDonut} style={{ background: taskChartBackground }}>
+                      <div className={styles.taskDonutCenter}>
+                        <strong>{totalTaskCount}</strong>
+                        <span>Total tasks</span>
+                      </div>
+                    </div>
+                    <div className={styles.taskBreakdownList}>
+                      {taskChartItems.map((item) => {
+                        const percent = totalTaskCount > 0 ? Math.round((item.value / totalTaskCount) * 100) : 0;
+                        return (
+                          <div key={item.label} className={styles.taskBreakdownRow}>
+                            <div className={styles.taskBreakdownTop}>
+                              <span>
+                                <i style={{ background: item.color }} />
+                                {item.label}
+                              </span>
+                              <strong>{item.value}</strong>
+                            </div>
+                            <div className={styles.taskBreakdownTrack}>
+                              <div className={styles.taskBreakdownFill} style={{ width: `${percent}%`, background: item.color }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                      <div className={styles.taskBreakdownMeta}>
+                        <span>{dashboard.dueSoonTasks} due soon</span>
+                        <span>{dashboard.overdueTasks} overdue</span>
+                      </div>
+                    </div>
                   </div>
                 </section>
-
-                <section className={styles.focusPanel}>
-                  <div className={styles.focusHeader}>
-                    <h2>Today's focus</h2>
-                    <span>{groupedTasks.DONE.length} done</span>
-                  </div>
-                  <div className={styles.focusItems}>
-                    {filteredTasks.slice(0, 4).map((task) => (
-                      <div key={task.id} className={styles.focusItem}>
-                        <span className={styles.focusDot} />
-                        <div>
-                          <div className={styles.rowTitle}>{task.title}</div>
-                          <div className={styles.rowSub}>{task.projectName || "General"} - {task.deadline || "No deadline"}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-
-              <div className={styles.bottomGrid}>
-                <section className={styles.panel}>
+                <section className={`${styles.panel} ${styles.weeklyPanel}`}>
                   <div className={styles.panelHeader}>
-                    <h2>Recent activities</h2>
-                    <span>{dashboard.activities.length} items</span>
+                    <h2>Weekly activity</h2>
+                    <div className={styles.weeklyLegend}>
+                      <span><i className={styles.weeklyAssignedDot} /> Assigned</span>
+                      <span><i className={styles.weeklyCompletedDot} /> Completed</span>
+                    </div>
                   </div>
-                  <div className={styles.activityList}>
-                    {dashboard.activities.map((activity, index) => (
-                      <div key={`${activity.title}-${index}`} className={styles.activityItem}>
-                        <span className={`${styles.activityDot} ${styles[`tone_${activity.tone}`]}`} />
-                        <div>
-                          <div className={styles.rowTitle}>{activity.title}</div>
-                          <div className={styles.rowSub}>{activity.detail}</div>
-                          <div className={styles.activityTime}>{activity.timeLabel}</div>
-                        </div>
-                      </div>
-                    ))}
+                  <div className={styles.weeklyChart}>
+                    <svg className={styles.weeklyChartSvg} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                      <line x1="0" y1="92" x2="100" y2="92" className={styles.weeklyGridLine} />
+                      <line x1="0" y1="64" x2="100" y2="64" className={styles.weeklyGridLine} />
+                      <line x1="0" y1="36" x2="100" y2="36" className={styles.weeklyGridLine} />
+                      <polyline className={styles.weeklyAssignedArea} points={`0,92 ${buildWeeklyLinePoints("assigned")} 100,92`} />
+                      <polyline className={styles.weeklyAssignedLine} points={buildWeeklyLinePoints("assigned")} />
+                      <polyline className={styles.weeklyCompletedLine} points={buildWeeklyLinePoints("completed")} />
+                    </svg>
+                    <div className={styles.weeklyPointLayer}>
+                      {weeklyActivity.map((item, index) => {
+                        const left = weeklyActivity.length <= 1 ? 50 : (index / (weeklyActivity.length - 1)) * 100;
+                        const assignedTop = 100 - (item.assigned / weeklyMaxValue) * 82 - 8;
+                        const completedTop = 100 - (item.completed / weeklyMaxValue) * 82 - 8;
+                        return (
+                          <React.Fragment key={item.day}>
+                            <span
+                              className={`${styles.weeklyPoint} ${styles.weeklyAssignedPoint}`}
+                              style={{ left: `${left}%`, top: `${assignedTop}%` }}
+                              title={`${item.day}: ${item.assigned} assigned`}
+                            />
+                            <span
+                              className={`${styles.weeklyPoint} ${styles.weeklyCompletedPoint}`}
+                              style={{ left: `${left}%`, top: `${completedTop}%` }}
+                              title={`${item.day}: ${item.completed} completed`}
+                            />
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className={styles.weeklyAxisLabels}>
+                      {weeklyActivity.map((item) => (
+                        <span key={item.day}>{item.day}</span>
+                      ))}
+                    </div>
                   </div>
                 </section>
               </div>
@@ -575,12 +884,63 @@ const MemberDashboard: React.FC = () => {
           {!loading && dashboard && activeTab === "tasks" && (
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
-                <h2>My tasks</h2>
-                <span>{filteredTasks.length} total</span>
+                <div>
+                  <h2>{selectedTaskProject ? selectedTaskProject : "My projects"}</h2>
+                  {selectedTaskProject && (
+                    <span className={styles.panelSubText}>{selectedProjectTasks.length} tasks in this project</span>
+                  )}
+                </div>
+                <div className={styles.panelHeaderActions}>
+                  {selectedTaskProject && (
+                    <button
+                      type="button"
+                      className={styles.filterButtonSecondary}
+                      onClick={() => setSelectedTaskProject(null)}
+                    >
+                      Back to projects
+                    </button>
+                  )}
+                  <span>{selectedTaskProject ? selectedProjectTasks.length : projectSummaries.length} total</span>
+                </div>
               </div>
-              <div className={styles.taskList}>
-                {filteredTasks.map((task) => renderTaskCard(task))}
-              </div>
+              {selectedTaskProject ? (
+                <div className={styles.taskList}>
+                  {selectedProjectTasks.map((task) => renderTaskCard(task))}
+                  {selectedProjectTasks.length === 0 && (
+                    <div className={styles.detailListItem}>No tasks found for this project.</div>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.projectGrid}>
+                  {projectSummaries.map((project) => {
+                    const progress = project.total === 0 ? 0 : Math.round((project.completed / project.total) * 100);
+                    return (
+                      <button
+                        key={project.name}
+                        type="button"
+                        className={styles.projectCard}
+                        onClick={() => setSelectedTaskProject(project.name)}
+                      >
+                        <div className={styles.projectCardTop}>
+                          <div className={styles.projectAvatar}>{getProjectInitials(project.name)}</div>
+                          <div className={styles.projectInfo}>
+                            <div className={styles.projectName}>{project.name}</div>
+                            <div className={styles.projectMeta}>{project.total} tasks</div>
+                          </div>
+                        </div>
+                        <div className={styles.projectDescription}>Tasks assigned to you in this project</div>
+                        <div className={styles.projectProgressTrack}>
+                          <div className={styles.projectProgressFill} style={{ width: `${progress}%` }} />
+                        </div>
+                        <div className={styles.projectProgressLabel}>{progress}% completed</div>
+                      </button>
+                    );
+                  })}
+                  {projectSummaries.length === 0 && (
+                    <div className={styles.detailListItem}>No projects found.</div>
+                  )}
+                </div>
+              )}
             </section>
           )}
 
@@ -608,6 +968,77 @@ const MemberDashboard: React.FC = () => {
                 </section>
               ))}
             </div>
+          )}
+
+          {!loading && dashboard && activeTab === "notifications" && (
+            <section className={styles.panel}>
+              <div className={styles.panelHeader}>
+                <div>
+                  <h2>Notification</h2>
+                  <span className={styles.panelSubText}>Task notifications assigned to you</span>
+                </div>
+                <div className={styles.panelHeaderActions}>
+                  <span>{unreadNotificationCount} unread</span>
+                  <button
+                    type="button"
+                    className={styles.filterButtonSecondary}
+                    onClick={() => void markAllNotificationsRead()}
+                    disabled={unreadNotificationCount === 0 || markAllNotificationsLoading}
+                  >
+                    {markAllNotificationsLoading ? "Updating..." : "Read all"}
+                  </button>
+                </div>
+              </div>
+
+              <div className={styles.notificationList}>
+                {notifications.map((notification) => (
+                  <article
+                    key={notification.id}
+                    className={`${styles.notificationCard} ${!notification.read ? styles.notificationCardUnread : ""}`}
+                  >
+                    <div className={styles.notificationMainRow}>
+                      <div className={styles.notificationFacts}>
+                        <div>
+                          <span>Project</span>
+                          <strong>{notification.projectName || "General"}</strong>
+                        </div>
+                        <div>
+                          <span>Assigned</span>
+                          <strong>{formatNotificationTime(notification.timestamp)}</strong>
+                        </div>
+                        <div>
+                          <span>Deadline</span>
+                          <strong>{notification.deadline || "No deadline"}</strong>
+                        </div>
+                      </div>
+                    </div>
+                    <div className={styles.notificationControl}>
+                      <div className={styles.notificationStatusWrap}>
+                        <span className={`${styles.notificationReadDot} ${notification.read ? styles.notificationReadDotMuted : ""}`} />
+                        <span className={styles.notificationState}>
+                          {notification.read ? "Read" : "New"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className={`${styles.taskActionButton} ${notification.read ? styles.secondaryTaskActionButton : ""}`}
+                        onClick={() => void toggleNotificationReadState(notification)}
+                        disabled={notificationActionId === notification.id}
+                      >
+                        <i className={`bi ${notification.read ? "bi-envelope" : "bi-envelope-open"}`} />
+                        {notification.read ? "Mark unread" : "Mark read"}
+                      </button>
+                    </div>
+                  </article>
+                ))}
+                {notifications.length === 0 && (
+                  <div className={styles.emptyNotifications}>
+                    <i className="bi bi-bell" />
+                    <p>No task notifications yet.</p>
+                  </div>
+                )}
+              </div>
+            </section>
           )}
 
           {!loading && dashboard && activeTab === "profile" && (

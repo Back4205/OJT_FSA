@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
+
 @Getter
 @Setter
 @AllArgsConstructor
@@ -17,4 +19,5 @@ public class AdminDashboardResponse {
     private long lockedWorkspaces;
     private long totalMemberships;
     private long activeMemberships;
+    private List<AdminWeeklyActivityResponse> weeklyActivity;
 }

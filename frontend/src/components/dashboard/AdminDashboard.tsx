@@ -15,8 +15,7 @@ const menuItems = [
   { key: "dashboard", label: "Dashboard", icon: "bi-speedometer2" },
   { key: "users", label: "Users", icon: "bi-people" },
   { key: "workspaces", label: "Workspaces", icon: "bi-building" },
-  { key: "reports", label: "Reports", icon: "bi-graph-up" },
-  { key: "activity", label: "Activity", icon: "bi-clock-history" }
+  { key: "activity", label: "System activity", icon: "bi-clock-history" }
 ] as const;
 
 type TabKey = typeof menuItems[number]["key"];
@@ -35,6 +34,22 @@ type DetailTarget = {
   id: number;
 };
 
+const WORKSPACE_PAGE_SIZE = 6;
+
+const emptyPageInfo: PageInfo = {
+  pageNumber: 0,
+  pageSize: 10,
+  totalElements: 0,
+  totalPages: 1,
+  first: true,
+  last: true
+};
+
+const emptyWorkspacePageInfo: PageInfo = {
+  ...emptyPageInfo,
+  pageSize: WORKSPACE_PAGE_SIZE
+};
+
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
@@ -45,33 +60,17 @@ const AdminDashboard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<AdminWorkspaceSummaryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [userSearchDraft, setUserSearchDraft] = useState("");
   const [userSearch, setUserSearch] = useState("");
-  const [userActiveFilter, setUserActiveFilter] = useState<"all" | "active" | "locked">("all");
-  const [userRoleFilter, setUserRoleFilter] = useState<"all" | "super" | "member">("all");
   const [userPage, setUserPage] = useState(0);
-  const [userPageInfo, setUserPageInfo] = useState<PageInfo>({
-    pageNumber: 0,
-    pageSize: 10,
-    totalElements: 0,
-    totalPages: 1,
-    first: true,
-    last: true
-  });
+  const [userPageInfo, setUserPageInfo] = useState<PageInfo>(emptyPageInfo);
   const [workspaceSearchDraft, setWorkspaceSearchDraft] = useState("");
   const [workspaceSearch, setWorkspaceSearch] = useState("");
-  const [workspaceActiveFilter, setWorkspaceActiveFilter] = useState<"all" | "active" | "locked">("all");
   const [workspacePage, setWorkspacePage] = useState(0);
-  const [workspacePageInfo, setWorkspacePageInfo] = useState<PageInfo>({
-    pageNumber: 0,
-    pageSize: 10,
-    totalElements: 0,
-    totalPages: 1,
-    first: true,
-    last: true
-  });
-  const [notice, setNotice] = useState("");
+  const [workspacePageInfo, setWorkspacePageInfo] = useState<PageInfo>(emptyWorkspacePageInfo);
+  const [workspaceViewMode, setWorkspaceViewMode] = useState<"grid" | "list">("grid");
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [userDetail, setUserDetail] = useState<AdminUserDetailResponse | null>(null);
   const [workspaceDetail, setWorkspaceDetail] = useState<AdminWorkspaceDetailResponse | null>(null);
@@ -84,8 +83,8 @@ const AdminDashboard: React.FC = () => {
     try {
       const [dashboardData, usersData, workspacesData] = await Promise.all([
         adminService.getDashboard(),
-        adminService.getUsers({ size: 5 }),
-        adminService.getWorkspaces({ size: 5 }),
+        adminService.getUsers({ size: 8 }),
+        adminService.getWorkspaces({ size: 1000 })
       ]);
       setDashboard(dashboardData);
       setPreviewUsers(usersData.content);
@@ -103,10 +102,6 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await adminService.getUsers({
         search: userSearch || undefined,
-        active:
-          userActiveFilter === "all" ? undefined : userActiveFilter === "active",
-        superAdmin:
-          userRoleFilter === "all" ? undefined : userRoleFilter === "super",
         page: userPage,
         size: userPageInfo.pageSize
       });
@@ -132,20 +127,25 @@ const AdminDashboard: React.FC = () => {
     try {
       const response = await adminService.getWorkspaces({
         search: workspaceSearch || undefined,
-        active:
-          workspaceActiveFilter === "all" ? undefined : workspaceActiveFilter === "active",
-        page: workspacePage,
-        size: workspacePageInfo.pageSize
+        page: 0,
+        size: 1000
       });
-      setWorkspaces(response.content);
+      const filtered = response.content;
+      const totalPages = Math.max(Math.ceil(filtered.length / WORKSPACE_PAGE_SIZE), 1);
+      const currentPage = Math.min(workspacePage, totalPages - 1);
+      const pageStart = currentPage * WORKSPACE_PAGE_SIZE;
+      setWorkspaces(filtered.slice(pageStart, pageStart + WORKSPACE_PAGE_SIZE));
       setWorkspacePageInfo({
-        pageNumber: response.pageNumber,
-        pageSize: response.pageSize,
-        totalElements: response.totalElements,
-        totalPages: response.totalPages,
-        first: response.first,
-        last: response.last
+        pageNumber: currentPage,
+        pageSize: WORKSPACE_PAGE_SIZE,
+        totalElements: filtered.length,
+        totalPages,
+        first: currentPage === 0,
+        last: currentPage >= totalPages - 1
       });
+      if (currentPage !== workspacePage) {
+        setWorkspacePage(currentPage);
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || "Unable to load workspaces.");
     } finally {
@@ -162,14 +162,14 @@ const AdminDashboard: React.FC = () => {
       loadUsers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, userSearch, userActiveFilter, userRoleFilter, userPage]);
+  }, [activeTab, userSearch, userPage]);
 
   useEffect(() => {
     if (activeTab === "workspaces") {
       loadWorkspaces();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, workspaceSearch, workspaceActiveFilter, workspacePage]);
+  }, [activeTab, workspaceSearch, workspacePage]);
 
   const openUserDetail = async (userId: number) => {
     setDetailTarget({ type: "user", id: userId });
@@ -220,9 +220,6 @@ const AdminDashboard: React.FC = () => {
     if (activeTab === "users") {
       await loadUsers();
     }
-    if (activeTab === "workspaces") {
-      await loadWorkspaces();
-    }
   };
 
   const refreshOpenDetail = async () => {
@@ -234,60 +231,7 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const withAction = async (key: string, action: () => Promise<void>, successMessage?: string) => {
-    setActionLoading(key);
-    setError("");
-    setNotice("");
-    try {
-      await action();
-      await refreshVisibleSection();
-      if (detailTarget) {
-        await refreshOpenDetail();
-      }
-      if (successMessage) {
-        setNotice(successMessage);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err?.message || "Action failed.");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const handleToggleUserStatus = (item: AdminUserSummaryResponse) => {
-    if (item.email.trim().toLowerCase() === currentUserEmail) {
-      setError("You cannot lock or unlock your own account from this screen.");
-      return;
-    }
-    const nextAction = item.active ? "lock" : "unlock";
-    if (!window.confirm(`Do you want to ${nextAction} user ${item.username}?`)) {
-      return;
-    }
-    const actionKey = `user-status-${item.id}`;
-    return withAction(actionKey, async () => {
-      if (item.active) {
-        await adminService.lockUser(item.id);
-      } else {
-        await adminService.unlockUser(item.id);
-      }
-    }, `User ${item.username} ${item.active ? "locked" : "unlocked"} successfully.`);
-  };
-
-  const handleToggleEmailVerified = (item: AdminUserSummaryResponse) => {
-    if (!window.confirm(`${item.emailVerified ? "Unverify" : "Verify"} email for ${item.username}?`)) {
-      return;
-    }
-    const actionKey = `user-verified-${item.id}`;
-    return withAction(actionKey, async () => {
-      await adminService.setUserEmailVerified(item.id, !item.emailVerified);
-    }, `Updated email verification for ${item.username}.`);
-  };
-
-  const handleResetPassword = (item: AdminUserSummaryResponse) => {
-    if (item.email.trim().toLowerCase() === currentUserEmail) {
-      setError("Please reset your own password from the account flow, not from Sadmin actions.");
-      return;
-    }
+  const handleResetPassword = async (item: AdminUserSummaryResponse) => {
     const nextPassword = window.prompt(`Enter a new password for ${item.username}`, "Admin@1234");
     if (!nextPassword) {
       return;
@@ -296,32 +240,24 @@ const AdminDashboard: React.FC = () => {
       setError("Password must be at least 8 characters.");
       return;
     }
-    const actionKey = `user-password-${item.id}`;
-    return withAction(actionKey, async () => {
+
+    setActionLoading(`user-password-${item.id}`);
+    setError("");
+    setNotice("");
+    try {
       await adminService.resetUserPassword(item.id, nextPassword);
-    }, `Password updated for ${item.username}.`);
-  };
-
-  const handleToggleWorkspaceStatus = (item: AdminWorkspaceSummaryResponse) => {
-    if (!window.confirm(`Do you want to ${item.active ? "lock" : "unlock"} workspace ${item.name}?`)) {
-      return;
-    }
-    const actionKey = `workspace-status-${item.id}`;
-    return withAction(actionKey, async () => {
-      if (item.active) {
-        await adminService.lockWorkspace(item.id);
-      } else {
-        await adminService.unlockWorkspace(item.id);
+      await refreshVisibleSection();
+      if (detailTarget) {
+        await refreshOpenDetail();
       }
-    }, `Workspace ${item.name} ${item.active ? "locked" : "unlocked"} successfully.`);
+      setNotice(`Password updated for ${item.username}.`);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Unable to reset password.");
+    } finally {
+      setActionLoading(null);
+    }
   };
 
-  const statCards = [
-    { label: "Total users", value: dashboard?.totalUsers ?? 0, tone: "indigo" },
-    { label: "Active users", value: dashboard?.activeUsers ?? 0, tone: "green" },
-    { label: "Workspaces", value: dashboard?.totalWorkspaces ?? 0, tone: "sky" },
-    { label: "Memberships", value: dashboard?.totalMemberships ?? 0, tone: "amber" },
-  ];
   const currentSectionLabel = menuItems.find((item) => item.key === activeTab)?.label ?? "Dashboard";
   const selectedUserSummary = userDetail
     ? ({
@@ -335,16 +271,155 @@ const AdminDashboard: React.FC = () => {
         membershipCount: userDetail.membershipCount
       } as AdminUserSummaryResponse)
     : null;
+  const getWorkspaceInitials = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return "WS";
+    }
+    const parts = trimmed.split(/\s+/);
+    if (parts.length > 1) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return trimmed.slice(0, 3).toUpperCase();
+  };
   const selectedWorkspaceSummary = workspaceDetail
     ? ({
         id: workspaceDetail.id,
         name: workspaceDetail.name,
         description: workspaceDetail.description,
-        active: workspaceDetail.active
+        active: workspaceDetail.active,
+        memberCount: workspaceDetail.activeMemberCount,
+        workspaceAdminCount: workspaceDetail.workspaceAdminCount,
+        leaderCount: workspaceDetail.leaderCount,
+        regularMemberCount: workspaceDetail.regularMemberCount,
+        totalTaskCount: 0,
+        completedTaskCount: 0,
+        progressPercent: 0,
+        participantInitials: workspaceDetail.memberships
+          .slice(0, 4)
+          .map((membership) => getWorkspaceInitials(membership.username || membership.email))
       } as AdminWorkspaceSummaryResponse)
     : null;
-  const currentUserEmail = user?.email?.trim().toLowerCase() ?? "";
-  const isSelectedUserSelf = selectedUserSummary?.email.trim().toLowerCase() === currentUserEmail;
+
+  const platformCards = [
+    {
+      label: "Total users",
+      value: dashboard?.totalUsers ?? 0,
+      icon: "bi-people",
+      tone: "purple"
+    },
+    {
+      label: "Total workspaces",
+      value: dashboard?.totalWorkspaces ?? 0,
+      icon: "bi-building",
+      tone: "blue"
+    },
+    {
+      label: "Memberships",
+      value: dashboard?.totalMemberships ?? 0,
+      icon: "bi-diagram-3",
+      tone: "green"
+    }
+  ];
+  const totalWorkspaceTasks = previewWorkspaces.reduce((sum, item) => sum + item.totalTaskCount, 0);
+  const completedWorkspaceTasks = previewWorkspaces.reduce((sum, item) => sum + item.completedTaskCount, 0);
+  const openWorkspaceTasks = Math.max(totalWorkspaceTasks - completedWorkspaceTasks, 0);
+  const completionRate = totalWorkspaceTasks > 0 ? Math.round((completedWorkspaceTasks / totalWorkspaceTasks) * 100) : 0;
+  const currentDate = new Date();
+  const currentYear = currentDate.getFullYear();
+  const currentMonth = currentDate.getMonth();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const leadingCalendarDays = (new Date(currentYear, currentMonth, 1).getDay() + 6) % 7;
+  const calendarDays = [
+    ...Array.from({ length: leadingCalendarDays }, (_, index) => ({ key: `blank-${index}`, day: null })),
+    ...Array.from({ length: daysInMonth }, (_, index) => ({ key: `day-${index + 1}`, day: index + 1 }))
+  ];
+  const monthLabel = currentDate.toLocaleString("en-US", { month: "long", year: "numeric" });
+  const weeklyActivity = dashboard?.weeklyActivity?.length
+    ? dashboard.weeklyActivity
+    : ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"].map((day) => ({
+      day,
+      users: 0,
+      workspaces: 0
+    }));
+  const weeklyUserTotal = weeklyActivity.reduce((sum, item) => sum + item.users, 0);
+  const weeklyWorkspaceTotal = weeklyActivity.reduce((sum, item) => sum + item.workspaces, 0);
+  const weeklyMaxValue = Math.max(
+    ...weeklyActivity.flatMap((item) => [item.users, item.workspaces]),
+    1
+  );
+  const toWeeklyPoints = (values: number[]) => {
+    const denominator = Math.max(values.length - 1, 1);
+    return values.map((value, index) => [
+      Number(((index / denominator) * 100).toFixed(2)),
+      Number((92 - (value / weeklyMaxValue) * 64).toFixed(2))
+    ]);
+  };
+  const weeklyUserPoints = toWeeklyPoints(weeklyActivity.map((item) => item.users));
+  const weeklyWorkspacePoints = toWeeklyPoints(weeklyActivity.map((item) => item.workspaces));
+  const pointList = (points: number[][]) => points.map(([x, y]) => `${x},${y}`).join(" ");
+  const formatDayLabel = (day: string) => day ? `${day.slice(0, 1)}${day.slice(1).toLowerCase()}` : "";
+  const getEventTimestamp = (createdAt?: string) => {
+    if (!createdAt) {
+      return 0;
+    }
+    const time = new Date(createdAt).getTime();
+    return Number.isNaN(time) ? 0 : time;
+  };
+  const formatEventTime = (createdAt?: string) => {
+    if (!createdAt) {
+      return "Time not recorded";
+    }
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) {
+      return "Time not recorded";
+    }
+    return date.toLocaleString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+  const topbarSearchValue =
+    activeTab === "users" ? userSearchDraft : activeTab === "workspaces" ? workspaceSearchDraft : "";
+  const topbarSearchPlaceholder =
+    activeTab === "users"
+      ? "Search users by name or email..."
+      : activeTab === "workspaces"
+        ? "Search workspaces by name or description..."
+        : "Search is available in Users and Workspaces";
+  const handleTopbarSearchChange = (nextSearch: string) => {
+    if (activeTab === "users") {
+      setUserSearchDraft(nextSearch);
+      setUserSearch(nextSearch.trim());
+      setUserPage(0);
+    }
+    if (activeTab === "workspaces") {
+      setWorkspaceSearchDraft(nextSearch);
+      setWorkspaceSearch(nextSearch.trim());
+      setWorkspacePage(0);
+    }
+  };
+  const systemEvents = [
+    ...previewUsers.map((item) => ({
+      key: `user-${item.id}`,
+      title: "User registered",
+      detail: `${item.username} - ${item.email}`,
+      createdAt: item.createdAt,
+      sortKey: getEventTimestamp(item.createdAt) || item.id
+    })),
+    ...previewWorkspaces.map((item) => ({
+      key: `workspace-${item.id}`,
+      title: "Workspace created",
+      detail: `${item.name}${item.description ? ` - ${item.description}` : ""}`,
+      createdAt: item.createdAt,
+      sortKey: getEventTimestamp(item.createdAt) || item.id
+    }))
+  ].sort((left, right) => right.sortKey - left.sortKey).slice(0, 8);
+  const dashboardEvents = systemEvents.slice(0, 5);
+  const currentDay = currentDate.getDate();
 
   return (
     <div className={styles.shell}>
@@ -355,11 +430,6 @@ const AdminDashboard: React.FC = () => {
             <div className={styles.brandTitle}>Flowspace</div>
             <div className={styles.brandSub}>SADMIN</div>
           </div>
-        </div>
-
-        <div className={styles.sidebarCard}>
-          <div className={styles.workspaceName}>Platform control</div>
-          <div className={styles.workspaceMeta}>Manage users and workspaces</div>
         </div>
 
         <nav className={styles.nav}>
@@ -384,10 +454,16 @@ const AdminDashboard: React.FC = () => {
 
       <main className={styles.main}>
         <header className={styles.topbar}>
-        <div className={styles.searchBox}>
-          <i className="bi bi-search" />
-          <span>Search users, workspaces...</span>
-        </div>
+          <div className={styles.searchBox}>
+            <i className="bi bi-search" />
+            <input
+              type="text"
+              value={topbarSearchValue}
+              placeholder={topbarSearchPlaceholder}
+              onChange={(event) => handleTopbarSearchChange(event.target.value)}
+              disabled={activeTab !== "users" && activeTab !== "workspaces"}
+            />
+          </div>
           <div className={styles.userChip}>
             <div className={styles.userAvatar}>{(user?.username || "SA").slice(0, 2).toUpperCase()}</div>
             <div>
@@ -401,106 +477,138 @@ const AdminDashboard: React.FC = () => {
           <div className={styles.headerRow}>
             <div>
               <div className={styles.breadcrumb}>Home / {currentSectionLabel}</div>
-              <h1 className={styles.title}>Admin dashboard</h1>
-              <p className={styles.subtitle}>Platform-wide control for Sadmin only.</p>
-            </div>
-            <div className={styles.headerActions}>
-              <span className={styles.pill}>Workspace admin</span>
-              <span className={styles.pillStrong}>Sadmin</span>
+              <p className={styles.subtitle}>Platform-wide account and workspace management.</p>
             </div>
           </div>
 
           {notice && <div className={styles.notice}>{notice}</div>}
-
           {loading && <div className={styles.loading}>Loading dashboard...</div>}
           {error && <div className={styles.error}>{error}</div>}
 
           {!loading && !error && activeTab === "dashboard" && (
             <>
-              <div className={styles.statsGrid}>
-                {statCards.map((card) => (
-                  <article key={card.label} className={`${styles.statCard} ${styles[card.tone]}`}>
-                    <div className={styles.statLabel}>{card.label}</div>
-                    <div className={styles.statValue}>{card.value.toLocaleString()}</div>
+              <div className={styles.platformStatGrid}>
+                {platformCards.map((card) => (
+                  <article key={card.label} className={styles.platformStatCard}>
+                    <div className={`${styles.platformStatIcon} ${styles[card.tone]}`}>
+                      <i className={`bi ${card.icon}`} />
+                    </div>
+                    <div>
+                      <div className={styles.platformStatValue}>{card.value.toLocaleString()}</div>
+                      <div className={styles.platformStatLabel}>{card.label}</div>
+                    </div>
                   </article>
                 ))}
               </div>
 
-              <div className={styles.panelGrid}>
-                <section className={styles.panel}>
+              <div className={styles.dashboardChartGrid}>
+                <article className={styles.chartCard}>
                   <div className={styles.panelHeader}>
-                    <h2>Recent users</h2>
-                    <span>{previewUsers.length} shown</span>
+                    <h2>Task status</h2>
+                    <span>{totalWorkspaceTasks.toLocaleString()} tasks</span>
                   </div>
-                  <div className={styles.list}>
-                    {previewUsers.map((item) => (
-                      (() => {
-                        const isSelf = item.email.trim().toLowerCase() === currentUserEmail;
-                        return (
-                      <div key={item.id} className={styles.listRow}>
-                        <div className={styles.rowInfo}>
-                          <button type="button" className={styles.linkButton} onClick={() => openUserDetail(item.id)}>
-                            {item.username}
-                          </button>
-                          <div className={styles.rowSub}>{item.email}</div>
-                        </div>
-                        <div className={styles.badges}>
-                          <span className={item.superAdmin ? styles.badgeStrong : styles.badgeSoft}>
-                            {item.superAdmin ? "SUPER_ADMIN" : "USER"}
-                          </span>
-                          <span className={item.active ? styles.badgeGreen : styles.badgeRed}>
-                            {item.active ? "Active" : "Locked"}
-                          </span>
-                          <button type="button" className={styles.actionButton} onClick={() => openUserDetail(item.id)}>
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleToggleUserStatus(item)}
-                            disabled={isSelf || actionLoading === `user-status-${item.id}`}
-                            title={isSelf ? "You cannot lock your own account" : undefined}
-                          >
-                            {item.active ? "Lock" : "Unlock"}
-                          </button>
-                        </div>
+                  <div className={styles.taskStatusLayout}>
+                    <div
+                      className={styles.taskDonut}
+                      style={{
+                        background: `conic-gradient(#10b981 0 ${completionRate}%, #4f46e5 ${completionRate}% 100%)`
+                      }}
+                    >
+                      <span>{completionRate}%</span>
+                    </div>
+                    <div className={styles.taskLegendGrid}>
+                      <div>
+                        <span><i className={styles.legendGreen} />Completed</span>
+                        <strong>{completedWorkspaceTasks.toLocaleString()}</strong>
                       </div>
-                        );
-                      })()
+                      <div>
+                        <span><i className={styles.legendIndigo} />Open</span>
+                        <strong>{openWorkspaceTasks.toLocaleString()}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+
+                <article className={`${styles.chartCard} ${styles.weeklyCard}`}>
+                  <div className={styles.panelHeader}>
+                    <h2>Weekly activity</h2>
+                    <div className={styles.inlineLegend}>
+                      <span><i className={styles.legendIndigo} />Users {weeklyUserTotal}</span>
+                      <span><i className={styles.legendGreen} />Workspaces {weeklyWorkspaceTotal}</span>
+                    </div>
+                  </div>
+                  <div className={styles.weeklyChart}>
+                    <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                      <polyline className={styles.chartGridLine} points="0,25 100,25" />
+                      <polyline className={styles.chartGridLine} points="0,50 100,50" />
+                      <polyline className={styles.chartGridLine} points="0,75 100,75" />
+                      <polyline className={styles.weeklyArea} points={`0,100 ${pointList(weeklyUserPoints)} 100,100`} />
+                      <polyline className={styles.weeklyLinePrimary} points={pointList(weeklyUserPoints)} />
+                      <polyline className={styles.weeklyLineSecondary} points={pointList(weeklyWorkspacePoints)} />
+                    </svg>
+                    <div className={styles.weekLabels}>
+                      {weeklyActivity.map((item) => (
+                        <span key={item.day}>{formatDayLabel(item.day)}</span>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              </div>
+
+              <div className={styles.dashboardBottomGrid}>
+                <section
+                  className={`${styles.panel} ${styles.clickablePanel}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setActiveTab("activity")}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setActiveTab("activity");
+                    }
+                  }}
+                >
+                  <div className={styles.panelHeader}>
+                    <h2>Activity timeline</h2>
+                    <span>{dashboardEvents.length} items</span>
+                  </div>
+                  <div className={styles.cleanTimeline}>
+                    {dashboardEvents.map((event, index) => (
+                      <div key={event.key} className={styles.cleanTimelineItem}>
+                        <span className={`${styles.timelineDot} ${index % 3 === 0 ? styles.timelineDotGreen : ""}`} />
+                        <div>
+                          <strong>{event.title}</strong>
+                          <p>{event.detail}</p>
+                          <time className={styles.eventTime}>{formatEventTime(event.createdAt)}</time>
+                      </div>
+                      </div>
                     ))}
+                    {dashboardEvents.length === 0 && (
+                      <div className={styles.emptyState}>No activity yet.</div>
+                    )}
                   </div>
                 </section>
 
                 <section className={styles.panel}>
                   <div className={styles.panelHeader}>
-                    <h2>Recent workspaces</h2>
-                    <span>{previewWorkspaces.length} shown</span>
+                    <h2>Calendar</h2>
+                    <span><i className="bi bi-calendar4" /> {monthLabel}</span>
                   </div>
-                  <div className={styles.list}>
-                    {previewWorkspaces.map((item) => (
-                      <div key={item.id} className={styles.listRow}>
-                        <div className={styles.rowInfo}>
-                          <button type="button" className={styles.linkButton} onClick={() => openWorkspaceDetail(item.id)}>
-                            {item.name}
-                          </button>
-                          <div className={styles.rowSub}>{item.description || "No description"}</div>
-                        </div>
-                        <div className={styles.badges}>
-                          <span className={item.active ? styles.badgeGreen : styles.badgeRed}>
-                            {item.active ? "Active" : "Locked"}
-                          </span>
-                          <button type="button" className={styles.actionButton} onClick={() => openWorkspaceDetail(item.id)}>
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleToggleWorkspaceStatus(item)}
-                            disabled={actionLoading === `workspace-status-${item.id}`}
-                          >
-                            {item.active ? "Lock" : "Unlock"}
-                          </button>
-                        </div>
+                  <div className={styles.calendarGrid}>
+                    {["M", "T", "W", "T", "F", "S", "S"].map((day, index) => (
+                      <span key={`${day}-${index}`} className={styles.calendarWeekday}>{day}</span>
+                    ))}
+                    {calendarDays.map((item) => (
+                      <div
+                        key={item.key}
+                        className={`${styles.calendarDay} ${item.day === currentDay ? styles.calendarDayActive : ""}`}
+                      >
+                        {item.day && (
+                          <>
+                            <span>{item.day}</span>
+                            {item.day <= currentDay && <i />}
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -510,116 +618,60 @@ const AdminDashboard: React.FC = () => {
           )}
 
           {!loading && !error && activeTab === "users" && (
-            <section className={styles.tablePanel}>
-              <div className={styles.filterBar}>
-                <input
-                  className={styles.filterInput}
-                  type="text"
-                  placeholder="Search users by name or email..."
-                  value={userSearchDraft}
-                  onChange={(e) => {
-                    const nextSearch = e.target.value;
-                    setUserSearchDraft(nextSearch);
-                    setUserSearch(nextSearch.trim());
-                    setUserPage(0);
-                  }}
-                />
-                <select
-                  className={styles.filterSelect}
-                  value={userActiveFilter}
-                  onChange={(e) => setUserActiveFilter(e.target.value as "all" | "active" | "locked")}
-                >
-                  <option value="all">All status</option>
-                  <option value="active">Active</option>
-                  <option value="locked">Locked</option>
-                </select>
-                <select
-                  className={styles.filterSelect}
-                  value={userRoleFilter}
-                  onChange={(e) => setUserRoleFilter(e.target.value as "all" | "super" | "member")}
-                >
-                  <option value="all">All roles</option>
-                  <option value="super">Sadmin</option>
-                  <option value="member">Member</option>
-                </select>
+            <section className={`${styles.tablePanel} ${styles.usersPanel}`}>
+              <div className={styles.usersPanelHeader}>
+                <div>
+                  <h2>Users</h2>
+                  <p>Manage platform accounts, access state, and workspace participation.</p>
+                </div>
+                <div className={styles.usersPanelCount}>
+                  <strong>{userPageInfo.totalElements}</strong>
+                  <span>Total users</span>
+                </div>
               </div>
-              <div className={styles.panelHeader}>
-                <h2>Users</h2>
-                <span>{userPageInfo.totalElements} total</span>
-              </div>
-                  <table className={styles.table}>
+
+              <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Status</th>
-                    <th>Role</th>
+                    <th>User</th>
+                    <th>Provider</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
-                  <tbody>
-                    {users.map((item) => (
-                      (() => {
-                        const isSelf = item.email.trim().toLowerCase() === currentUserEmail;
-                        return (
-                      <tr key={item.id}>
-                        <td>{item.username}</td>
-                        <td>{item.email}</td>
-                        <td>
-                          <span className={item.active ? styles.badgeGreen : styles.badgeRed}>
-                          {item.active ? "Active" : "Locked"}
-                        </span>
-                      </td>
+                <tbody>
+                  {users.map((item) => (
+                    <tr key={item.id}>
                       <td>
-                        <div className={styles.actionCell}>
-                          <span className={item.superAdmin ? styles.badgeStrong : styles.badgeSoft}>
-                            {item.superAdmin ? "SUPER_ADMIN" : "MEMBER"}
-                          </span>
+                        <div className={styles.userIdentityCell}>
+                          <div className={styles.userTableAvatar}>{(item.username || item.email || "US").slice(0, 2).toUpperCase()}</div>
+                          <div>
+                            <strong>{item.username || "Unnamed user"}</strong>
+                            <span>{item.email}</span>
+                          </div>
                         </div>
                       </td>
                       <td>
+                        <span className={styles.providerText}>{item.provider || "LOCAL"}</span>
+                      </td>
+                      <td>
                         <div className={styles.actionButtons}>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => openUserDetail(item.id)}
-                          >
+                          <button type="button" className={styles.actionButton} onClick={() => openUserDetail(item.id)}>
+                            <i className="bi bi-eye" />
                             Details
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleToggleUserStatus(item)}
-                            disabled={isSelf || actionLoading === `user-status-${item.id}`}
-                            title={isSelf ? "You cannot lock your own account" : undefined}
-                          >
-                            {item.active ? "Lock" : "Unlock"}
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleToggleEmailVerified(item)}
-                            disabled={actionLoading === `user-verified-${item.id}`}
-                          >
-                            {item.emailVerified ? "Unverify" : "Verify"}
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleResetPassword(item)}
-                            disabled={isSelf || actionLoading === `user-password-${item.id}`}
-                            title={isSelf ? "Use account flow to reset your own password" : undefined}
-                          >
-                            Reset password
                           </button>
                         </div>
                       </td>
                     </tr>
-                        );
-                      })()
-                    ))}
-                  </tbody>
-                </table>
+                  ))}
+                  {users.length === 0 && (
+                    <tr>
+                      <td colSpan={3}>
+                        <div className={styles.emptyState}>No users found.</div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
               <div className={styles.paginationBar}>
                 <button
                   type="button"
@@ -630,7 +682,7 @@ const AdminDashboard: React.FC = () => {
                   Prev
                 </button>
                 <span className={styles.pageInfo}>
-                  Page {userPageInfo.pageNumber + 1} of {Math.max(userPageInfo.totalPages, 1)} · {userPageInfo.totalElements} rows
+                  Page {userPageInfo.pageNumber + 1} of {Math.max(userPageInfo.totalPages, 1)} - {userPageInfo.totalElements} rows
                 </span>
                 <button
                   type="button"
@@ -646,75 +698,94 @@ const AdminDashboard: React.FC = () => {
 
           {!loading && !error && activeTab === "workspaces" && (
             <section className={styles.tablePanel}>
-              <div className={styles.filterBar}>
-                <input
-                  className={styles.filterInput}
-                  type="text"
-                  placeholder="Search workspaces by name or description..."
-                  value={workspaceSearchDraft}
-                  onChange={(e) => {
-                    const nextSearch = e.target.value;
-                    setWorkspaceSearchDraft(nextSearch);
-                    setWorkspaceSearch(nextSearch.trim());
-                    setWorkspacePage(0);
-                  }}
-                />
-                <select
-                  className={styles.filterSelect}
-                  value={workspaceActiveFilter}
-                  onChange={(e) => setWorkspaceActiveFilter(e.target.value as "all" | "active" | "locked")}
-                >
-                  <option value="all">All status</option>
-                  <option value="active">Active</option>
-                  <option value="locked">Locked</option>
-                </select>
-              </div>
               <div className={styles.panelHeader}>
                 <h2>Workspaces</h2>
                 <span>{workspacePageInfo.totalElements} total</span>
               </div>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workspaces.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.name}</td>
-                      <td>{item.description || "No description"}</td>
-                      <td>
-                        <span className={item.active ? styles.badgeGreen : styles.badgeRed}>
+              <div className={styles.workspaceToolbar}>
+                <div className={styles.workspaceViewToggle} aria-label="Workspace view mode">
+                  <button
+                    type="button"
+                    className={`${styles.workspaceViewButton} ${workspaceViewMode === "grid" ? styles.workspaceViewButtonActive : ""}`}
+                    aria-label="Grid view"
+                    onClick={() => setWorkspaceViewMode("grid")}
+                  >
+                    <i className="bi bi-grid" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.workspaceViewButton} ${workspaceViewMode === "list" ? styles.workspaceViewButtonActive : ""}`}
+                    aria-label="List view"
+                    onClick={() => setWorkspaceViewMode("list")}
+                  >
+                    <i className="bi bi-list" />
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${styles.workspaceCardGrid} ${workspaceViewMode === "list" ? styles.workspaceCardGridList : ""}`}>
+                {workspaces.map((item) => {
+                  return (
+                    <article key={item.id} className={styles.workspaceCardItem}>
+                      <div className={styles.workspaceCardHeader}>
+                        <div className={styles.workspaceCardAvatar}>{getWorkspaceInitials(item.name)}</div>
+                        <div className={styles.workspaceCardTitleWrap}>
+                          <button type="button" className={styles.workspaceCardTitle} onClick={() => openWorkspaceDetail(item.id)}>
+                            {item.name}
+                          </button>
+                          <div className={styles.workspaceCardTags}>
+                            <span>#Workspace</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className={styles.workspaceProgressHeader}>
+                        <span>Progress</span>
+                        <strong>{item.progressPercent}%</strong>
+                      </div>
+                      <div className={styles.workspaceProgressTrack}>
+                        <div className={styles.workspaceProgressFill} style={{ width: `${item.progressPercent}%` }} />
+                      </div>
+
+                      <div className={styles.workspaceCardMeta}>
+                        <div className={styles.workspaceParticipants}>
+                          {item.participantInitials.slice(0, 4).map((initials, index) => (
+                            <span key={`${item.id}-${initials}-${index}`}>{initials}</span>
+                          ))}
+                          {item.memberCount > item.participantInitials.length && (
+                            <span>+{item.memberCount - item.participantInitials.length}</span>
+                          )}
+                        </div>
+                        <span className={item.active ? styles.workspaceStatusGood : styles.workspaceStatusWarn}>
                           {item.active ? "Active" : "Locked"}
                         </span>
-                      </td>
-                      <td>
-                        <div className={styles.actionButtons}>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => openWorkspaceDetail(item.id)}
-                          >
-                            Details
-                          </button>
-                          <button
-                            type="button"
-                            className={styles.actionButton}
-                            onClick={() => handleToggleWorkspaceStatus(item)}
-                            disabled={actionLoading === `workspace-status-${item.id}`}
-                          >
-                            {item.active ? "Lock" : "Unlock"}
-                          </button>
+                      </div>
+
+                      <div className={styles.workspaceCardStats}>
+                        <div>
+                          <strong>{item.workspaceAdminCount}</strong>
+                          <span>ADMINS</span>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                        <div>
+                          <strong>{item.leaderCount}</strong>
+                          <span>LEADERS</span>
+                        </div>
+                        <div>
+                          <strong>{item.regularMemberCount}</strong>
+                          <span>MEMBERS</span>
+                        </div>
+                      </div>
+
+                      <button type="button" className={styles.workspaceCardDetails} onClick={() => openWorkspaceDetail(item.id)}>
+                        Details
+                      </button>
+                    </article>
+                  );
+                })}
+                {workspaces.length === 0 && (
+                  <div className={styles.emptyState}>No workspaces found.</div>
+                )}
+              </div>
               <div className={styles.paginationBar}>
                 <button
                   type="button"
@@ -725,7 +796,7 @@ const AdminDashboard: React.FC = () => {
                   Prev
                 </button>
                 <span className={styles.pageInfo}>
-                  Page {workspacePageInfo.pageNumber + 1} of {Math.max(workspacePageInfo.totalPages, 1)} · {workspacePageInfo.totalElements} rows
+                  Page {workspacePageInfo.pageNumber + 1} of {Math.max(workspacePageInfo.totalPages, 1)} - {workspacePageInfo.totalElements} rows
                 </span>
                 <button
                   type="button"
@@ -739,48 +810,26 @@ const AdminDashboard: React.FC = () => {
             </section>
           )}
 
-          {!loading && !error && activeTab === "reports" && (
-            <div className={styles.reportGrid}>
-              <article className={styles.reportCard}>
-                <div className={styles.reportLabel}>Locked users</div>
-                <div className={styles.reportValue}>{dashboard?.lockedUsers ?? 0}</div>
-              </article>
-              <article className={styles.reportCard}>
-                <div className={styles.reportLabel}>Locked workspaces</div>
-                <div className={styles.reportValue}>{dashboard?.lockedWorkspaces ?? 0}</div>
-              </article>
-              <article className={styles.reportCard}>
-                <div className={styles.reportLabel}>Active memberships</div>
-                <div className={styles.reportValue}>{dashboard?.activeMemberships ?? 0}</div>
-              </article>
-            </div>
-          )}
-
           {!loading && !error && activeTab === "activity" && (
             <section className={styles.timelinePanel}>
-              <h2>Activity log</h2>
+              <div className={styles.panelHeader}>
+                <h2>System activity</h2>
+                <span>{systemEvents.length} items</span>
+              </div>
               <div className={styles.timeline}>
-                <div className={styles.timelineItem}>
-                  <span className={styles.timelineDot} />
-                  <div>
-                    <div className={styles.rowTitle}>Admin dashboard loaded</div>
-                    <div className={styles.rowSub}>Current session is {user?.username || "unknown"}</div>
+                {systemEvents.map((event) => (
+                  <div key={event.key} className={styles.timelineItem}>
+                    <span className={styles.timelineDot} />
+                    <div>
+                      <div className={styles.rowTitle}>{event.title}</div>
+                      <div className={styles.rowSub}>{event.detail}</div>
+                      <time className={styles.eventTime}>{formatEventTime(event.createdAt)}</time>
+                    </div>
                   </div>
-                </div>
-                <div className={styles.timelineItem}>
-                  <span className={styles.timelineDot} />
-                  <div>
-                    <div className={styles.rowTitle}>Users preview fetched</div>
-                    <div className={styles.rowSub}>{users.length} users visible in the current page</div>
-                  </div>
-                </div>
-                <div className={styles.timelineItem}>
-                  <span className={styles.timelineDot} />
-                  <div>
-                    <div className={styles.rowTitle}>Workspace preview fetched</div>
-                    <div className={styles.rowSub}>{workspaces.length} workspaces visible in the current page</div>
-                  </div>
-                </div>
+                ))}
+                {systemEvents.length === 0 && (
+                  <div className={styles.emptyState}>No system activity is available yet.</div>
+                )}
               </div>
             </section>
           )}
@@ -795,14 +844,14 @@ const AdminDashboard: React.FC = () => {
                         ? selectedUserSummary?.username || "User details"
                         : selectedWorkspaceSummary?.name || "Workspace details"}
                     </h3>
-                  <p className={styles.modalSubTitle}>
-                    {detailTarget.type === "user"
-                      ? "Manage status, verification and Sadmin access."
-                      : "Manage workspace status and summary."}
-                  </p>
-                </div>
+                    <p className={styles.modalSubTitle}>
+                      {detailTarget.type === "user"
+                        ? "Account and workspace memberships."
+                        : "Workspace summary and participants."}
+                    </p>
+                  </div>
                   <button type="button" className={styles.modalCloseButton} onClick={closeDetailPanel}>
-                    ×
+                    x
                   </button>
                 </div>
 
@@ -817,22 +866,22 @@ const AdminDashboard: React.FC = () => {
                           <strong>{selectedUserSummary.provider}</strong>
                         </div>
                         <div className={styles.detailStatCard}>
-                          <span>Memberships</span>
-                          <strong>{selectedUserSummary.membershipCount}</strong>
-                        </div>
-                        <div className={styles.detailStatCard}>
                           <span>Status</span>
                           <strong>{selectedUserSummary.active ? "Active" : "Locked"}</strong>
                         </div>
                         <div className={styles.detailStatCard}>
                           <span>Email</span>
-                          <strong>{selectedUserSummary.emailVerified ? "Verified" : "Not verified"}</strong>
+                          <strong>{selectedUserSummary.email}</strong>
+                        </div>
+                        <div className={styles.detailStatCard}>
+                          <span>Workspaces</span>
+                          <strong>{selectedUserSummary.membershipCount}</strong>
                         </div>
                       </div>
 
                       <div className={styles.detailSection}>
                         <div className={styles.detailSectionHeader}>
-                          <h4>Memberships</h4>
+                          <h4>Joined workspaces</h4>
                           <span>{userMemberships.length} records</span>
                         </div>
                         <div className={styles.detailList}>
@@ -840,7 +889,7 @@ const AdminDashboard: React.FC = () => {
                             <div key={membership.membershipId} className={styles.detailListItem}>
                               <div>
                                 <div className={styles.rowTitle}>{membership.workspaceName}</div>
-                                <div className={styles.rowSub}>{membership.role} · {membership.active ? "Active" : "Locked"}</div>
+                                <div className={styles.rowSub}>{membership.role} - {membership.active ? "Active" : "Locked"}</div>
                               </div>
                             </div>
                           ))}
@@ -854,26 +903,8 @@ const AdminDashboard: React.FC = () => {
                         <button
                           type="button"
                           className={styles.actionButton}
-                          onClick={() => handleToggleUserStatus(selectedUserSummary)}
-                          disabled={isSelectedUserSelf || actionLoading === `user-status-${selectedUserSummary.id}`}
-                          title={isSelectedUserSelf ? "You cannot lock your own account" : undefined}
-                        >
-                          {selectedUserSummary.active ? "Lock user" : "Unlock user"}
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          onClick={() => handleToggleEmailVerified(selectedUserSummary)}
-                          disabled={actionLoading === `user-verified-${selectedUserSummary.id}`}
-                        >
-                          {selectedUserSummary.emailVerified ? "Unverify email" : "Verify email"}
-                        </button>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
                           onClick={() => handleResetPassword(selectedUserSummary)}
-                          disabled={isSelectedUserSelf || actionLoading === `user-password-${selectedUserSummary.id}`}
-                          title={isSelectedUserSelf ? "Use account flow to reset your own password" : undefined}
+                          disabled={actionLoading === `user-password-${selectedUserSummary.id}`}
                         >
                           Reset password
                         </button>
@@ -881,7 +912,7 @@ const AdminDashboard: React.FC = () => {
                     </>
                   )}
 
-                  {!detailLoading && detailTarget.type === "workspace" && selectedWorkspaceSummary && (
+                  {!detailLoading && detailTarget.type === "workspace" && selectedWorkspaceSummary && workspaceDetail && (
                     <>
                       <div className={styles.detailStatsGrid}>
                         <div className={styles.detailStatCard}>
@@ -893,41 +924,48 @@ const AdminDashboard: React.FC = () => {
                           <strong>#{selectedWorkspaceSummary.id}</strong>
                         </div>
                         <div className={styles.detailStatCard}>
-                          <span>Name</span>
-                          <strong>{selectedWorkspaceSummary.name}</strong>
+                          <span>Users</span>
+                          <strong>{workspaceDetail.memberCount}</strong>
                         </div>
                         <div className={styles.detailStatCard}>
-                          <span>Summary</span>
-                          <strong>{selectedWorkspaceSummary.description || "No description"}</strong>
+                          <span>Active users</span>
+                          <strong>{workspaceDetail.activeMemberCount}</strong>
                         </div>
                       </div>
 
                       <div className={styles.detailSection}>
                         <div className={styles.detailSectionHeader}>
-                          <h4>Public summary</h4>
-                          <span>Non-private workspace details only</span>
+                          <h4>Workspace summary</h4>
+                          <span>{selectedWorkspaceSummary.active ? "Active" : "Locked"}</span>
                         </div>
-                        <div className={styles.detailList}>
-                          <div className={styles.detailListItem}>
-                            <div>
-                              <div className={styles.rowTitle}>{selectedWorkspaceSummary.name}</div>
-                              <div className={styles.rowSub}>
-                                {selectedWorkspaceSummary.description || "No description"}
-                              </div>
-                            </div>
+                        <div className={styles.detailListItem}>
+                          <div>
+                            <div className={styles.rowTitle}>{selectedWorkspaceSummary.name}</div>
+                            <div className={styles.rowSub}>{selectedWorkspaceSummary.description || "No description"}</div>
                           </div>
                         </div>
                       </div>
 
-                      <div className={styles.detailActions}>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          onClick={() => handleToggleWorkspaceStatus(selectedWorkspaceSummary)}
-                          disabled={actionLoading === `workspace-status-${selectedWorkspaceSummary.id}`}
-                        >
-                          {selectedWorkspaceSummary.active ? "Lock workspace" : "Unlock workspace"}
-                        </button>
+                      <div className={styles.detailSection}>
+                        <div className={styles.detailSectionHeader}>
+                          <h4>Participants</h4>
+                          <span>{workspaceDetail.memberships.length} records</span>
+                        </div>
+                        <div className={styles.detailList}>
+                          {workspaceDetail.memberships.map((membership) => (
+                            <div key={membership.membershipId} className={styles.detailListItem}>
+                              <div>
+                                <div className={styles.rowTitle}>{membership.username}</div>
+                                <div className={styles.rowSub}>
+                                  {membership.email} - {membership.role} - {membership.active ? "Active" : "Locked"}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {workspaceDetail.memberships.length === 0 && (
+                            <div className={styles.emptyState}>No participants found.</div>
+                          )}
+                        </div>
                       </div>
                     </>
                   )}

@@ -2,25 +2,36 @@ package com.example.taskmanagement.service;
 
 import com.example.taskmanagement.dto.response.member.MemberActivityResponse;
 import com.example.taskmanagement.dto.response.member.MemberDashboardResponse;
+import com.example.taskmanagement.dto.response.member.MemberNotificationResponse;
 import com.example.taskmanagement.dto.response.member.MemberTaskResponse;
+import com.example.taskmanagement.dto.response.member.MemberWeeklyActivityResponse;
+import com.example.taskmanagement.model.Notification;
 import com.example.taskmanagement.model.Task;
 import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.model.Workspace;
 import com.example.taskmanagement.model.WorkspaceMembership;
 import com.example.taskmanagement.model.enums.RoleName;
+import com.example.taskmanagement.model.enums.ActionType;
 import com.example.taskmanagement.model.enums.TaskStatus;
+import com.example.taskmanagement.repository.ActivityLogRepository;
 import com.example.taskmanagement.repository.TaskRepository;
 import com.example.taskmanagement.repository.UserRepository;
 import com.example.taskmanagement.repository.WorkspaceMembershipRepository;
+import com.example.taskmanagement.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +40,8 @@ public class MemberServiceImpl implements MemberService {
     private final UserRepository userRepository;
     private final WorkspaceMembershipRepository workspaceMembershipRepository;
     private final TaskRepository taskRepository;
+    private final NotificationRepository notificationRepository;
+    private final ActivityLogRepository activityLogRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -93,7 +106,62 @@ public class MemberServiceImpl implements MemberService {
                 .overdueTasks(overdueTasks)
                 .tasks(tasks.stream().map(MemberTaskResponse::fromEntity).toList())
                 .activities(activities)
+                .weeklyActivity(buildWeeklyActivity(user, workspace, tasks))
                 .build();
+    }
+
+    private List<MemberWeeklyActivityResponse> buildWeeklyActivity(
+            User user,
+            Workspace workspace,
+            List<Task> tasks
+    ) {
+        LocalDate today = LocalDate.now();
+        LocalDate weekStart = today.with(DayOfWeek.MONDAY);
+        LocalDateTime start = weekStart.atStartOfDay();
+        LocalDateTime end = weekStart.plusDays(7).atStartOfDay();
+
+        Map<LocalDate, Integer> assignedByDay = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId()).stream()
+                .filter(notification -> notification.getTimestamp() != null)
+                .filter(notification -> !notification.getTimestamp().isBefore(start) && notification.getTimestamp().isBefore(end))
+                .filter(notification -> notification.getTask() != null)
+                .filter(notification -> notification.getTask().getProject() != null)
+                .filter(notification -> notification.getTask().getProject().getWorkspace() != null)
+                .filter(notification -> notification.getTask().getProject().getWorkspace().getId().equals(workspace.getId()))
+                .collect(Collectors.groupingBy(
+                        notification -> notification.getTimestamp().toLocalDate(),
+                        Collectors.summingInt(notification -> 1)
+                ));
+
+        Set<Long> taskIds = tasks.stream()
+                .map(Task::getId)
+                .collect(Collectors.toSet());
+
+        Map<LocalDate, Integer> completedByDay = taskIds.isEmpty()
+                ? Map.of()
+                : activityLogRepository.findByActionAndTargetTypeAndTargetIdInAndTimestampBetween(
+                        ActionType.CHANGE_TASK_STATUS,
+                        "Task",
+                        taskIds,
+                        start,
+                        end
+                ).stream()
+                .filter(log -> log.getDescription() != null && log.getDescription().contains(TaskStatus.DONE.name()))
+                .collect(Collectors.groupingBy(
+                        log -> log.getTimestamp().toLocalDate(),
+                        Collectors.summingInt(log -> 1)
+                ));
+
+        List<String> dayLabels = List.of("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun");
+        List<MemberWeeklyActivityResponse> weeklyActivity = new ArrayList<>();
+        for (int index = 0; index < dayLabels.size(); index += 1) {
+            LocalDate day = weekStart.plusDays(index);
+            weeklyActivity.add(MemberWeeklyActivityResponse.builder()
+                    .day(dayLabels.get(index))
+                    .assigned(assignedByDay.getOrDefault(day, 0))
+                    .completed(completedByDay.getOrDefault(day, 0))
+                    .build());
+        }
+        return weeklyActivity;
     }
 
     private WorkspaceMembership resolveActiveMembership(Authentication authentication, User user) {
@@ -183,5 +251,50 @@ public class MemberServiceImpl implements MemberService {
         task.setStatus(status);
         taskRepository.save(task);
         return MemberTaskResponse.fromEntity(task);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MemberNotificationResponse> getNotifications(Authentication authentication) {
+        User user = getAuthenticatedUser(authentication);
+        return notificationRepository.findByUserIdOrderByTimestampDesc(user.getId()).stream()
+                .map(MemberNotificationResponse::fromEntity)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public MemberNotificationResponse updateNotificationReadState(
+            Authentication authentication,
+            Long notificationId,
+            boolean read
+    ) {
+        User user = getAuthenticatedUser(authentication);
+        Notification notification = notificationRepository.findByIdAndUserId(notificationId, user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
+
+        notification.setRead(read);
+        return MemberNotificationResponse.fromEntity(notificationRepository.save(notification));
+    }
+
+    @Override
+    @Transactional
+    public List<MemberNotificationResponse> markAllNotificationsRead(Authentication authentication) {
+        User user = getAuthenticatedUser(authentication);
+        List<Notification> notifications = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId());
+
+        notifications.stream()
+                .filter(notification -> !notification.isRead())
+                .forEach(notification -> notification.setRead(true));
+
+        return notificationRepository.saveAll(notifications).stream()
+                .map(MemberNotificationResponse::fromEntity)
+                .toList();
+    }
+
+    private User getAuthenticatedUser(Authentication authentication) {
+        String email = com.example.taskmanagement.security.AuthEmailExtractor.extractEmail(authentication);
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
 }

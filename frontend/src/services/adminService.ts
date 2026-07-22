@@ -10,6 +10,13 @@ export interface AdminDashboardResponse {
   lockedWorkspaces: number;
   totalMemberships: number;
   activeMemberships: number;
+  weeklyActivity: AdminWeeklyActivityResponse[];
+}
+
+export interface AdminWeeklyActivityResponse {
+  day: string;
+  users: number;
+  workspaces: number;
 }
 
 export interface AdminUserSummaryResponse {
@@ -21,6 +28,7 @@ export interface AdminUserSummaryResponse {
   superAdmin: boolean;
   emailVerified: boolean;
   membershipCount: number;
+  createdAt?: string;
 }
 
 export interface AdminWorkspaceSummaryResponse {
@@ -28,6 +36,15 @@ export interface AdminWorkspaceSummaryResponse {
   name: string;
   description?: string;
   active: boolean;
+  memberCount: number;
+  workspaceAdminCount: number;
+  leaderCount: number;
+  regularMemberCount: number;
+  totalTaskCount: number;
+  completedTaskCount: number;
+  progressPercent: number;
+  participantInitials: string[];
+  createdAt?: string;
 }
 
 export interface AdminMembershipResponse {

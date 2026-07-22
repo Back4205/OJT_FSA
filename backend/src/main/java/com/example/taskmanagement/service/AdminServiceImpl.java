@@ -6,6 +6,7 @@ import com.example.taskmanagement.dto.response.admin.AdminDashboardResponse;
 import com.example.taskmanagement.dto.response.admin.AdminMembershipResponse;
 import com.example.taskmanagement.dto.response.admin.AdminUserDetailResponse;
 import com.example.taskmanagement.dto.response.admin.AdminUserSummaryResponse;
+import com.example.taskmanagement.dto.response.admin.AdminWeeklyActivityResponse;
 import com.example.taskmanagement.dto.response.admin.AdminWorkspaceDetailResponse;
 import com.example.taskmanagement.dto.response.admin.AdminWorkspaceSummaryResponse;
 import com.example.taskmanagement.model.Role;
@@ -13,7 +14,9 @@ import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.model.Workspace;
 import com.example.taskmanagement.model.WorkspaceMembership;
 import com.example.taskmanagement.model.enums.RoleName;
+import com.example.taskmanagement.model.enums.TaskStatus;
 import com.example.taskmanagement.repository.RoleRepository;
+import com.example.taskmanagement.repository.TaskRepository;
 import com.example.taskmanagement.repository.UserRepository;
 import com.example.taskmanagement.repository.WorkspaceMembershipRepository;
 import com.example.taskmanagement.repository.WorkspaceRepository;
@@ -24,6 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
@@ -38,12 +45,13 @@ public class AdminServiceImpl implements AdminService {
     private final WorkspaceMembershipRepository workspaceMembershipRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TaskRepository taskRepository;
 
     @Override
     public AdminDashboardResponse getDashboard() {
-        long totalUsers = userRepository.count();
-        long activeUsers = userRepository.countByIsActiveTrue();
-        long lockedUsers = userRepository.countByIsActiveFalse();
+        long totalUsers = userRepository.countByIsSuperAdminFalse();
+        long activeUsers = userRepository.countByIsActiveTrueAndIsSuperAdminFalse();
+        long lockedUsers = userRepository.countByIsActiveFalseAndIsSuperAdminFalse();
         long superAdmins = userRepository.countByIsSuperAdminTrue();
         long totalWorkspaces = workspaceRepository.count();
         long activeWorkspaces = workspaceRepository.countByActiveTrue();
@@ -60,13 +68,15 @@ public class AdminServiceImpl implements AdminService {
                 activeWorkspaces,
                 lockedWorkspaces,
                 totalMemberships,
-                activeMemberships
+                activeMemberships,
+                buildWeeklyActivity()
         );
     }
 
     @Override
     public PageResponse<AdminUserSummaryResponse> getUsers(String search, Boolean active, Boolean superAdmin, Pageable pageable) {
-        Page<User> page = userRepository.searchAdminUsers(normalize(search), active, superAdmin, pageable);
+        Boolean effectiveSuperAdmin = superAdmin != null ? superAdmin : false;
+        Page<User> page = userRepository.searchAdminUsers(normalize(search), active, effectiveSuperAdmin, pageable);
         Page<AdminUserSummaryResponse> mapped = page.map(user ->
                 AdminUserSummaryResponse.fromEntity(user, workspaceMembershipRepository.countByUserId(user.getId())));
         return PageResponse.fromPage(mapped);
@@ -160,8 +170,7 @@ public class AdminServiceImpl implements AdminService {
     public PageResponse<AdminWorkspaceSummaryResponse> getWorkspaces(String search, Boolean active, Pageable pageable) {
         Page<Workspace> page = workspaceRepository.searchAdminWorkspaces(normalize(search), active, pageable);
         Page<AdminWorkspaceSummaryResponse> mapped = page.map(workspace ->
-                AdminWorkspaceSummaryResponse.fromEntity(workspace,
-                        workspaceMembershipRepository.countActiveByWorkspaceId(workspace.getId())));
+                toWorkspaceSummary(workspace));
         return PageResponse.fromPage(mapped);
     }
 
@@ -254,14 +263,41 @@ public class AdminServiceImpl implements AdminService {
     private AdminWorkspaceSummaryResponse setWorkspaceActive(Long workspaceId, boolean active) {
         Workspace workspace = loadWorkspace(workspaceId);
         if (workspace.isActive() == active) {
-            return AdminWorkspaceSummaryResponse.fromEntity(workspace,
-                    workspaceMembershipRepository.countActiveByWorkspaceId(workspaceId));
+            return toWorkspaceSummary(workspace);
         }
 
         workspace.setActive(active);
         workspaceRepository.save(workspace);
-        return AdminWorkspaceSummaryResponse.fromEntity(workspace,
-                workspaceMembershipRepository.countActiveByWorkspaceId(workspaceId));
+        return toWorkspaceSummary(workspace);
+    }
+
+    private AdminWorkspaceSummaryResponse toWorkspaceSummary(Workspace workspace) {
+        Long workspaceId = workspace.getId();
+        return AdminWorkspaceSummaryResponse.fromEntity(
+                workspace,
+                workspaceMembershipRepository.findByWorkspaceId(workspaceId),
+                taskRepository.countByProjectWorkspaceId(workspaceId),
+                taskRepository.countByProjectWorkspaceIdAndStatus(workspaceId, TaskStatus.DONE)
+        );
+    }
+
+    private List<AdminWeeklyActivityResponse> buildWeeklyActivity() {
+        LocalDate weekStart = LocalDate.now().with(DayOfWeek.MONDAY);
+        List<AdminWeeklyActivityResponse> weeklyActivity = new ArrayList<>();
+
+        for (int index = 0; index < 7; index++) {
+            LocalDate currentDay = weekStart.plusDays(index);
+            LocalDateTime start = currentDay.atStartOfDay();
+            LocalDateTime end = currentDay.plusDays(1).atStartOfDay();
+
+            weeklyActivity.add(AdminWeeklyActivityResponse.builder()
+                    .day(currentDay.getDayOfWeek().name().substring(0, 3))
+                    .users(userRepository.countRegularUsersCreatedBetween(start, end))
+                    .workspaces(workspaceRepository.countCreatedBetween(start, end))
+                    .build());
+        }
+
+        return weeklyActivity;
     }
 
     private User loadUser(Long userId) {

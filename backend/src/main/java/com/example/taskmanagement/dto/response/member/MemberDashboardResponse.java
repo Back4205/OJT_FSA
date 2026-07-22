@@ -28,4 +28,5 @@ public class MemberDashboardResponse {
     private long overdueTasks;
     private List<MemberTaskResponse> tasks;
     private List<MemberActivityResponse> activities;
+    private List<MemberWeeklyActivityResponse> weeklyActivity;
 }

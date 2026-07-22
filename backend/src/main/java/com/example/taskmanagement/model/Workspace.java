@@ -3,6 +3,8 @@ package com.example.taskmanagement.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 /**
  * Entity đại diện cho một Workspace/Công ty
  */
@@ -28,4 +30,14 @@ public class Workspace {
 
     @Column(name = "invite_code", unique = true)
     private String inviteCode;
+
+    @Column(name = "created_at", updatable = false)
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    void prePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }
