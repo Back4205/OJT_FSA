@@ -1289,6 +1289,35 @@
   background: #10b981;
 }
 
+.weeklySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.weeklySummaryItem {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.weeklySummaryItem span {
+  display: block;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.weeklySummaryItem strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
 .weeklyChart {
   position: relative;
   height: 170px;
@@ -1370,6 +1399,45 @@
 
 .weeklyAxisLabels span {
   text-align: center;
+}
+
+.weeklyDayGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.weeklyDayCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px;
+  min-width: 0;
+}
+
+.weeklyDayCard strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.76rem;
+  margin-bottom: 6px;
+}
+
+.weeklyDayCard span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.weeklyDayCard i {
+  width: 10px;
+  height: 3px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .notificationList {

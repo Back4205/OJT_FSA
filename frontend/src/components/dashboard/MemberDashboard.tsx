@@ -432,11 +432,15 @@ const MemberDashboard: React.FC = () => {
   const weeklyActivity = dashboard?.weeklyActivity?.length
     ? dashboard.weeklyActivity
     : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => ({ day, assigned: 0, completed: 0 }));
+  const weeklyAssignedTotal = weeklyActivity.reduce((sum, item) => sum + item.assigned, 0);
+  const weeklyCompletedTotal = weeklyActivity.reduce((sum, item) => sum + item.completed, 0);
   const weeklyMaxValue = Math.max(1, ...weeklyActivity.flatMap((item) => [item.assigned, item.completed]));
+  const getWeeklyPointX = (index: number) =>
+    weeklyActivity.length <= 1 ? 50 : ((index + 0.5) / weeklyActivity.length) * 100;
   const buildWeeklyLinePoints = (key: "assigned" | "completed") =>
     weeklyActivity
       .map((item, index) => {
-        const x = weeklyActivity.length <= 1 ? 50 : (index / (weeklyActivity.length - 1)) * 100;
+        const x = getWeeklyPointX(index);
         const y = 100 - (item[key] / weeklyMaxValue) * 82 - 8;
         return `${x},${y}`;
       })
@@ -704,6 +708,16 @@ const MemberDashboard: React.FC = () => {
                       <span><i className={styles.weeklyCompletedDot} /> Completed</span>
                     </div>
                   </div>
+                  <div className={styles.weeklySummaryGrid}>
+                    <div className={styles.weeklySummaryItem}>
+                      <span>Assigned this week</span>
+                      <strong>{weeklyAssignedTotal}</strong>
+                    </div>
+                    <div className={styles.weeklySummaryItem}>
+                      <span>Completed this week</span>
+                      <strong>{weeklyCompletedTotal}</strong>
+                    </div>
+                  </div>
                   <div className={styles.weeklyChart}>
                     <svg className={styles.weeklyChartSvg} viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
                       <line x1="0" y1="92" x2="100" y2="92" className={styles.weeklyGridLine} />
@@ -715,7 +729,7 @@ const MemberDashboard: React.FC = () => {
                     </svg>
                     <div className={styles.weeklyPointLayer}>
                       {weeklyActivity.map((item, index) => {
-                        const left = weeklyActivity.length <= 1 ? 50 : (index / (weeklyActivity.length - 1)) * 100;
+                        const left = getWeeklyPointX(index);
                         const assignedTop = 100 - (item.assigned / weeklyMaxValue) * 82 - 8;
                         const completedTop = 100 - (item.completed / weeklyMaxValue) * 82 - 8;
                         return (
@@ -739,6 +753,15 @@ const MemberDashboard: React.FC = () => {
                         <span key={item.day}>{item.day}</span>
                       ))}
                     </div>
+                  </div>
+                  <div className={styles.weeklyDayGrid}>
+                    {weeklyActivity.map((item) => (
+                      <div key={item.day} className={styles.weeklyDayCard}>
+                        <strong>{item.day}</strong>
+                        <span><i className={styles.weeklyAssignedDot} /> {item.assigned}</span>
+                        <span><i className={styles.weeklyCompletedDot} /> {item.completed}</span>
+                      </div>
+                    ))}
                   </div>
                 </section>
               </div>
