@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { memberService, type MemberDashboardResponse, type MemberTaskResponse } from "../../services/memberService";
 import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
+import { commentService, type TaskComment } from "../../services/commentService";
 import styles from "./MemberDashboard.module.css";
 
 const menuItems = [
@@ -36,6 +37,8 @@ const MemberDashboard: React.FC = () => {
   const [taskStatusFilter, setTaskStatusFilter] = useState<"all" | MemberTaskResponse["status"]>("all");
   const [taskPriorityFilter, setTaskPriorityFilter] = useState<"all" | MemberTaskResponse["priority"]>("all");
   const [selectedTask, setSelectedTask] = useState<MemberTaskResponse | null>(null);
+  const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
+  const [newComment, setNewComment] = useState("");
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -67,6 +70,28 @@ const MemberDashboard: React.FC = () => {
   useEffect(() => {
     loadDashboard();
   }, []);
+
+  useEffect(() => {
+    if (selectedTask) {
+      commentService.getCommentsByTask(selectedTask.id)
+        .then(data => setTaskComments(data))
+        .catch(err => console.error("Failed to load comments", err));
+    } else {
+      setTaskComments([]);
+      setNewComment("");
+    }
+  }, [selectedTask]);
+
+  const handleAddComment = async () => {
+    if (!newComment.trim() || !selectedTask) return;
+    try {
+      const added = await commentService.addCommentToTask(selectedTask.id, newComment);
+      setTaskComments(prev => [...prev, added]);
+      setNewComment("");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to add comment");
+    }
+  };
 
   const activeWorkspace = useMemo(() => {
     if (!dashboard) {
@@ -139,6 +164,13 @@ const MemberDashboard: React.FC = () => {
     setDraggingTaskId(task.id);
   };
 
+  const showTemporaryError = (msg: string) => {
+    setError(msg);
+    setTimeout(() => {
+      setError((prev) => (prev === msg ? "" : prev));
+    }, 3000);
+  };
+
   const handleTaskDrop = (event: React.DragEvent<HTMLElement>, nextStatus: MemberTaskResponse["status"]) => {
     event.preventDefault();
     const draggedTaskId = Number(event.dataTransfer.getData("text/plain") || draggingTaskId);
@@ -148,6 +180,14 @@ const MemberDashboard: React.FC = () => {
     setDropTargetStatus(null);
 
     if (task) {
+      if (nextStatus === "DONE") {
+        showTemporaryError("Chỉ Leader mới có quyền duyệt task sang DONE.");
+        return;
+      }
+      if (task.status === "DONE") {
+        showTemporaryError("Không thể thao tác với task đã hoàn thành.");
+        return;
+      }
       void updateTaskStatus(task, nextStatus);
     }
   };
@@ -236,20 +276,24 @@ const MemberDashboard: React.FC = () => {
     { label: "Due soon", value: dashboard?.dueSoonTasks ?? 0, tone: "purple" },
   ];
 
-  const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => (
-    <article
-      key={task.id}
-      className={`${styles.taskCard} ${options?.draggable ? styles.draggableTaskCard : ""} ${
-        draggingTaskId === task.id ? styles.draggingTaskCard : ""
-      } ${statusUpdateTaskId === task.id ? styles.updatingTaskCard : ""}`}
-      role="button"
-      tabIndex={0}
-      draggable={options?.draggable}
-      onDragStart={options?.draggable ? (event) => handleTaskDragStart(event, task) : undefined}
-      onDragEnd={options?.draggable ? () => {
-        setDraggingTaskId(null);
-        setDropTargetStatus(null);
-      } : undefined}
+  const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => {
+    const isDone = task.status === "DONE";
+    const canDrag = options?.draggable && !isDone;
+
+    return (
+      <article
+        key={task.id}
+        className={`${styles.taskCard} ${canDrag ? styles.draggableTaskCard : ""} ${draggingTaskId === task.id ? styles.draggingTaskCard : ""
+          } ${statusUpdateTaskId === task.id ? styles.updatingTaskCard : ""}`}
+        style={isDone ? { opacity: 0.6, pointerEvents: "none" } : undefined}
+        role="button"
+        tabIndex={0}
+        draggable={canDrag}
+        onDragStart={canDrag ? (event) => handleTaskDragStart(event, task) : undefined}
+        onDragEnd={canDrag ? () => {
+          setDraggingTaskId(null);
+          setDropTargetStatus(null);
+        } : undefined}
       onClick={() => setSelectedTask(task)}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -276,12 +320,14 @@ const MemberDashboard: React.FC = () => {
             event.stopPropagation();
             setSelectedTask(task);
           }}
+          disabled={isDone}
         >
           {statusUpdateTaskId === task.id ? "Updating..." : "Details"}
         </button>
       </div>
     </article>
   );
+  };
 
   return (
     <div className={styles.shell}>
@@ -306,7 +352,7 @@ const MemberDashboard: React.FC = () => {
             <div className={styles.workspaceMetaWrap}>
               <span className={styles.workspaceActiveName}>{activeWorkspace?.workspaceName || "No workspace"}</span>
               <span className={styles.workspaceActiveRole}>
-                {formatWorkspaceRole(activeWorkspace?.roleName || dashboard?.role || "MEMBER")} · Team
+                {(activeWorkspace as any)?.uncompletedTaskCount || 0} Uncompleted
               </span>
             </div>
             <i className={`bi bi-chevron-down ${styles.chevronIcon} ${workspaceDropdownOpen ? styles.chevronOpen : ""}`} />
@@ -318,7 +364,7 @@ const MemberDashboard: React.FC = () => {
               {userWorkspaces.length === 0 && (
                 <div className={styles.workspaceEmpty}>No joined workspaces yet.</div>
               )}
-              {userWorkspaces.filter(ws => ws.uncompletedTaskCount > 0).map((workspace) => {
+              {userWorkspaces.filter(ws => ws.uncompletedTaskCount > 0 || ws.workspaceId === dashboard?.workspaceId).map((workspace) => {
                 const isActive = workspace.workspaceId === dashboard?.workspaceId;
                 return (
                   <button
@@ -331,14 +377,15 @@ const MemberDashboard: React.FC = () => {
                     <div className={styles.workspaceDropdownMain}>
                       <span className={styles.workspaceDropdownName}>{workspace.workspaceName}</span>
                       <span className={styles.workspaceDropdownRole}>
-                        {formatWorkspaceRole(workspace.roleName)} · Team
+                        <i className="bi bi-list-task" style={{ marginRight: "3px" }} />
+                        {workspace.uncompletedTaskCount} tasks chưa xong
                       </span>
                     </div>
                     <span className={styles.workspaceDropdownAction}>
                       {workspaceSwitchingId === workspace.workspaceId ? "Switching..." : isActive ? "Active" : "Switch"}
                     </span>
-                    </button>
-                  );
+                  </button>
+                );
               })}
 
               <button type="button" className={styles.dropdownActionBtn} onClick={openCreateWorkspaceModal}>
@@ -443,7 +490,7 @@ const MemberDashboard: React.FC = () => {
           {loading && <div className={styles.loading}>Loading member dashboard...</div>}
           {error && <div className={styles.error}>{error}</div>}
 
-          {!loading && !error && dashboard && activeTab === "dashboard" && (
+          {!loading && dashboard && activeTab === "dashboard" && (
             <>
               <div className={styles.workspaceSummaryGrid}>
                 <article className={styles.workspaceSummaryCard}>
@@ -518,14 +565,14 @@ const MemberDashboard: React.FC = () => {
                           <div className={styles.activityTime}>{activity.timeLabel}</div>
                         </div>
                       </div>
-                      ))}
+                    ))}
                   </div>
                 </section>
               </div>
             </>
           )}
 
-          {!loading && !error && dashboard && activeTab === "tasks" && (
+          {!loading && dashboard && activeTab === "tasks" && (
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <h2>My tasks</h2>
@@ -537,7 +584,7 @@ const MemberDashboard: React.FC = () => {
             </section>
           )}
 
-          {!loading && !error && dashboard && activeTab === "board" && (
+          {!loading && dashboard && activeTab === "board" && (
             <div className={styles.boardGrid}>
               {taskStatusColumns.map((column) => (
                 <section
@@ -563,7 +610,7 @@ const MemberDashboard: React.FC = () => {
             </div>
           )}
 
-          {!loading && !error && dashboard && activeTab === "profile" && (
+          {!loading && dashboard && activeTab === "profile" && (
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <h2>My profile</h2>
@@ -582,7 +629,7 @@ const MemberDashboard: React.FC = () => {
             </section>
           )}
 
-          {!loading && !error && dashboard && activeTab === "history" && (
+          {!loading && dashboard && activeTab === "history" && (
             <section className={styles.panel}>
               <div className={styles.panelHeader}>
                 <h2>Workspace History</h2>
@@ -627,48 +674,48 @@ const MemberDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                        <div className={styles["history-ws-stats"]}>
-                          <span className={styles["stat-count-badge"]}>
-                            <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
-                          </span>
-                          <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
-                            <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
-                          </span>
+                          <div className={styles["history-ws-stats"]}>
+                            <span className={styles["stat-count-badge"]}>
+                              <i className="bi bi-clock"></i> Chưa xong: {ws.uncompletedTaskCount}
+                            </span>
+                            <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
+                              <i className="bi bi-check-circle"></i> Đã xong: {ws.completedTaskCount}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Completed tasks inside this workspace */}
+                        <div className={styles["history-tasks-section"]}>
+                          <h4 className={styles["history-tasks-title"]}>
+                            <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                          </h4>
+
+                          {!ws.completedTasks || ws.completedTasks.length === 0 ? (
+                            <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                          ) : (
+                            <div className={styles["history-tasks-grid"]}>
+                              {ws.completedTasks.map((t) => (
+                                <div key={t.id} className={styles["history-task-item"]}>
+                                  <div className={styles["history-task-top"]}>
+                                    <span className={styles["history-task-proj"]}>{t.projectName}</span>
+                                    <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
+                                      {t.priority}
+                                    </span>
+                                  </div>
+                                  <h5 className={styles["history-task-title"]}>{t.title}</h5>
+                                  {t.deadline && (
+                                    <div className={styles["history-task-deadline"]}>
+                                      <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
-
-                      {/* Completed tasks inside this workspace */}
-                      <div className={styles["history-tasks-section"]}>
-                        <h4 className={styles["history-tasks-title"]}>
-                          <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
-                        </h4>
-                        
-                        {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                          <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
-                        ) : (
-                          <div className={styles["history-tasks-grid"]}>
-                            {ws.completedTasks.map((t) => (
-                              <div key={t.id} className={styles["history-task-item"]}>
-                                <div className={styles["history-task-top"]}>
-                                  <span className={styles["history-task-proj"]}>{t.projectName}</span>
-                                  <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
-                                    {t.priority}
-                                  </span>
-                                </div>
-                                <h5 className={styles["history-task-title"]}>{t.title}</h5>
-                                {t.deadline && (
-                                  <div className={styles["history-task-deadline"]}>
-                                    <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }))}
+                    );
+                  }))}
               </div>
             </section>
           )}
@@ -716,6 +763,52 @@ const MemberDashboard: React.FC = () => {
                     <div className={styles.detailList}>
                       <div className={styles.detailListItem}>
                         {selectedTask.description || "No description provided."}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.detailSection}>
+                    <div className={styles.detailSectionHeader}>
+                      <h4>Comments</h4>
+                    </div>
+                    <div className={styles["comments-list"]}>
+                      {taskComments.length === 0 ? (
+                        <div style={{ fontSize: "0.9rem", color: "#94a3b8", fontStyle: "italic", marginBottom: "16px" }}>
+                          No comments yet.
+                        </div>
+                      ) : (
+                        taskComments.map(c => (
+                          <div key={c.id} className={styles["comment-item"]}>
+                            <div className={styles["comment-avatar"]}>
+                              {c.username.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className={styles["comment-content-box"]}>
+                              <div className={styles["comment-header"]}>
+                                <strong>{c.username}</strong>
+                                <span>{new Date(c.timestamp).toLocaleString()}</span>
+                              </div>
+                              <div className={styles["comment-text"]}>{c.content}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className={styles["comment-input-area"]}>
+                      <textarea
+                        placeholder="Write a comment..."
+                        value={newComment}
+                        onChange={e => setNewComment(e.target.value)}
+                        className={styles["form-input"]}
+                      />
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <button 
+                          className={styles.taskActionButton} 
+                          onClick={() => void handleAddComment()}
+                          disabled={!newComment.trim()}
+                          style={{ backgroundColor: "#3b82f6", color: "white", border: "none" }}
+                        >
+                          <i className="bi bi-send" /> Send
+                        </button>
                       </div>
                     </div>
                   </div>
