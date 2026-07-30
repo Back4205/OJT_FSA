@@ -32,6 +32,7 @@ export interface MemberNotificationResponse {
   taskId?: number | null;
   taskTitle?: string | null;
   projectName?: string | null;
+  workspaceName?: string | null;
   priority?: MemberTaskResponse["priority"] | null;
   status?: MemberTaskResponse["status"] | null;
   deadline?: string | null;

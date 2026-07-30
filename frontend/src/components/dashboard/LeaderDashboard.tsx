@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   leaderService,
@@ -12,6 +13,8 @@ import {
 } from "../../services/leaderService";
 import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
 import { commentService, type TaskComment } from "../../services/commentService";
+import { memberService, type MemberNotificationResponse } from "../../services/memberService";
+import NotificationDropdown from "../common/NotificationDropdown";
 import styles from "./LeaderDashboard.module.css";
 
 // ── Avatar helpers ─────────────────────────────────────────────────────────
@@ -55,9 +58,35 @@ type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "
 const LeaderDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as ActiveTab) || "dashboard";
+  const selectedProjectId = searchParams.get("projectId") ? Number(searchParams.get("projectId")) : null;
+  const selectedTaskId = searchParams.get("taskId") ? Number(searchParams.get("taskId")) : null;
+
+  const setActiveTab = (tab: ActiveTab) => {
+    setSearchParams(prev => {
+      prev.set("tab", tab);
+      if (tab !== "task_detail") prev.delete("taskId");
+      if (tab !== "project_detail") prev.delete("projectId");
+      return prev;
+    }, { replace: true });
+  };
+
+  const setSelectedProjectId = (id: number | null) => {
+    setSearchParams(prev => {
+      if (id === null) prev.delete("projectId");
+      else prev.set("projectId", id.toString());
+      return prev;
+    }, { replace: true });
+  };
+
+  const setSelectedTaskId = (id: number | null) => {
+    setSearchParams(prev => {
+      if (id === null) prev.delete("taskId");
+      else prev.set("taskId", id.toString());
+      return prev;
+    }, { replace: true });
+  };
   const [projectViewMode, setProjectViewMode] = useState<"list" | "board">("list");
   const [listCurrentPage, setListCurrentPage] = useState<number>(1);
   const [taskSearch, setTaskSearch] = useState("");
@@ -107,6 +136,9 @@ const LeaderDashboard: React.FC = () => {
   const [selectedMemberIds, setSelectedMemberIds] = useState<number[]>([]);
   const [manageMembersActionLoading, setManageMembersActionLoading] = useState(false);
 
+  // Notifications
+  const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
+
   // Create Workspace Form
   const [newWSNameInput, setNewWSNameInput] = useState("");
   const [newWSDescInput, setNewWSDescInput] = useState("");
@@ -145,8 +177,14 @@ const LeaderDashboard: React.FC = () => {
       );
       const tasksNested = await Promise.all(taskPromises);
       setAllTasks(tasksNested.flat());
+
+      // Load notifications
+      try {
+        const notis = await memberService.getNotifications();
+        setNotifications(notis);
+      } catch { setNotifications([]); }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể tải dữ liệu.");
+      setErrorMsg(err.response?.data?.message || "Failed to load data.");
     } finally {
       setLoading(false);
     }
@@ -191,7 +229,7 @@ const LeaderDashboard: React.FC = () => {
       await checkAuth();
       window.location.reload();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Chuyển workspace thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to switch workspace.");
       setLoading(false);
     }
   };
@@ -199,7 +237,7 @@ const LeaderDashboard: React.FC = () => {
   const handleCreateNewWorkspaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newWSNameInput.trim()) {
-      setWsModalError("Tên Workspace không được để trống.");
+      setWsModalError("Workspace name cannot be empty.");
       return;
     }
     setWsModalLoading(true);
@@ -207,7 +245,7 @@ const LeaderDashboard: React.FC = () => {
     setWsModalSuccess("");
     try {
       await workspaceService.createWorkspace(newWSNameInput.trim(), newWSDescInput.trim());
-      setWsModalSuccess("Khởi tạo Workspace mới thành công! Đang chuyển hướng...");
+      setWsModalSuccess("Created new Workspace successfully! Redirecting...");
       setNewWSNameInput("");
       setNewWSDescInput("");
       await checkAuth();
@@ -215,7 +253,7 @@ const LeaderDashboard: React.FC = () => {
         window.location.reload();
       }, 1000);
     } catch (err: any) {
-      setWsModalError(err.response?.data?.message || "Tạo Workspace thất bại.");
+      setWsModalError(err.response?.data?.message || "Failed to create Workspace.");
       setWsModalLoading(false);
     }
   };
@@ -223,7 +261,7 @@ const LeaderDashboard: React.FC = () => {
   const handleJoinNewWorkspaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinWSCodeInput.trim()) {
-      setWsModalError("Mã mời không được để trống.");
+      setWsModalError("Invitation code cannot be empty.");
       return;
     }
     setWsModalLoading(true);
@@ -231,14 +269,14 @@ const LeaderDashboard: React.FC = () => {
     setWsModalSuccess("");
     try {
       await workspaceService.joinWorkspace(joinWSCodeInput.trim());
-      setWsModalSuccess("Tham gia Workspace thành công! Đang chuyển hướng...");
+      setWsModalSuccess("Joined Workspace successfully! Redirecting...");
       setJoinWSCodeInput("");
       await checkAuth();
       setTimeout(() => {
         window.location.reload();
       }, 1000);
     } catch (err: any) {
-      setWsModalError(err.response?.data?.message || "Mã mời không hợp lệ hoặc đã hết hạn.");
+      setWsModalError(err.response?.data?.message || "Invalid or expired invitation code.");
       setWsModalLoading(false);
     }
   };
@@ -246,17 +284,17 @@ const LeaderDashboard: React.FC = () => {
   // ── Create project ───────────────────────────────────────────────────────
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projName.trim()) { setErrorMsg("Tên project không được để trống."); return; }
+    if (!projName.trim()) { setErrorMsg("Project name cannot be empty."); return; }
     try {
       const req: CreateProjectRequest = { name: projName.trim(), description: projDesc.trim() };
       await leaderService.createProject(req);
-      setSuccessMsg("Tạo project thành công.");
+      setSuccessMsg("Created project successfully.");
       setShowCreateProject(false);
       setProjName(""); setProjDesc("");
       const projs = await leaderService.getProjects();
       setProjects(projs);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Tạo project thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to create project.");
     }
   };
 
@@ -264,7 +302,7 @@ const LeaderDashboard: React.FC = () => {
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim() || !taskProject) {
-      setErrorMsg("Vui lòng nhập tiêu đề task và chọn project.");
+      setErrorMsg("Please enter task title and select a project.");
       return;
     }
     const selectedProject = projects.find((project) => project.id === taskProject);
@@ -282,13 +320,13 @@ const LeaderDashboard: React.FC = () => {
         assigneeId: taskAssignee || undefined,
       };
       await leaderService.createTask(req);
-      setSuccessMsg("Tạo task thành công.");
+      setSuccessMsg("Created task successfully.");
       setShowCreateTask(false);
       setTaskTitle(""); setTaskDesc(""); setTaskDeadline("");
       setTaskProject(0); setTaskAssignee(0);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Tạo task thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to create task.");
     }
   };
 
@@ -307,10 +345,10 @@ const LeaderDashboard: React.FC = () => {
 
     try {
       await leaderService.updateTaskStatus(taskId, newStatus);
-      setSuccessMsg(`Đã cập nhật trạng thái task thành ${newStatus.replace("_", " ")}.`);
+      setSuccessMsg(`Updated task status to ${newStatus.replace("_", " ")}.`);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Cập nhật trạng thái task thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to update task status.");
     }
   };
 
@@ -354,13 +392,13 @@ const LeaderDashboard: React.FC = () => {
     if (!inviteEmail.trim()) return;
     try {
       await leaderService.inviteMember(inviteEmail.trim());
-      setSuccessMsg(`Đã mời ${inviteEmail} vào workspace.`);
+      setSuccessMsg(`Invited ${inviteEmail} to workspace.`);
       setShowInvite(false);
       setInviteEmail("");
       const mems = await leaderService.getWorkspaceMembers();
       setWsMembers(mems);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Mời thành viên thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to invite member.");
     }
   };
 
@@ -385,13 +423,13 @@ const LeaderDashboard: React.FC = () => {
     if (!proj) return;
 
     if (selectedMemberIds.length === 0) {
-      setErrorMsg("Vui lòng chọn ít nhất một thành viên để thêm.");
+      setErrorMsg("Please select at least one member to add.");
       return;
     }
 
     const currentMemberCount = proj.members ? proj.members.length : 0;
     if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount + selectedMemberIds.length > proj.maxMembers) {
-      setErrorMsg(`Không thể thêm. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
+      setErrorMsg(`Cannot add. Project has reached max limit of ${proj.maxMembers} thành viên.`);
       return;
     }
 
@@ -403,26 +441,26 @@ const LeaderDashboard: React.FC = () => {
       const addPromises = selectedMemberIds.map(id => leaderService.addProjectMember(manageMembersProjectId, id));
       await Promise.all(addPromises);
       
-      setSuccessMsg("Đã thêm thành viên vào Project thành công.");
+      setSuccessMsg("Added member to project successfully.");
       setShowManageMembersModal(false);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Đã xảy ra lỗi khi thêm thành viên.");
+      setErrorMsg(err.response?.data?.message || "Error adding member.");
     } finally {
       setManageMembersActionLoading(false);
     }
   };
 
   const handleRemoveMemberFromProject = async (projectId: number, memberId: number, memberUsername: string) => {
-    if (!window.confirm(`Bạn có chắc muốn xóa ${memberUsername} khỏi project này không?`)) return;
+    if (!window.confirm(`Are you sure you want to remove ${memberUsername} from this project?`)) return;
     setManageMembersActionLoading(true);
     setErrorMsg("");
     try {
       await leaderService.removeProjectMember(projectId, memberId);
-      setSuccessMsg(`Đã xóa ${memberUsername} khỏi project.`);
+      setSuccessMsg(`Removed ${memberUsername} from project.`);
       await loadData();
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể xóa member.");
+      setErrorMsg(err.response?.data?.message || "Cannot remove member.");
     } finally {
       setManageMembersActionLoading(false);
     }
@@ -645,7 +683,7 @@ const LeaderDashboard: React.FC = () => {
     return (
       <div className={styles["spinner-container"]}>
         <div className={styles["spinner"]} />
-        <p className={styles["spinner-text"]}>Đang tải Leader Dashboard...</p>
+        <p className={styles["spinner-text"]}>Loading Leader Dashboard...</p>
       </div>
     );
   }
@@ -767,15 +805,29 @@ const LeaderDashboard: React.FC = () => {
               type="text"
               placeholder="Search projects, tasks, users..."
               className={styles["search-input"]}
+              value={taskSearch}
+              onChange={(e) => setTaskSearch(e.target.value)}
             />
             <span className={styles["search-kbd"]}>⌘k</span>
           </div>
 
           <div className={styles["topbar-right"]}>
-            <button className={styles["bell-btn"]}>
-              <i className="bi bi-bell" />
-              <span className={styles["bell-badge"]} />
-            </button>
+            <NotificationDropdown
+              notifications={notifications}
+              onMarkRead={async (id, read) => {
+                await memberService.updateNotificationReadState(id, read);
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read } : n));
+              }}
+              onMarkAllRead={async () => {
+                await memberService.markAllNotificationsRead();
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+              }}
+              onNavigateToTask={(taskId) => {
+                setSelectedTaskId(taskId);
+                setActiveTab("task_detail");
+              }}
+              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => {})}
+            />
 
             <div style={{ position: "relative" }}>
               <button className={styles["user-trigger"]} onClick={() => setUserDdOpen(!userDdOpen)}>
@@ -1201,7 +1253,7 @@ const LeaderDashboard: React.FC = () => {
                           </div>
                           {isProjectLeader && !isSelf && member.id !== project.leaderId && (
                             <button
-                              title="Xóa khỏi project"
+                              title="Remove from project"
                               disabled={manageMembersActionLoading}
                               onClick={() => handleRemoveMemberFromProject(project.id, member.id, member.username)}
                               style={{ marginLeft: "4px", background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: "0.85rem", padding: "2px 4px", borderRadius: "4px", display: "flex", alignItems: "center" }}
@@ -1218,7 +1270,7 @@ const LeaderDashboard: React.FC = () => {
                     <div style={{ background: "#f8fafc", border: "1px dashed #cbd5e1", padding: "16px", borderRadius: "12px", marginTop: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <i className="bi bi-person-plus" style={{ color: "#4f46e5", fontSize: "1.1rem" }} />
-                        <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.95rem" }}>Thêm thành viên Project</span>
+                        <span style={{ fontWeight: 600, color: "#0f172a", fontSize: "0.95rem" }}>Add Project Member</span>
                       </div>
                       <button
                         type="button"
@@ -1335,7 +1387,7 @@ const LeaderDashboard: React.FC = () => {
                                   style={{ padding: "4px 8px", fontSize: "1rem", borderRadius: "6px", boxShadow: "0 1px 2px rgba(0,0,0,0.1)" }}
                                   onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
                                   disabled={isWorkspaceLocked || t.projectEnded}
-                                  title="Duyệt nhanh (Approve)"
+                                  title="Quick Approve"
                                 >
                                   <i className="bi bi-check-lg" />
                                 </button>
@@ -1421,7 +1473,7 @@ const LeaderDashboard: React.FC = () => {
                                     className={styles["btn-success"]}
                                     style={{ padding: "2px 6px", fontSize: "0.9rem", borderRadius: "4px", flexShrink: 0 }}
                                     onClick={(e) => { e.stopPropagation(); void handleUpdateTaskStatus(t.id, "DONE"); }}
-                                    title="Duyệt nhanh (Approve)"
+                                    title="Quick Approve"
                                   >
                                     <i className="bi bi-check-lg" />
                                   </button>
@@ -1631,7 +1683,7 @@ const LeaderDashboard: React.FC = () => {
               <div className={styles["page-header-row"]}>
                 <div>
                   <h1 className={styles["page-title"]}>Workspace History</h1>
-                  <p className={styles["page-sub"]}>Lịch sử hoạt động và các task đã hoàn thành trên các Workspace.</p>
+                  <p className={styles["page-sub"]}>Activity history and completed tasks across Workspaces.</p>
                 </div>
               </div>
 
@@ -1639,7 +1691,7 @@ const LeaderDashboard: React.FC = () => {
                 {userWs.length === 0 ? (
                   <div className={styles["empty-state-history"]}>
                     <i className="bi bi-clock-history"></i>
-                    <p>Bạn chưa tham gia Workspace nào.</p>
+                    <p>You haven't joined any Workspace yet.</p>
                   </div>
                 ) : (
                   userWs.map((ws) => {
@@ -1669,7 +1721,7 @@ const LeaderDashboard: React.FC = () => {
                                 )}
                               </h3>
                               <p className={styles["history-ws-meta"]}>
-                                Vai trò: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
+                                Role: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>
                               </p>
                             </div>
                           </div>
@@ -1687,11 +1739,11 @@ const LeaderDashboard: React.FC = () => {
                         {/* Completed tasks inside this workspace */}
                         <div className={styles["history-tasks-section"]}>
                           <h4 className={styles["history-tasks-title"]}>
-                            <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                            <i className="bi bi-check2-all"></i> Your completed tasks ({ws.completedTasks?.length || 0})
                           </h4>
 
                           {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                            <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                            <p className={styles["no-tasks-text"]}>No completed tasks in this Workspace.</p>
                           ) : (
                             <div className={styles["history-tasks-grid"]}>
                               {ws.completedTasks.map((t) => (
@@ -1705,7 +1757,7 @@ const LeaderDashboard: React.FC = () => {
                                   <h5 className={styles["history-task-title"]}>{t.title}</h5>
                                   {t.deadline && (
                                     <div className={styles["history-task-deadline"]}>
-                                      <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                      <i className="bi bi-calendar-event"></i> Deadline: {t.deadline}
                                     </div>
                                   )}
                                 </div>
@@ -1827,7 +1879,7 @@ const LeaderDashboard: React.FC = () => {
         <div className={styles["modal-overlay"]} onClick={() => setShowCreateWorkspaceModal(false)}>
           <div className={styles["modal"]} onClick={(e) => e.stopPropagation()} style={{ maxWidth: "500px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-              <h2 className={styles["modal-title"]} style={{ margin: 0 }}>Thêm Workspace mới</h2>
+              <h2 className={styles["modal-title"]} style={{ margin: 0 }}>Add new Workspace</h2>
               <button style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#64748b" }} onClick={() => setShowCreateWorkspaceModal(false)}>&times;</button>
             </div>
 
@@ -1848,25 +1900,25 @@ const LeaderDashboard: React.FC = () => {
               {/* Phần tạo mới */}
               <div>
                 <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
-                  Tạo Workspace mới
+                  Create new Workspace
                 </h3>
                 <form onSubmit={handleCreateNewWorkspaceSubmit}>
                   <div className={styles["form-group"]}>
-                    <label className={styles["form-label"]}>Tên Workspace <span style={{ color: "red" }}>*</span></label>
+                    <label className={styles["form-label"]}>Workspace Name <span style={{ color: "red" }}>*</span></label>
                     <input
                       type="text"
                       className={styles["form-input"]}
-                      placeholder="Ví dụ: Team Alpha..."
+                      placeholder="e.g. Team Alpha..."
                       value={newWSNameInput}
                       onChange={(e) => setNewWSNameInput(e.target.value)}
                       disabled={wsModalLoading}
                     />
                   </div>
                   <div className={styles["form-group"]}>
-                    <label className={styles["form-label"]}>Mô tả (Không bắt buộc)</label>
+                    <label className={styles["form-label"]}>Description (Optional)</label>
                     <textarea
                       className={styles["form-textarea"]}
-                      placeholder="Nhập mô tả ngắn gọn về không gian làm việc này..."
+                      placeholder="Enter a short description for this workspace..."
                       value={newWSDescInput}
                       onChange={(e) => setNewWSDescInput(e.target.value)}
                       disabled={wsModalLoading}
@@ -1875,7 +1927,7 @@ const LeaderDashboard: React.FC = () => {
                   </div>
                   <div style={{ textAlign: "right", marginTop: "12px" }}>
                     <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
-                      {wsModalLoading ? "Đang xử lý..." : "Khởi tạo"}
+                      {wsModalLoading ? "Processing..." : "Initialize"}
                     </button>
                   </div>
                 </form>
@@ -1884,15 +1936,15 @@ const LeaderDashboard: React.FC = () => {
               {/* Phần tham gia */}
               <div>
                 <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
-                  Hoặc Tham gia bằng Mã mời
+                  Or Join via Invite Code
                 </h3>
                 <form onSubmit={handleJoinNewWorkspaceSubmit}>
                   <div className={styles["form-group"]}>
-                    <label className={styles["form-label"]}>Mã mời (Invite Code) <span style={{ color: "red" }}>*</span></label>
+                    <label className={styles["form-label"]}>Invite Code <span style={{ color: "red" }}>*</span></label>
                     <input
                       type="text"
                       className={styles["form-input"]}
-                      placeholder="Nhập mã mời 6 chữ số..."
+                      placeholder="Enter 6-digit invite code..."
                       value={joinWSCodeInput}
                       onChange={(e) => setJoinWSCodeInput(e.target.value.toUpperCase())}
                       disabled={wsModalLoading}
@@ -1900,7 +1952,7 @@ const LeaderDashboard: React.FC = () => {
                   </div>
                   <div style={{ textAlign: "right", marginTop: "12px" }}>
                     <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
-                      {wsModalLoading ? "Đang xử lý..." : "Tham gia ngay"}
+                      {wsModalLoading ? "Processing..." : "Join Now"}
                     </button>
                   </div>
                 </form>
@@ -1918,7 +1970,7 @@ const LeaderDashboard: React.FC = () => {
         <div className={styles["modal-overlay"]} onClick={() => setShowManageMembersModal(false)}>
           <div className={styles["modal"]} style={{ maxWidth: "600px", width: "95%" }} onClick={(e) => e.stopPropagation()}>
             <div className={styles["modal-header"]}>
-              <h2 className={styles["modal-title"]}>Thêm thành viên Project</h2>
+              <h2 className={styles["modal-title"]}>Add Project Member</h2>
             </div>
             
             <div className={styles["modal-body"]}>
@@ -1929,7 +1981,7 @@ const LeaderDashboard: React.FC = () => {
                     type="text"
                     className={styles["form-input"]}
                     style={{ paddingLeft: "34px", height: "40px", width: "100%" }}
-                    placeholder="Tìm kiếm theo Tên hoặc Email..."
+                    placeholder="Search by Name or Email..."
                     value={manageMembersSearch}
                     onChange={(e) => setManageMembersSearch(e.target.value)}
                   />
@@ -1963,7 +2015,7 @@ const LeaderDashboard: React.FC = () => {
 
             <div className={styles["modal-footer"]} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.85rem", color: "#64748b", fontWeight: 600 }}>
-                Đã chọn: {selectedMemberIds.length} thành viên mới
+                Selected: {selectedMemberIds.length} new members
               </span>
               <div style={{ display: "flex", gap: "10px" }}>
                 <button
@@ -1972,7 +2024,7 @@ const LeaderDashboard: React.FC = () => {
                   onClick={() => setShowManageMembersModal(false)}
                   disabled={manageMembersActionLoading}
                 >
-                  Hủy
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -1980,7 +2032,7 @@ const LeaderDashboard: React.FC = () => {
                   onClick={handleSaveAddMembers}
                   disabled={manageMembersActionLoading}
                 >
-                  {manageMembersActionLoading ? "Đang lưu..." : "Thêm thành viên"}
+                  {manageMembersActionLoading ? "Saving..." : "Add Member"}
                 </button>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   workspaceService,
@@ -8,13 +9,23 @@ import {
   type DashboardStatsResponse,
   type UserWorkspaceResponse
 } from "../../services/workspaceService";
+import { memberService, type MemberNotificationResponse } from "../../services/memberService";
+import NotificationDropdown from "../common/NotificationDropdown";
 import styles from "./WorkspaceAdminDashboard.module.css";
 
 const WorkspaceAdminDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
   
-  // Trạng thái tab hiển thị
-  const [activeTab, setActiveTab] = useState<"dashboard" | "users" | "projects" | "settings" | "profile" | "history">("dashboard");
+  type ActiveTab = "dashboard" | "users" | "projects" | "settings" | "profile" | "history";
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as ActiveTab) || "dashboard";
+  const setActiveTab = (tab: ActiveTab) => {
+    setSearchParams(prev => {
+      prev.set("tab", tab);
+      return prev;
+    }, { replace: true });
+  };
 
   // Dữ liệu ứng dụng
   const [workspace, setWorkspace] = useState<WorkspaceResponse | null>(null);
@@ -45,7 +56,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const [inviteRole, setInviteRole] = useState<"LEADER" | "MEMBER">("MEMBER");
   const [showInviteModal, setShowInviteModal] = useState<boolean>(false);
 
-  // 2. Tạo dự án
+  // 2. Create project
   const [newProjName, setNewProjName] = useState<string>("");
   const [newProjDesc, setNewProjDesc] = useState<string>("");
   const [newProjLeader, setNewProjLeader] = useState<number>(0);
@@ -54,6 +65,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
   // 3. Tạo workspace mới (mock notice modal)
   const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState<boolean>(false);
+
+  // Notifications
+  const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
   
   // Tự động làm sạch các thông báo thành công / thất bại sau một khoảng thời gian
   useEffect(() => {
@@ -100,11 +114,16 @@ const WorkspaceAdminDashboard: React.FC = () => {
         console.error("Mất kết nối lấy thống kê", err);
       }
 
-      // 5. Lấy danh sách các workspace của user để chuyển đổi switcher
       const listWorkspaces = await workspaceService.getUserWorkspaces();
       setUserWorkspaces(listWorkspaces);
+
+      // 6. Load notifications
+      try {
+        const notis = await memberService.getNotifications();
+        setNotifications(notis);
+      } catch { setNotifications([]); }
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể nạp thông tin quản trị của Workspace.");
+      setErrorMsg(err.response?.data?.message || "Cannot nạp thông tin quản trị của Workspace.");
     } finally {
       setLoading(false);
     }
@@ -156,7 +175,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
         window.location.reload();
       }, 1000);
     } catch (err: any) {
-      setWsModalError(err.response?.data?.message || "Tạo Workspace thất bại. Vui lòng thử một tên khác.");
+      setWsModalError(err.response?.data?.message || "Failed to create Workspace. Please try another name.");
       setWsModalLoading(false);
     }
   };
@@ -164,7 +183,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const handleJoinNewWorkspaceSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinWSCodeInput.trim()) {
-      setWsModalError("Vui lòng nhập mã mời hợp lệ.");
+      setWsModalError("Please enter a valid invitation code.");
       return;
     }
     setWsModalLoading(true);
@@ -172,14 +191,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
     setWsModalSuccess("");
     try {
       await workspaceService.joinWorkspace(joinWSCodeInput.trim());
-      setWsModalSuccess("Gia nhập Workspace mới thành công! Đang chuyển hướng...");
+      setWsModalSuccess("Joined Workspace successfully! Redirecting...");
       setJoinWSCodeInput("");
       await checkAuth();
       setTimeout(() => {
         window.location.reload();
       }, 1000);
     } catch (err: any) {
-      setWsModalError(err.response?.data?.message || "Không thể gia nhập Workspace. Vui lòng kiểm tra lại mã mời.");
+      setWsModalError(err.response?.data?.message || "Cannot join Workspace. Please check the invitation code.");
       setWsModalLoading(false);
     }
   };
@@ -193,37 +212,37 @@ const WorkspaceAdminDashboard: React.FC = () => {
         email: inviteEmail.trim(),
         roleName: inviteRole
       });
-      setSuccessMsg(`Đã thêm/mời thành viên ${inviteEmail} thành công.`);
+      setSuccessMsg(`Successfully added/invited member ${inviteEmail} successfully.`);
       setShowInviteModal(false);
       setInviteEmail("");
       // Nạp lại danh sách
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể mời thêm thành viên này.");
+      setErrorMsg(err.response?.data?.message || "Cannot invite this member.");
     }
   };
 
   const handleToggleMemberStatus = async (userId: number, isActive: boolean) => {
     if (userId === user?.id) {
-      setErrorMsg("Bạn không thể tự vô hiệu hóa tài khoản của chính mình.");
+      setErrorMsg("You cannot deactivate your own account.");
       return;
     }
-    const actionText = isActive ? "vô hiệu hóa" : "mở khóa/kích hoạt";
-    if (!window.confirm(`Bạn có chắc muốn ${actionText} thành viên này?`)) return;
+    const actionText = isActive ? "deactivate" : "activate";
+    if (!window.confirm(`Are you sure you want to ${actionText} this member?`)) return;
     try {
       if (isActive) {
         await workspaceService.deactivateMember(userId);
-        setSuccessMsg("Đã vô hiệu hóa thành viên thành công.");
+        setSuccessMsg("Đã deactivate thành viên successfully.");
       } else {
         await workspaceService.activateMember(userId);
-        setSuccessMsg("Đã kích hoạt thành viên thành công.");
+        setSuccessMsg("Đã kích hoạt thành viên successfully.");
       }
       // Nạp lại danh sách
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || `Không thể ${actionText} thành viên.`);
+      setErrorMsg(err.response?.data?.message || `Cannot ${actionText} members.`);
     }
   };
 
@@ -231,7 +250,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjName.trim() || !newProjLeader) {
-      setErrorMsg("Vui lòng nhập tên dự án và chỉ định Dự án trưởng.");
+      setErrorMsg("Please enter project name and assign a Project Leader.");
       return;
     }
     try {
@@ -241,7 +260,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
         leaderId: newProjLeader,
         maxMembers: newProjMaxMembers
       });
-      setSuccessMsg("Tạo dự án mới thành công.");
+      setSuccessMsg("Create project mới successfully.");
       setShowProjModal(false);
       setNewProjName("");
       setNewProjDesc("");
@@ -251,35 +270,35 @@ const WorkspaceAdminDashboard: React.FC = () => {
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Tạo dự án thất bại.");
+      setErrorMsg(err.response?.data?.message || "Failed to create project.");
     }
   };
 
   const handleCompleteProject = async (projectId: number) => {
-    if (!window.confirm("Bạn có chắc chắn muốn kết thúc dự án này? Dự án sẽ được chuyển sang danh sách dự án đã xong.")) return;
+    if (!window.confirm("Are you sure you want to complete this project? It will be moved to the completed projects list.")) return;
     try {
       await workspaceService.completeProject(projectId);
-      setSuccessMsg("Kết thúc dự án thành công.");
+      setSuccessMsg("Complete project successfully.");
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể kết thúc dự án.");
+      setErrorMsg(err.response?.data?.message || "Cannot complete project.");
     }
   };
 
   const handleReopenProject = async (projectId: number) => {
-    if (!window.confirm("Bạn có chắc chắn muốn kích hoạt lại dự án này?")) return;
+    if (!window.confirm("Are you sure you want to reactivate this project?")) return;
     try {
       await workspaceService.reactivateProject(projectId);
-      setSuccessMsg("Kích hoạt lại dự án thành công.");
+      setSuccessMsg("Reactivate dự án successfully.");
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể kích hoạt lại dự án.");
+      setErrorMsg(err.response?.data?.message || "Cannot reactivate project.");
     }
   };
 
@@ -288,49 +307,49 @@ const WorkspaceAdminDashboard: React.FC = () => {
     if (proj) {
       const currentMemberCount = proj.members ? proj.members.length : 0;
       if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount >= proj.maxMembers) {
-        setErrorMsg(`Không thể thêm thành viên. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} thành viên.`);
+        setErrorMsg(`Cannot thêm members. Dự án đã đạt giới hạn tối đa là ${proj.maxMembers} members.`);
         return;
       }
     }
     try {
       await workspaceService.addProjectMember(projectId, userId);
-      setSuccessMsg("Đã thêm thành viên vào dự án thành công.");
+      setSuccessMsg("Đã thêm thành viên vào dự án successfully.");
       // Nạp lại thành viên và dự án
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể thêm thành viên vào dự án.");
+      setErrorMsg(err.response?.data?.message || "Cannot add member to project.");
     }
   };
 
   const handleRemoveFromProjectDetail = async (projectId: number, userId: number) => {
-    if (!window.confirm("Bạn có chắc chắn muốn gỡ thành viên này khỏi dự án?")) return;
+    if (!window.confirm("Are you sure you want to remove this member from the project?")) return;
     try {
       await workspaceService.removeProjectMember(projectId, userId);
-      setSuccessMsg("Đã loại bỏ thành viên ra khỏi dự án.");
+      setSuccessMsg("Removed member from project.");
       // Nạp lại thành viên và dự án
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể xóa thành viên khỏi dự án.");
+      setErrorMsg(err.response?.data?.message || "Cannot remove member from project.");
     }
   };
 
   const handleUpdateProjectRole = async (projectId: number, userId: number, newRole: "LEADER" | "MEMBER") => {
     try {
       await workspaceService.updateProjectMemberRole(projectId, userId, newRole);
-      setSuccessMsg("Cập nhật vai trò thành viên trong dự án thành công.");
+      setSuccessMsg("Cập nhật vai trò thành viên trong dự án successfully.");
       // Nạp lại thành viên và dự án
       const membersData = await workspaceService.getMembers();
       setMembers(membersData);
       const projectsData = await workspaceService.getProjects();
       setProjects(projectsData);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể cập nhật vai trò dự án.");
+      setErrorMsg(err.response?.data?.message || "Cannot update project role.");
     }
   };
 
@@ -357,13 +376,13 @@ const WorkspaceAdminDashboard: React.FC = () => {
         description: wsDesc
       });
       setWorkspace(updated);
-      setSuccessMsg("Cập nhật thông tin cấu hình workspace thành công.");
+      setSuccessMsg("Cập nhật thông tin cấu hình workspace successfully.");
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể cập nhật thông tin Workspace.");
+      setErrorMsg(err.response?.data?.message || "Cannot update workspace settings.");
     }
   };
 
-  const currentWorkspaceName = workspace?.name || user?.workspaceName || "Tài khoản của tôi";
+  const currentWorkspaceName = workspace?.name || user?.workspaceName || "My Account";
 
   // Hàm phụ trợ tạo Avatar Initials
   const getInitials = (fullName: string) => {
@@ -604,7 +623,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     return (
       <div className={styles["spinner-container"]}>
         <div className={styles["spinner"]}></div>
-        <p className={styles["spinner-text"]}>Đang đồng bộ dữ liệu Workspace Admin...</p>
+        <p className={styles["spinner-text"]}>Synchronizing Workspace Admin data...</p>
       </div>
     );
   }
@@ -685,6 +704,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
         {/* Menu Navigation items */}
         <nav className={styles["sidebar-menu"]}>
+          {/* MENU ITEMS */}
           <div
             className={`${styles["menu-item"]} ${activeTab === "dashboard" ? styles["active"] : ""}`}
             onClick={() => setActiveTab("dashboard")}
@@ -698,7 +718,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
             onClick={() => setActiveTab("users")}
           >
             <i className={`bi bi-people-fill ${styles["menu-item-icon"]}`}></i>
-            <span>Users</span>
+            <span>Manage Users</span>
           </div>
 
           <div
@@ -706,7 +726,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
             onClick={() => setActiveTab("projects")}
           >
             <i className={`bi bi-folder-fill ${styles["menu-item-icon"]}`}></i>
-            <span>Projects</span>
+            <span>Manage Projects</span>
           </div>
 
           <div
@@ -714,7 +734,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
             onClick={() => setActiveTab("settings")}
           >
             <i className={`bi bi-gear-fill ${styles["menu-item-icon"]}`}></i>
-            <span>Workspace settings</span>
+            <span>Settings</span>
           </div>
 
           <div
@@ -754,14 +774,24 @@ const WorkspaceAdminDashboard: React.FC = () => {
               type="text"
               placeholder="Search projects, tasks, users..."
               className={styles["search-input"]}
+              value={projectSearchQuery}
+              onChange={(e) => setProjectSearchQuery(e.target.value)}
             />
           </div>
 
           <div className={styles["topbar-actions"]}>
-            <button className={styles["notification-bell"]}>
-              <i className="bi bi-bell"></i>
-              <span className={styles["bell-badge"]}></span>
-            </button>
+            <NotificationDropdown
+              notifications={notifications}
+              onMarkRead={async (id, read) => {
+                await memberService.updateNotificationReadState(id, read);
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read } : n));
+              }}
+              onMarkAllRead={async () => {
+                await memberService.markAllNotificationsRead();
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+              }}
+              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => {})}
+            />
 
             {/* Profile trigger */}
             <div className={styles["user-profile-menu"]}>
@@ -1445,7 +1475,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                       filteredProjects.map((proj) => {
                         const progress = getProgress(proj);
                         const status = proj.isDeleted
-                          ? { label: "Đã kết thúc", cls: "proj-status-notask" }
+                          ? { label: "Completed", cls: "proj-status-notask" }
                           : getStatus(progress, proj.taskCount);
 
                         return (
@@ -1518,7 +1548,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                   }}
                                   style={{ borderColor: "var(--admin-success)", color: "var(--admin-success)", width: "100%" }}
                                 >
-                                  <i className="bi bi-arrow-counterclockwise"></i> Kích hoạt lại
+                                  <i className="bi bi-arrow-counterclockwise"></i> Reactivate
                                 </button>
                               ) : (
                                 <button
@@ -1529,7 +1559,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                   }}
                                   style={{ borderColor: "#ef4444", color: "#ef4444", width: "100%" }}
                                 >
-                                  <i className="bi bi-check-circle"></i> Kết thúc dự án
+                                  <i className="bi bi-check-circle"></i> Complete project
                                 </button>
                               )}
                             </div>
@@ -1560,7 +1590,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                         {filteredProjects.map((proj) => {
                           const progress = getProgress(proj);
                           const status = proj.isDeleted
-                            ? { label: "Đã kết thúc", cls: "proj-status-notask" }
+                            ? { label: "Completed", cls: "proj-status-notask" }
                             : getStatus(progress, proj.taskCount);
                           return (
                             <tr key={proj.id}>
@@ -1603,7 +1633,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                     onClick={() => handleReopenProject(proj.id)}
                                     style={{ color: "var(--admin-success)", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
                                   >
-                                    Kích hoạt lại
+                                    Reactivate
                                   </button>
                                 ) : (
                                   <button
@@ -1611,7 +1641,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                     onClick={() => handleCompleteProject(proj.id)}
                                     style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
                                   >
-                                    Kết thúc
+                                    Complete
                                   </button>
                                 )}
                               </td>
@@ -1633,14 +1663,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
               <div className={styles["page-header"]}>
                 <div className={styles["header-title-area"]}>
                   <h1 className={styles["header-title"]}>Workspace Settings</h1>
-                  <span className={styles["header-subtitle"]}>Thay đổi tên thương hiệu và mô tả tổng quan của Tổ chức.</span>
+                  <span className={styles["header-subtitle"]}>Change brand name and overview description of the Organization.</span>
                 </div>
               </div>
 
               <div className={styles["settings-form-container"]}>
                 <form onSubmit={handleUpdateWorkspace} className={styles["modal-body"]} style={{ padding: 0 }}>
                   <div className={styles["form-group"]}>
-                    <label htmlFor="ws-name">Tên Workspace/Tổ chức</label>
+                    <label htmlFor="ws-name">Workspace/Organization Name</label>
                     <input
                       type="text"
                       id="ws-name"
@@ -1652,7 +1682,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["form-group"]}>
-                    <label htmlFor="ws-desc">Mô tả tổng quan</label>
+                    <label htmlFor="ws-desc">Overview Description</label>
                     <textarea
                       id="ws-desc"
                       className={styles["form-textarea"]}
@@ -1663,7 +1693,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
                   <div style={{ marginTop: "10px" }}>
                     <button type="submit" className={styles["btn-primary"]}>
-                      <i className="bi bi-save"></i> Lưu cài đặt thay đổi
+                      <i className="bi bi-save"></i> Save Changes
                     </button>
                   </div>
                 </form>
@@ -1677,7 +1707,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
               <div className={styles["page-header"]}>
                 <div className={styles["header-title-area"]}>
                   <h1 className={styles["header-title"]}>My Profile</h1>
-                  <span className={styles["header-subtitle"]}>Thông tin định danh và vai trò toàn hệ thống của bạn.</span>
+                  <span className={styles["header-subtitle"]}>Your identity and system-wide role information.</span>
                 </div>
               </div>
 
@@ -1690,19 +1720,19 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   <h2 className={styles["profile-name"]}>{user?.username || "Workspace Administrator"}</h2>
                   
                   <div className={styles["profile-meta-item"]}>
-                    Email đăng ký: <strong>{user?.email}</strong>
+                    Registered Email: <strong>{user?.email}</strong>
                   </div>
                   
                   <div className={styles["profile-meta-item"]}>
-                    Vai trò hiện tại: <strong>{user?.role} (Workspace admin)</strong>
+                    Current Role: <strong>{user?.role} (Workspace admin)</strong>
                   </div>
                   
                   <div className={styles["profile-meta-item"]}>
-                    Tổ chức đang hoạt động: <strong>{currentWorkspaceName} (ID: {user?.workspaceId})</strong>
+                    Active Organization: <strong>{currentWorkspaceName} (ID: {user?.workspaceId})</strong>
                   </div>
 
                   <div className={styles["profile-meta-item"]}>
-                    Trạng thái tài khoản: <span style={{ color: "var(--admin-success)", fontWeight: "bold" }}>Hoạt động</span>
+                    Account Status: <span style={{ color: "var(--admin-success)", fontWeight: "bold" }}>Active</span>
                   </div>
                 </div>
               </div>
@@ -1715,7 +1745,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
               <div className={styles["page-header"]}>
                 <div className={styles["header-title-area"]}>
                   <h1 className={styles["header-title"]}>Workspace History</h1>
-                  <span className={styles["header-subtitle"]}>Lịch sử hoạt động và các task đã hoàn thành trên các Workspace.</span>
+                  <span className={styles["header-subtitle"]}>Activity history and completed tasks across Workspaces.</span>
                 </div>
               </div>
 
@@ -1723,7 +1753,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 {userWorkspaces.length === 0 ? (
                   <div className={styles["empty-state-history"]}>
                     <i className="bi bi-clock-history"></i>
-                    <p>Bạn chưa tham gia Workspace nào.</p>
+                    <p>You haven't joined any Workspace yet.</p>
                   </div>
                 ) : (
                   userWorkspaces.map((ws) => {
@@ -1771,11 +1801,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
                       {/* Completed tasks inside this workspace */}
                       <div className={styles["history-tasks-section"]}>
                         <h4 className={styles["history-tasks-title"]}>
-                          <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                          <i className="bi bi-check2-all"></i> Your completed tasks ({ws.completedTasks?.length || 0})
                         </h4>
                         
                         {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                          <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                          <p className={styles["no-tasks-text"]}>No completed tasks in this Workspace.</p>
                         ) : (
                           <div className={styles["history-tasks-grid"]}>
                             {ws.completedTasks.map((t) => (
@@ -1789,7 +1819,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 <h5 className={styles["history-task-title"]}>{t.title}</h5>
                                 {t.deadline && (
                                   <div className={styles["history-task-deadline"]}>
-                                    <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                    <i className="bi bi-calendar-event"></i> Deadline: {t.deadline}
                                   </div>
                                 )}
                               </div>
@@ -1812,14 +1842,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
         <div className={styles["modal-overlay"]}>
           <div className={styles["modal-content"]}>
             <div className={styles["modal-header"]}>
-              <h3>Mời thành viên mới gia nhập Workspace</h3>
+              <h3>Invite new member to join Workspace</h3>
               <button className={styles["modal-close-btn"]} onClick={() => setShowInviteModal(false)}>&times;</button>
             </div>
             
             <form onSubmit={handleInviteMember}>
               <div className={styles["modal-body"]}>
                 <div className={styles["form-group"]}>
-                  <label htmlFor="invite-email">Địa chỉ Email thành viên</label>
+                  <label htmlFor="invite-email">Member Email address</label>
                   <input
                     type="email"
                     id="invite-email"
@@ -1832,26 +1862,26 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 </div>
 
                 <div className={styles["form-group"]}>
-                  <label htmlFor="invite-role">Gán vai trò mặc định</label>
+                  <label htmlFor="invite-role">Assign default role</label>
                   <select
                     id="invite-role"
                     className={styles["form-select"]}
                     value={inviteRole}
                     onChange={(e) => setInviteRole(e.target.value as "LEADER" | "MEMBER")}
                   >
-                    <option value="MEMBER">MEMBER (Thành viên chuẩn)</option>
-                    <option value="LEADER">LEADER (Dự án trưởng)</option>
+                    <option value="MEMBER">MEMBER (Standard Member)</option>
+                    <option value="LEADER">LEADER (Project Manager)</option>
                   </select>
                 </div>
                 
                 <p style={{ fontSize: "0.72rem", color: "var(--admin-text-muted)", margin: 0 }}>
-                  * Nếu Email người dùng chưa có tài khoản trong hệ thống Task OS, hệ thống sẽ tự động tạo một tài khoản nháp bảo mật để người dùng kích hoạt.
+                  * If the user's email does not have an account in Task OS, the system will automatically create a secure draft account for the user to activate.
                 </p>
               </div>
 
               <div className={styles["modal-footer"]}>
-                <button type="button" className={styles["btn-secondary"]} onClick={() => setShowInviteModal(false)}>Hủy bỏ</button>
-                <button type="submit" className={styles["btn-primary"]}>Gửi lời mời tham gia</button>
+                <button type="button" className={styles["btn-secondary"]} onClick={() => setShowInviteModal(false)}>Cancel</button>
+                <button type="submit" className={styles["btn-primary"]}>Send invitation</button>
               </div>
             </form>
           </div>
@@ -1863,19 +1893,19 @@ const WorkspaceAdminDashboard: React.FC = () => {
         <div className={styles["modal-overlay"]}>
           <div className={styles["modal-content"]}>
             <div className={styles["modal-header"]}>
-              <h3>Khởi tạo dự án mới trong Workspace</h3>
+              <h3>Initialize new project in Workspace</h3>
               <button className={styles["modal-close-btn"]} onClick={() => setShowProjModal(false)}>&times;</button>
             </div>
 
             <form onSubmit={handleCreateProject}>
               <div className={styles["modal-body"]}>
                 <div className={styles["form-group"]}>
-                  <label htmlFor="proj-name">Tên dự án</label>
+                  <label htmlFor="proj-name">Project Name</label>
                   <input
                     type="text"
                     id="proj-name"
                     className={styles["form-control"]}
-                    placeholder="Nhập tên dự án"
+                    placeholder="Enter project name"
                     value={newProjName}
                     onChange={(e) => setNewProjName(e.target.value)}
                     required
@@ -1883,18 +1913,18 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 </div>
 
                 <div className={styles["form-group"]}>
-                  <label htmlFor="proj-desc">Mô tả ngắn gọn</label>
+                  <label htmlFor="proj-desc">Short description</label>
                   <textarea
                     id="proj-desc"
                     className={styles["form-textarea"]}
-                    placeholder="Mô tả công việc của dự án..."
+                    placeholder="Project work description..."
                     value={newProjDesc}
                     onChange={(e) => setNewProjDesc(e.target.value)}
                   />
                 </div>
 
                 <div className={styles["form-group"]}>
-                  <label htmlFor="proj-leader">Chỉ định Dự án trưởng (Leader)*</label>
+                  <label htmlFor="proj-leader">Assign Project Leader*</label>
                   <select
                     id="proj-leader"
                     className={styles["form-select"]}
@@ -1902,7 +1932,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     onChange={(e) => setNewProjLeader(Number(e.target.value))}
                     required
                   >
-                    <option value={0}>-- Chọn trưởng nhóm (phải thuộc Workspace) --</option>
+                    <option value={0}>-- Select team leader (must belong to Workspace) --</option>
                     {members
                       .filter(m => m.active) // Chỉ chọn các thành viên đang hoạt động
                       .map(m => (
@@ -1914,12 +1944,12 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 </div>
 
                 <div className={styles["form-group"]}>
-                  <label htmlFor="proj-max-members">Số lượng thành viên tối đa (Max members)*</label>
+                  <label htmlFor="proj-max-members">Maximum number of members (Max members)*</label>
                   <input
                     type="number"
                     id="proj-max-members"
                     className={styles["form-control"]}
-                    placeholder="Nhập số lượng thành viên tối đa (Ví dụ: 10)"
+                    placeholder="Enter maximum number of members (e.g., 10)"
                     value={newProjMaxMembers}
                     onChange={(e) => setNewProjMaxMembers(Number(e.target.value))}
                     min={1}
@@ -1929,8 +1959,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
               </div>
 
               <div className={styles["modal-footer"]}>
-                <button type="button" className={styles["btn-secondary"]} onClick={() => setShowProjModal(false)}>Hủy bỏ</button>
-                <button type="submit" className={styles["btn-primary"]} disabled={!newProjLeader}>Tạo dự án</button>
+                <button type="button" className={styles["btn-secondary"]} onClick={() => setShowProjModal(false)}>Cancel</button>
+                <button type="submit" className={styles["btn-primary"]} disabled={!newProjLeader}>Create project</button>
               </div>
             </form>
           </div>
@@ -2002,12 +2032,12 @@ const WorkspaceAdminDashboard: React.FC = () => {
               {wsModalTab === "create" ? (
                 <form onSubmit={handleCreateNewWorkspaceSubmit}>
                   <div className={styles["form-group"]}>
-                    <label htmlFor="modal-ws-name">Tên doanh nghiệp / Tổ chức</label>
+                    <label htmlFor="modal-ws-name">Business / Organization Name</label>
                     <input
                       type="text"
                       id="modal-ws-name"
                       className={styles["form-control"]}
-                      placeholder="Ví dụ: Vinamilk, FPT Software,..."
+                      placeholder="e.g., Vinamilk, FPT Software,..."
                       value={newWSNameInput}
                       onChange={(e) => setNewWSNameInput(e.target.value)}
                       disabled={wsModalLoading}
@@ -2016,11 +2046,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["form-group"]}>
-                    <label htmlFor="modal-ws-desc">Mô tả chi tiết (Tùy chọn)</label>
+                    <label htmlFor="modal-ws-desc">Detailed description (Optional)</label>
                     <textarea
                       id="modal-ws-desc"
                       className={styles["form-textarea"]}
-                      placeholder="Mô tả mục tiêu hoạt động của tổ chức..."
+                      placeholder="Describe the organization's operational goals..."
                       value={newWSDescInput}
                       onChange={(e) => setNewWSDescInput(e.target.value)}
                       disabled={wsModalLoading}
@@ -2028,21 +2058,21 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["modal-footer"]} style={{ padding: "10px 0 0 0" }}>
-                    <button type="button" className={styles["btn-secondary"]} onClick={() => setShowCreateWorkspaceModal(false)} disabled={wsModalLoading}>Hủy bỏ</button>
+                    <button type="button" className={styles["btn-secondary"]} onClick={() => setShowCreateWorkspaceModal(false)} disabled={wsModalLoading}>Cancel</button>
                     <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
-                      {wsModalLoading ? "Đang khởi tạo..." : "Tạo Workspace"}
+                      {wsModalLoading ? "Initializing..." : "Create Workspace"}
                     </button>
                   </div>
                 </form>
               ) : (
                 <form onSubmit={handleJoinNewWorkspaceSubmit}>
                   <div className={styles["form-group"]}>
-                    <label htmlFor="modal-join-code">Mã mời Workspace (Invitation Key)</label>
+                    <label htmlFor="modal-join-code">Workspace Invitation Key</label>
                     <input
                       type="text"
                       id="modal-join-code"
                       className={styles["form-control"]}
-                      placeholder="Ví dụ: WS-A2B4C6D8"
+                      placeholder="e.g., WS-A2B4C6D8"
                       value={joinWSCodeInput}
                       onChange={(e) => setJoinWSCodeInput(e.target.value)}
                       disabled={wsModalLoading}
@@ -2051,9 +2081,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["modal-footer"]} style={{ padding: "10px 0 0 0" }}>
-                    <button type="button" className={styles["btn-secondary"]} onClick={() => setShowCreateWorkspaceModal(false)} disabled={wsModalLoading}>Hủy bỏ</button>
+                    <button type="button" className={styles["btn-secondary"]} onClick={() => setShowCreateWorkspaceModal(false)} disabled={wsModalLoading}>Cancel</button>
                     <button type="submit" className={styles["btn-primary"]} disabled={wsModalLoading}>
-                      {wsModalLoading ? "Đang xử lý..." : "Tham gia Space"}
+                      {wsModalLoading ? "Processing..." : "Join Space"}
                     </button>
                   </div>
                 </form>

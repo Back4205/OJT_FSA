@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   adminService,
@@ -52,7 +53,30 @@ const emptyWorkspacePageInfo: PageInfo = {
 
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as TabKey) || "dashboard";
+  const detailTargetStr = searchParams.get("detailTarget");
+  const detailTarget: DetailTarget | null = detailTargetStr ? {
+    type: detailTargetStr.split(":")[0] as "user" | "workspace",
+    id: Number(detailTargetStr.split(":")[1])
+  } : null;
+
+  const setActiveTab = (tab: TabKey) => {
+    setSearchParams(prev => {
+      prev.set("tab", tab);
+      prev.delete("detailTarget");
+      return prev;
+    }, { replace: true });
+  };
+  
+  const setDetailTarget = (target: DetailTarget | null) => {
+    setSearchParams(prev => {
+      if (target === null) prev.delete("detailTarget");
+      else prev.set("detailTarget", `${target.type}:${target.id}`);
+      return prev;
+    }, { replace: true });
+  };
   const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
   const [previewUsers, setPreviewUsers] = useState<AdminUserSummaryResponse[]>([]);
   const [previewWorkspaces, setPreviewWorkspaces] = useState<AdminWorkspaceSummaryResponse[]>([]);
@@ -71,7 +95,6 @@ const AdminDashboard: React.FC = () => {
   const [workspacePage, setWorkspacePage] = useState(0);
   const [workspacePageInfo, setWorkspacePageInfo] = useState<PageInfo>(emptyWorkspacePageInfo);
   const [workspaceViewMode, setWorkspaceViewMode] = useState<"grid" | "list">("grid");
-  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [userDetail, setUserDetail] = useState<AdminUserDetailResponse | null>(null);
   const [workspaceDetail, setWorkspaceDetail] = useState<AdminWorkspaceDetailResponse | null>(null);
   const [userMemberships, setUserMemberships] = useState<AdminMembershipResponse[]>([]);
@@ -441,7 +464,7 @@ const AdminDashboard: React.FC = () => {
               onClick={() => setActiveTab(item.key)}
             >
               <i className={`bi ${item.icon}`} />
-              <span>{item.label}</span>
+              <span className={styles.navItemLabel}>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -464,11 +487,13 @@ const AdminDashboard: React.FC = () => {
               disabled={activeTab !== "users" && activeTab !== "workspaces"}
             />
           </div>
-          <div className={styles.userChip}>
-            <div className={styles.userAvatar}>{(user?.username || "SA").slice(0, 2).toUpperCase()}</div>
-            <div>
-              <div className={styles.userName}>{user?.username || "Super admin"}</div>
-              <div className={styles.userRole}>Super admin</div>
+          <div className={styles.topbarActions}>
+            <div className={styles.userChip}>
+              <div className={styles.userAvatar}>{(user?.username || "SA").slice(0, 2).toUpperCase()}</div>
+              <div>
+                <div className={styles.userName}>{user?.username || "Super admin"}</div>
+                <div className={styles.userRole}>Super admin</div>
+              </div>
             </div>
           </div>
         </header>

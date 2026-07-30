@@ -26,6 +26,7 @@ public class MemberNotificationResponse {
     private Long taskId;
     private String taskTitle;
     private String projectName;
+    private String workspaceName;
     private TaskPriority priority;
     private TaskStatus status;
     private LocalDate deadline;
@@ -40,6 +41,7 @@ public class MemberNotificationResponse {
                 .taskId(task != null ? task.getId() : null)
                 .taskTitle(task != null ? task.getTitle() : null)
                 .projectName(task != null && task.getProject() != null ? task.getProject().getName() : null)
+                .workspaceName(task != null && task.getProject() != null && task.getProject().getWorkspace() != null ? task.getProject().getWorkspace().getName() : null)
                 .priority(task != null ? task.getPriority() : null)
                 .status(task != null ? task.getStatus() : null)
                 .deadline(task != null ? task.getDeadline() : null)

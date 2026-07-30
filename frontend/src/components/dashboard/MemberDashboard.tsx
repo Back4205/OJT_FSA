@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { memberService, type MemberDashboardResponse, type MemberNotificationResponse, type MemberTaskResponse } from "../../services/memberService";
 import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
 import { commentService, type TaskComment } from "../../services/commentService";
+import NotificationDropdown from "../common/NotificationDropdown";
 import styles from "./MemberDashboard.module.css";
 
 const menuItems = [
@@ -16,7 +18,18 @@ type TabKey = typeof menuItems[number]["key"];
 
 const MemberDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
-  const [activeTab, setActiveTab] = useState<TabKey>("dashboard");
+  
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = (searchParams.get("tab") as TabKey) || "dashboard";
+  const setActiveTab = (tab: TabKey) => {
+    setSearchParams(prev => {
+      prev.set("tab", tab);
+      // Khi chuyển tab, clear selected task đi nếu cần, nhưng set url thôi là đủ
+      if (tab !== "tasks") prev.delete("taskId");
+      return prev;
+    }, { replace: true });
+  };
+  
   const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);
   const [userWorkspaces, setUserWorkspaces] = useState<UserWorkspaceResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -306,11 +319,11 @@ const MemberDashboard: React.FC = () => {
         return;
       }
       if (nextStatus === "DONE") {
-        showTemporaryError("Chỉ Leader mới có quyền duyệt task sang DONE.");
+        showTemporaryError("Only Leaders can approve tasks to DONE.");
         return;
       }
       if (task.status === "DONE") {
-        showTemporaryError("Không thể thao tác với task đã hoàn thành.");
+        showTemporaryError("Cannot modify a completed task.");
         return;
       }
       void updateTaskStatus(task, nextStatus);
@@ -591,15 +604,25 @@ const MemberDashboard: React.FC = () => {
       <main className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.topbarActions}>
-            <button
-              type="button"
-              className={styles.notificationBellButton}
-              aria-label="Notifications"
-              title="Notifications"
-            >
-              <i className="bi bi-bell" />
-              {unreadNotificationCount > 0 && <span className={styles.notificationBellDot} />}
-            </button>
+            <NotificationDropdown
+              notifications={notifications}
+              onMarkRead={async (id, read) => {
+                await memberService.updateNotificationReadState(id, read);
+                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read } : n));
+              }}
+              onMarkAllRead={async () => {
+                await memberService.markAllNotificationsRead();
+                setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+              }}
+              onNavigateToTask={(taskId) => {
+                const task = dashboard?.tasks.find(t => t.id === taskId);
+                if (task) {
+                  setSelectedTask(task);
+                  setActiveTab("tasks");
+                }
+              }}
+              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => {})}
+            />
             <div className={styles.userChip}>
               <div className={styles.userAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
               <div>
@@ -950,11 +973,11 @@ const MemberDashboard: React.FC = () => {
                         {/* Completed tasks inside this workspace */}
                         <div className={styles["history-tasks-section"]}>
                           <h4 className={styles["history-tasks-title"]}>
-                            <i className="bi bi-check2-all"></i> Các task đã hoàn thành của bạn ({ws.completedTasks?.length || 0})
+                            <i className="bi bi-check2-all"></i> Your completed tasks ({ws.completedTasks?.length || 0})
                           </h4>
 
                           {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                            <p className={styles["no-tasks-text"]}>Không có task nào đã hoàn thành trong Workspace này.</p>
+                            <p className={styles["no-tasks-text"]}>No completed tasks in this Workspace.</p>
                           ) : (
                             <div className={styles["history-tasks-grid"]}>
                               {ws.completedTasks.map((t) => (
@@ -968,7 +991,7 @@ const MemberDashboard: React.FC = () => {
                                   <h5 className={styles["history-task-title"]}>{t.title}</h5>
                                   {t.deadline && (
                                     <div className={styles["history-task-deadline"]}>
-                                      <i className="bi bi-calendar-event"></i> Hạn chót: {t.deadline}
+                                      <i className="bi bi-calendar-event"></i> Deadline: {t.deadline}
                                     </div>
                                   )}
                                 </div>

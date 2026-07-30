@@ -2299,9 +2299,206 @@
 
   .usersPanel {
     overflow-x: auto;
+    flex-wrap: wrap;
+  }
+
+  .workspaceViewToggle {
+    margin-left: 0;
+  }
+
+  .topbar {
+    height: auto;
+    padding: 16px;
+    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .searchBox {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .headerRow {
+    flex-direction: column;
+  }
+
+  .modalOverlay {
+    padding: 12px;
+  }
+
+  .modalBody,
+  .modalHeader {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}
+
+/* Sadmin Users page layout */
+.usersPanel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.usersPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.usersPanelHeader h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.usersPanelHeader p {
+  margin: 5px 0 0;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.usersPanelCount {
+  min-width: 112px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 12px 14px;
+  text-align: center;
+  display: grid;
+  place-items: center;
+}
+
+.usersPanelCount strong,
+.usersPanelCount span {
+  display: block;
+}
+
+.usersPanelCount strong {
+  color: #0f172a;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.usersPanelCount span {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.usersPanel .table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.usersPanel .table th,
+.usersPanel .table td {
+  padding: 13px 20px;
+  vertical-align: middle;
+}
+
+.usersPanel .table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.userIdentityCell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 260px;
+}
+
+.userTableAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.userIdentityCell strong,
+.userIdentityCell span {
+  display: block;
+}
+
+.userIdentityCell strong {
+  color: #0f172a;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.userIdentityCell span {
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.userStatusGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.membershipBadge {
+  min-width: 34px;
+  height: 30px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #4f46e5;
+  font-weight: 800;
+}
+
+.providerText {
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.usersPanel .actionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.usersPanel .paginationBar {
+  margin: 0;
+  padding: 14px 20px;
+  border-top: 1px solid #eef2f7;
+  background: #ffffff;
+}
+
+@media (max-width: 900px) {
+  .usersPanelHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .usersPanelCount {
+    text-align: left;
+  }
+
+  .usersPanel {
+    overflow-x: auto;
   }
 
   .usersPanel .table {
     min-width: 620px;
   }
 }
+
+.topbarActions { display: flex; align-items: center; gap: 16px; }
