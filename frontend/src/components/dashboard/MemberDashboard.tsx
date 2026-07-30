@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { memberService, type MemberDashboardResponse, type MemberNotificationResponse, type MemberTaskResponse } from "../../services/memberService";
 import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
@@ -19,15 +19,13 @@ type TabKey = typeof menuItems[number]["key"];
 const MemberDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
   
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as TabKey) || "dashboard";
+  const { "*": splat } = useParams();
+  const navigate = useNavigate();
+  const pathParts = (splat || "").split("/").filter(Boolean);
+  const activeTab = (pathParts[0] as TabKey) || "dashboard";
+  
   const setActiveTab = (tab: TabKey) => {
-    setSearchParams(prev => {
-      prev.set("tab", tab);
-      // Khi chuyển tab, clear selected task đi nếu cần, nhưng set url thôi là đủ
-      if (tab !== "tasks") prev.delete("taskId");
-      return prev;
-    }, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
   };
   
   const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);

@@ -22,7 +22,7 @@ const AppRoutes: React.FC = () => {
       </Route>
 
       <Route element={<ProtectedRoute />}>
-        <Route path="/taskmanager/dashboard" element={<Dashboard />} />
+        <Route path="/taskmanager/dashboard/*" element={<Dashboard />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/taskmanager" replace />} />

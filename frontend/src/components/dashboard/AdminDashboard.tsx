@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   adminService,
@@ -54,28 +54,28 @@ const emptyWorkspacePageInfo: PageInfo = {
 const AdminDashboard: React.FC = () => {
   const { user, logout } = useAuth();
   
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as TabKey) || "dashboard";
-  const detailTargetStr = searchParams.get("detailTarget");
-  const detailTarget: DetailTarget | null = detailTargetStr ? {
-    type: detailTargetStr.split(":")[0] as "user" | "workspace",
-    id: Number(detailTargetStr.split(":")[1])
-  } : null;
+  const { "*": splat } = useParams();
+  const navigate = useNavigate();
+  const pathParts = (splat || "").split("/").filter(Boolean);
+  const activeTab = (pathParts[0] as TabKey) || "dashboard";
+  
+  let detailTarget: DetailTarget | null = null;
+  if (activeTab === "users" && pathParts[1]) {
+    detailTarget = { type: "user", id: Number(pathParts[1]) };
+  } else if (activeTab === "workspaces" && pathParts[1]) {
+    detailTarget = { type: "workspace", id: Number(pathParts[1]) };
+  }
 
   const setActiveTab = (tab: TabKey) => {
-    setSearchParams(prev => {
-      prev.set("tab", tab);
-      prev.delete("detailTarget");
-      return prev;
-    }, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
   };
   
   const setDetailTarget = (target: DetailTarget | null) => {
-    setSearchParams(prev => {
-      if (target === null) prev.delete("detailTarget");
-      else prev.set("detailTarget", `${target.type}:${target.id}`);
-      return prev;
-    }, { replace: true });
+    if (target === null) {
+      setActiveTab(activeTab);
+    } else {
+      navigate(`/taskmanager/dashboard/${target.type}s/${target.id}`, { replace: true });
+    }
   };
   const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
   const [previewUsers, setPreviewUsers] = useState<AdminUserSummaryResponse[]>([]);

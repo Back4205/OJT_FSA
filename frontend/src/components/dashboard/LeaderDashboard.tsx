@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   leaderService,
@@ -58,34 +58,23 @@ type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "
 const LeaderDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
 
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as ActiveTab) || "dashboard";
-  const selectedProjectId = searchParams.get("projectId") ? Number(searchParams.get("projectId")) : null;
-  const selectedTaskId = searchParams.get("taskId") ? Number(searchParams.get("taskId")) : null;
+  const { "*": splat } = useParams();
+  const navigate = useNavigate();
+  const pathParts = (splat || "").split("/").filter(Boolean);
+  const activeTab = (pathParts[0] as ActiveTab) || "dashboard";
+  const selectedProjectId = (activeTab === "project_detail" && pathParts[1]) ? Number(pathParts[1]) : null;
+  const selectedTaskId = (activeTab === "task_detail" && pathParts[1]) ? Number(pathParts[1]) : null;
 
   const setActiveTab = (tab: ActiveTab) => {
-    setSearchParams(prev => {
-      prev.set("tab", tab);
-      if (tab !== "task_detail") prev.delete("taskId");
-      if (tab !== "project_detail") prev.delete("projectId");
-      return prev;
-    }, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
   };
 
   const setSelectedProjectId = (id: number | null) => {
-    setSearchParams(prev => {
-      if (id === null) prev.delete("projectId");
-      else prev.set("projectId", id.toString());
-      return prev;
-    }, { replace: true });
+    if (id !== null) navigate(`/taskmanager/dashboard/project_detail/${id}`, { replace: true });
   };
 
   const setSelectedTaskId = (id: number | null) => {
-    setSearchParams(prev => {
-      if (id === null) prev.delete("taskId");
-      else prev.set("taskId", id.toString());
-      return prev;
-    }, { replace: true });
+    if (id !== null) navigate(`/taskmanager/dashboard/task_detail/${id}`, { replace: true });
   };
   const [projectViewMode, setProjectViewMode] = useState<"list" | "board">("list");
   const [listCurrentPage, setListCurrentPage] = useState<number>(1);
@@ -917,7 +906,7 @@ const LeaderDashboard: React.FC = () => {
                       const pct = p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0;
                       const firstDeadline = allTasks.find(t => t.projectId === p.id)?.deadline;
                       return (
-                        <div key={p.id} className={styles["project-row"]} onClick={() => { setSelectedProjectId(p.id); setActiveTab("project_detail"); }}>
+                        <div key={p.id} className={styles["project-row"]} onClick={() => setSelectedProjectId(p.id)}>
                           <div className={styles["project-row-top"]}>
                             <span className={styles["project-name"]}>{p.name}</span>
                             {firstDeadline && (
@@ -1101,7 +1090,7 @@ const LeaderDashboard: React.FC = () => {
                   {projects.map((p, i) => {
                     const pct = p.taskCount > 0 ? Math.round((p.completedTaskCount / p.taskCount) * 100) : 0;
                     return (
-                      <div key={p.id} className={styles["card"]} style={{ cursor: "pointer" }} onClick={() => { setSelectedProjectId(p.id); setActiveTab("project_detail"); }}>
+                      <div key={p.id} className={styles["card"]} style={{ cursor: "pointer" }} onClick={() => setSelectedProjectId(p.id)}>
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
                           <div className={`${styles["member-avatar"]} ${styles[avatarColor(i)]}`} style={{ borderRadius: "10px" }}>
                             {getInitials(p.name)}
@@ -1510,7 +1499,7 @@ const LeaderDashboard: React.FC = () => {
                   <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
                   <span style={{ cursor: "pointer" }} onClick={() => setActiveTab("projects")}>Projects</span>
                   <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
-                  <span style={{ cursor: "pointer" }} onClick={() => { setSelectedProjectId(task.projectId); setActiveTab("project_detail"); }}>{project?.name || task.projectName}</span>
+                  <span style={{ cursor: "pointer" }} onClick={() => setSelectedProjectId(task.projectId)}>{project?.name || task.projectName}</span>
                   <i className="bi bi-chevron-right" style={{ fontSize: "0.65rem", margin: "0 8px" }} />
                   <span style={{ color: "#0f172a", fontWeight: 600 }}>Task #{task.id}</span>
                 </div>

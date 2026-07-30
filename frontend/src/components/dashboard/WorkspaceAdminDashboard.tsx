@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   workspaceService,
@@ -18,13 +18,12 @@ const WorkspaceAdminDashboard: React.FC = () => {
   
   type ActiveTab = "dashboard" | "users" | "projects" | "settings" | "profile" | "history";
   
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = (searchParams.get("tab") as ActiveTab) || "dashboard";
+  const { "*": splat } = useParams();
+  const navigate = useNavigate();
+  const pathParts = (splat || "").split("/").filter(Boolean);
+  const activeTab = (pathParts[0] as ActiveTab) || "dashboard";
   const setActiveTab = (tab: ActiveTab) => {
-    setSearchParams(prev => {
-      prev.set("tab", tab);
-      return prev;
-    }, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
   };
 
   // Dữ liệu ứng dụng
