@@ -468,12 +468,12 @@ const MemberDashboard: React.FC = () => {
 
   const formatWorkspaceRole = (roleName: string) => {
     if (roleName === "WORKSPACE_ADMIN") {
-      return "Workspace admin";
+      return "Admin · Business";
     }
     if (roleName === "LEADER") {
-      return "Leader";
+      return "Leader · Business";
     }
-    return "Member";
+    return "Member · Business";
   };
 
   const statCards = [
@@ -605,7 +605,8 @@ const MemberDashboard: React.FC = () => {
             <div className={styles.workspaceMetaWrap}>
               <span className={styles.workspaceActiveName}>{activeWorkspace?.workspaceName || "No workspace"}</span>
               <span className={styles.workspaceActiveRole}>
-                {(activeWorkspace as any)?.uncompletedTaskCount || 0} Uncompleted
+                {activeWorkspace?.active === false ? "Locked · " : ""}
+                {formatWorkspaceRole(activeWorkspace?.roleName || dashboard?.role || "MEMBER")}
               </span>
             </div>
             <i className={`bi bi-chevron-down ${styles.chevronIcon} ${workspaceDropdownOpen ? styles.chevronOpen : ""}`} />
@@ -638,6 +639,9 @@ const MemberDashboard: React.FC = () => {
                         {workspace.uncompletedTaskCount} Uncompleted
                       </span>
                     </div>
+                    {!workspace.active && (
+                      <span className={styles.workspaceStatusBadge}>Locked</span>
+                    )}
                     {isActive && (
                       <i className={`bi bi-check ${styles.checkIcon}`}></i>
                     )}
@@ -1124,10 +1128,8 @@ const MemberDashboard: React.FC = () => {
                             <div>
                               <h3 className={styles["history-ws-name"]}>
                                 {ws.workspaceName}
-                                {isActive ? (
+                                {isActive && (
                                   <span className={styles["active-badge"]}>Active</span>
-                                ) : (
-                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
                                 )}
                               </h3>
                               <p className={styles["history-ws-meta"]}>

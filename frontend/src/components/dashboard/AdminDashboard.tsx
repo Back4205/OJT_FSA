@@ -35,11 +35,12 @@ type DetailTarget = {
   id: number;
 };
 
+const USER_PAGE_SIZE = 6;
 const WORKSPACE_PAGE_SIZE = 6;
 
 const emptyPageInfo: PageInfo = {
   pageNumber: 0,
-  pageSize: 10,
+  pageSize: USER_PAGE_SIZE,
   totalElements: 0,
   totalPages: 1,
   first: true,
@@ -99,6 +100,9 @@ const AdminDashboard: React.FC = () => {
   const [workspaceDetail, setWorkspaceDetail] = useState<AdminWorkspaceDetailResponse | null>(null);
   const [userMemberships, setUserMemberships] = useState<AdminMembershipResponse[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [activityDateFilter, setActivityDateFilter] = useState("");
+  const [activityStartTime, setActivityStartTime] = useState("");
+  const [activityEndTime, setActivityEndTime] = useState("");
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -406,6 +410,20 @@ const AdminDashboard: React.FC = () => {
       minute: "2-digit"
     });
   };
+  const getLocalDateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const getMinutesOfDay = (date: Date) => date.getHours() * 60 + date.getMinutes();
+  const getTimeInputMinutes = (time: string) => {
+    const [hours, minutes] = time.split(":").map(Number);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+      return null;
+    }
+    return hours * 60 + minutes;
+  };
   const topbarSearchValue =
     activeTab === "users" ? userSearchDraft : activeTab === "workspaces" ? workspaceSearchDraft : "";
   const topbarSearchPlaceholder =
@@ -441,7 +459,43 @@ const AdminDashboard: React.FC = () => {
       createdAt: item.createdAt,
       sortKey: getEventTimestamp(item.createdAt) || item.id
     }))
-  ].sort((left, right) => right.sortKey - left.sortKey).slice(0, 8);
+  ].sort((left, right) => right.sortKey - left.sortKey);
+  const filteredSystemEvents = systemEvents.filter((event) => {
+    const hasFilter = Boolean(activityDateFilter || activityStartTime || activityEndTime);
+    if (!hasFilter) {
+      return true;
+    }
+
+    if (!event.createdAt) {
+      return false;
+    }
+
+    const date = new Date(event.createdAt);
+    if (Number.isNaN(date.getTime())) {
+      return false;
+    }
+
+    if (activityDateFilter && getLocalDateInputValue(date) !== activityDateFilter) {
+      return false;
+    }
+
+    const eventMinutes = getMinutesOfDay(date);
+    const startMinutes = getTimeInputMinutes(activityStartTime);
+    const endMinutes = getTimeInputMinutes(activityEndTime);
+
+    if (startMinutes !== null && eventMinutes < startMinutes) {
+      return false;
+    }
+    if (endMinutes !== null && eventMinutes > endMinutes) {
+      return false;
+    }
+    return true;
+  });
+  const clearActivityFilters = () => {
+    setActivityDateFilter("");
+    setActivityStartTime("");
+    setActivityEndTime("");
+  };
   const dashboardEvents = systemEvents.slice(0, 5);
   const currentDay = currentDate.getDate();
 
@@ -870,13 +924,45 @@ const AdminDashboard: React.FC = () => {
           )}
 
           {!loading && !error && activeTab === "activity" && (
-            <section className={styles.timelinePanel}>
+            <section className={`${styles.timelinePanel} ${styles.activityTimelinePanel}`}>
               <div className={styles.panelHeader}>
                 <h2>System activity</h2>
-                <span>{systemEvents.length} items</span>
+                <span>{filteredSystemEvents.length} items</span>
+              </div>
+              <div className={styles.activityFilterBar}>
+                <label className={styles.activityFilterField}>
+                  <span>Date</span>
+                  <input
+                    type="date"
+                    className={styles.activityFilterInput}
+                    value={activityDateFilter}
+                    onChange={(event) => setActivityDateFilter(event.target.value)}
+                  />
+                </label>
+                <label className={styles.activityFilterField}>
+                  <span>From</span>
+                  <input
+                    type="time"
+                    className={styles.activityFilterInput}
+                    value={activityStartTime}
+                    onChange={(event) => setActivityStartTime(event.target.value)}
+                  />
+                </label>
+                <label className={styles.activityFilterField}>
+                  <span>To</span>
+                  <input
+                    type="time"
+                    className={styles.activityFilterInput}
+                    value={activityEndTime}
+                    onChange={(event) => setActivityEndTime(event.target.value)}
+                  />
+                </label>
+                <button type="button" className={styles.activityResetButton} onClick={clearActivityFilters}>
+                  Reset
+                </button>
               </div>
               <div className={styles.timeline}>
-                {systemEvents.map((event) => (
+                {filteredSystemEvents.map((event) => (
                   <div key={event.key} className={styles.timelineItem}>
                     <span className={styles.timelineDot} />
                     <div>
@@ -886,8 +972,8 @@ const AdminDashboard: React.FC = () => {
                     </div>
                   </div>
                 ))}
-                {systemEvents.length === 0 && (
-                  <div className={styles.emptyState}>No system activity is available yet.</div>
+                {filteredSystemEvents.length === 0 && (
+                  <div className={styles.emptyState}>No system activity matches this date or time range.</div>
                 )}
               </div>
             </section>
