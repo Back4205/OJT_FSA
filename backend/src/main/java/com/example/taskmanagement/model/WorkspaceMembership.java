@@ -32,4 +32,12 @@ public class WorkspaceMembership {
 
     @Column(name = "is_active")
     private boolean isActive = true;
+
+    @Column(nullable = false, updatable = false)
+    private java.time.LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = java.time.LocalDateTime.now();
+    }
 }

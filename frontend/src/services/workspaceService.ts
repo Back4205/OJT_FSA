@@ -76,6 +76,12 @@ export interface DashboardStatsResponse {
   tasksByPriority: Record<string, number>;
   createdTasksWeekly?: number[];
   completedTasksWeekly?: number[];
+  totalProjectsGrowth?: number;
+  totalMembersGrowth?: number;
+  totalTasksGrowth?: number;
+  completedTasksGrowth?: number;
+  todoTasksGrowth?: number;
+  reviewTasksGrowth?: number;
 }
 
 export interface UncompletedTaskInfo {

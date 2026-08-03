@@ -69,4 +69,10 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
                                           @Param("status") TaskStatus status,
                                           @Param("priority") TaskPriority priority,
                                           Pageable pageable);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.project.workspace.id = :workspaceId AND (t.project.isDeleted = false OR t.project.isDeleted IS NULL) AND t.createdAt <= :date")
+    long countByProjectWorkspaceIdAndCreatedAtBefore(@Param("workspaceId") Long workspaceId, @Param("date") java.time.LocalDateTime date);
+
+    @Query("SELECT COUNT(t) FROM Task t WHERE t.project.workspace.id = :workspaceId AND (t.project.isDeleted = false OR t.project.isDeleted IS NULL) AND t.status = :status AND t.createdAt <= :date")
+    long countByProjectWorkspaceIdAndStatusAndCreatedAtBefore(@Param("workspaceId") Long workspaceId, @Param("status") TaskStatus status, @Param("date") java.time.LocalDateTime date);
 }

@@ -51,4 +51,12 @@ public class Project {
     @Column(name = "is_deleted")
     private Boolean isDeleted = false;
 
+    @Column(nullable = false, updatable = false)
+    private java.time.LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = java.time.LocalDateTime.now();
+    }
+
 }

@@ -37,4 +37,7 @@ public interface WorkspaceMembershipRepository extends JpaRepository<WorkspaceMe
 
     @Query("select count(m) from WorkspaceMembership m where m.isActive = false")
     long countInactiveMemberships();
+
+    @Query("select count(m) from WorkspaceMembership m where m.workspace.id = :workspaceId and m.isActive = true and m.createdAt <= :date")
+    long countActiveByWorkspaceIdAndCreatedAtBefore(@Param("workspaceId") Long workspaceId, @Param("date") java.time.LocalDateTime date);
 }

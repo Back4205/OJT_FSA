@@ -455,6 +455,23 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         List<Long> createdTasksWeekly = java.util.Arrays.asList(createdWeeklyArray);
         List<Long> completedTasksWeekly = java.util.Arrays.asList(completedWeeklyArray);
 
+        // --- Calculate Growth (Week over Week) ---
+        java.time.LocalDateTime sevenDaysAgo = now.minusDays(7);
+
+        long pastTotalProjects = projectRepository.countActiveByWorkspaceIdAndCreatedAtBefore(workspaceId, sevenDaysAgo);
+        long pastTotalMembers = workspaceMembershipRepository.countActiveByWorkspaceIdAndCreatedAtBefore(workspaceId, sevenDaysAgo);
+        long pastTotalTasks = taskRepository.countByProjectWorkspaceIdAndCreatedAtBefore(workspaceId, sevenDaysAgo);
+        long pastCompletedTasks = taskRepository.countByProjectWorkspaceIdAndStatusAndCreatedAtBefore(workspaceId, TaskStatus.DONE, sevenDaysAgo);
+        long pastTodoTasks = taskRepository.countByProjectWorkspaceIdAndStatusAndCreatedAtBefore(workspaceId, TaskStatus.TODO, sevenDaysAgo);
+        long pastReviewTasks = taskRepository.countByProjectWorkspaceIdAndStatusAndCreatedAtBefore(workspaceId, TaskStatus.REVIEW, sevenDaysAgo);
+
+        double totalProjectsGrowth = calculateGrowth(totalProjects, pastTotalProjects);
+        double totalMembersGrowth = calculateGrowth(totalMembers, pastTotalMembers);
+        double totalTasksGrowth = calculateGrowth(totalTasks, pastTotalTasks);
+        double completedTasksGrowth = calculateGrowth(tasksByStatus.getOrDefault(TaskStatus.DONE.name(), 0L), pastCompletedTasks);
+        double todoTasksGrowth = calculateGrowth(tasksByStatus.getOrDefault(TaskStatus.TODO.name(), 0L), pastTodoTasks);
+        double reviewTasksGrowth = calculateGrowth(tasksByStatus.getOrDefault(TaskStatus.REVIEW.name(), 0L), pastReviewTasks);
+
         return DashboardStatsResponse.builder()
                 .totalProjects(totalProjects)
                 .totalMembers(totalMembers)
@@ -463,7 +480,20 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 .tasksByPriority(tasksByPriority)
                 .createdTasksWeekly(createdTasksWeekly)
                 .completedTasksWeekly(completedTasksWeekly)
+                .totalProjectsGrowth(totalProjectsGrowth)
+                .totalMembersGrowth(totalMembersGrowth)
+                .totalTasksGrowth(totalTasksGrowth)
+                .completedTasksGrowth(completedTasksGrowth)
+                .todoTasksGrowth(todoTasksGrowth)
+                .reviewTasksGrowth(reviewTasksGrowth)
                 .build();
+    }
+
+    private double calculateGrowth(long current, long past) {
+        if (past == 0) {
+            return current > 0 ? 100.0 : 0.0;
+        }
+        return ((double) (current - past) / past) * 100.0;
     }
 
     @Override

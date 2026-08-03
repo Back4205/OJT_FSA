@@ -772,24 +772,23 @@ const WorkspaceAdminDashboard: React.FC = () => {
   };
 
 
-  // Helper tính toán tỉ lệ % tăng trưởng động của từng Workspace
-  const getGrowth = (value: number, multiplier: number, prefix: string = "+") => {
-    if (!value || value <= 0) return { text: "0%", isUp: true };
-    const num = value * multiplier;
-    // Để giữ số liệu chân thực, hạn chế làm tròn quá lớn và tối đa hiển thị 100%
-    const limitedNum = Math.min(num, 100);
+  // Helper format % từ backend
+  const formatGrowth = (growthValue: number | undefined) => {
+    const value = growthValue || 0;
+    const isUp = value >= 0;
+    const prefix = isUp ? "+" : "";
     return {
-      text: `${prefix}${limitedNum.toFixed(1)}%`,
-      isUp: prefix === "+"
+      text: `${prefix}${value.toFixed(1)}%`,
+      isUp
     };
   };
 
-  const memberStats = getGrowth(stats?.totalMembers ? stats.totalMembers - 1 : 0, 25, "+");
-  const projectStats = getGrowth(stats?.totalProjects ?? 0, 15, "+");
-  const taskStats = getGrowth(stats?.totalTasks ?? 0, 8.5, "+");
-  const completedStats = getGrowth(stats?.tasksByStatus?.COMPLETED ?? 0, 12, "+");
-  const todoStats = getGrowth(stats?.tasksByStatus?.TODO ?? 0, 6.5, "+");
-  const reviewStats = getGrowth(stats?.tasksByStatus?.REVIEW ?? 0, 3.5, "+");
+  const memberStats = formatGrowth(stats?.totalMembersGrowth);
+  const projectStats = formatGrowth(stats?.totalProjectsGrowth);
+  const taskStats = formatGrowth(stats?.totalTasksGrowth);
+  const completedStats = formatGrowth(stats?.completedTasksGrowth);
+  const todoStats = formatGrowth(stats?.todoTasksGrowth);
+  const reviewStats = formatGrowth(stats?.reviewTasksGrowth);
 
   if (loading) {
     return (

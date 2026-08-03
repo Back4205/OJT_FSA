@@ -6,7 +6,8 @@ target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-
+cookies.txt
+flow.md
 ### STS ###
 .apt_generated
 .classpath

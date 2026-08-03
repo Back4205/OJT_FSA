@@ -19,4 +19,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
      * Dùng trong TaskServiceImpl.getTasksByProject() để validate trước khi query task.
      */
     boolean existsByIdAndWorkspaceId(Long id, Long workspaceId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT COUNT(p) FROM Project p WHERE p.workspace.id = :workspaceId AND (p.isDeleted = false OR p.isDeleted IS NULL) AND p.createdAt <= :date")
+    long countActiveByWorkspaceIdAndCreatedAtBefore(@org.springframework.data.repository.query.Param("workspaceId") Long workspaceId, @org.springframework.data.repository.query.Param("date") java.time.LocalDateTime date);
 }

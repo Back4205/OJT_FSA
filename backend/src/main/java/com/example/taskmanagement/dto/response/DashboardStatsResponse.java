@@ -21,4 +21,12 @@ public class DashboardStatsResponse {
     private Map<String, Long> tasksByPriority;
     private List<Long> createdTasksWeekly;
     private List<Long> completedTasksWeekly;
+
+    // Growth fields (Week-over-Week)
+    private double totalProjectsGrowth;
+    private double totalMembersGrowth;
+    private double totalTasksGrowth;
+    private double completedTasksGrowth;
+    private double todoTasksGrowth;
+    private double reviewTasksGrowth;
 }
