@@ -266,8 +266,30 @@ public class MemberServiceImpl implements MemberService {
     @Transactional(readOnly = true)
     public List<MemberNotificationResponse> getNotifications(Authentication authentication) {
         User user = getAuthenticatedUser(authentication);
-        return notificationRepository.findByUserIdOrderByTimestampDesc(user.getId()).stream()
-                .map(MemberNotificationResponse::fromEntity)
+        Long activeWorkspaceId = null;
+        if (authentication.getPrincipal() instanceof com.example.taskmanagement.security.CustomUserDetails) {
+            activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
+        }
+
+        boolean isWorkspaceAdmin = false;
+        if (activeWorkspaceId != null) {
+            WorkspaceMembership membership = workspaceMembershipRepository
+                    .findByUserIdAndWorkspaceId(user.getId(), activeWorkspaceId)
+                    .orElse(null);
+            if (membership != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
+                isWorkspaceAdmin = true;
+            }
+        }
+
+        List<Notification> list;
+        if (isWorkspaceAdmin && activeWorkspaceId != null) {
+            list = notificationRepository.findByUserIdOrWorkspaceIdOrderByTimestampDesc(user.getId(), activeWorkspaceId);
+        } else {
+            list = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId());
+        }
+
+        return list.stream()
+                .map(n -> MemberNotificationResponse.fromEntity(n, user.getId()))
                 .toList();
     }
 
@@ -279,25 +301,71 @@ public class MemberServiceImpl implements MemberService {
             boolean read
     ) {
         User user = getAuthenticatedUser(authentication);
-        Notification notification = notificationRepository.findByIdAndUserId(notificationId, user.getId())
+        Long activeWorkspaceId = null;
+        if (authentication.getPrincipal() instanceof com.example.taskmanagement.security.CustomUserDetails) {
+            activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
+        }
+
+        boolean isWorkspaceAdmin = false;
+        if (activeWorkspaceId != null) {
+            WorkspaceMembership membership = workspaceMembershipRepository
+                    .findByUserIdAndWorkspaceId(user.getId(), activeWorkspaceId)
+                    .orElse(null);
+            if (membership != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
+                isWorkspaceAdmin = true;
+            }
+        }
+
+        Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
 
+        boolean hasPermission = notification.getUser().getId().equals(user.getId());
+        if (!hasPermission && isWorkspaceAdmin && activeWorkspaceId != null && notification.getTask() != null) {
+            if (notification.getTask().getProject().getWorkspace().getId().equals(activeWorkspaceId)) {
+                hasPermission = true;
+            }
+        }
+
+        if (!hasPermission) {
+            throw new IllegalArgumentException("Notification not found or access denied");
+        }
+
         notification.setRead(read);
-        return MemberNotificationResponse.fromEntity(notificationRepository.save(notification));
+        return MemberNotificationResponse.fromEntity(notificationRepository.save(notification), user.getId());
     }
 
     @Override
     @Transactional
     public List<MemberNotificationResponse> markAllNotificationsRead(Authentication authentication) {
         User user = getAuthenticatedUser(authentication);
-        List<Notification> notifications = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId());
+        Long activeWorkspaceId = null;
+        if (authentication.getPrincipal() instanceof com.example.taskmanagement.security.CustomUserDetails) {
+            activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
+        }
+
+        boolean isWorkspaceAdmin = false;
+        if (activeWorkspaceId != null) {
+            WorkspaceMembership membership = workspaceMembershipRepository
+                    .findByUserIdAndWorkspaceId(user.getId(), activeWorkspaceId)
+                    .orElse(null);
+            if (membership != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
+                isWorkspaceAdmin = true;
+            }
+        }
+
+        List<Notification> notifications;
+        if (isWorkspaceAdmin && activeWorkspaceId != null) {
+            notifications = notificationRepository.findByUserIdOrWorkspaceIdOrderByTimestampDesc(user.getId(), activeWorkspaceId);
+        } else {
+            notifications = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId());
+        }
 
         notifications.stream()
                 .filter(notification -> !notification.isRead())
                 .forEach(notification -> notification.setRead(true));
 
         return notificationRepository.saveAll(notifications).stream()
-                .map(MemberNotificationResponse::fromEntity)
+                .map(n -> MemberNotificationResponse.fromEntity(n, user.getId()))
                 .toList();
     }
 

@@ -43,12 +43,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateProfile = async (username: string, password?: string) => {
+    const payload: { username: string; password?: string } = { username };
+    if (password && password.trim() !== "") {
+      payload.password = password;
+    }
+    const response = await api.put("/auth/profile", payload);
+    setUser(response.data.data);
+  };
+
   useEffect(() => {
     checkAuth();
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, verifyOtp, checkAuth }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, verifyOtp, checkAuth, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

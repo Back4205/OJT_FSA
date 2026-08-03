@@ -56,7 +56,7 @@ const deadlineVariant = (iso?: string): "overdue" | "upcoming" | "normal" => {
 type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile" | "history";
 
 const LeaderDashboard: React.FC = () => {
-  const { user, logout, checkAuth } = useAuth();
+  const { user, logout, checkAuth, updateProfile } = useAuth();
 
   const { "*": splat } = useParams();
   const navigate = useNavigate();
@@ -95,6 +95,54 @@ const LeaderDashboard: React.FC = () => {
   const [stats, setStats] = useState<any>(null);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
+
+  // Profile update states
+  const [profileUsername, setProfileUsername] = useState<string>(user?.username || "");
+  const [profilePassword, setProfilePassword] = useState<string>("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState<string>("");
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileSuccess, setProfileSuccess] = useState<string>("");
+  const [profileError, setProfileError] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setProfileUsername(user.username);
+    }
+  }, [user]);
+
+  const handleUpdateProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSuccess("");
+    setProfileError("");
+
+    if (!profileUsername.trim()) {
+      setProfileError("Username cannot be empty");
+      return;
+    }
+
+    if (profilePassword) {
+      if (profilePassword.length < 6) {
+        setProfileError("Password must be at least 6 characters long");
+        return;
+      }
+      if (profilePassword !== profileConfirmPassword) {
+        setProfileError("Confirm password does not match");
+        return;
+      }
+    }
+
+    setProfileLoading(true);
+    try {
+      await updateProfile(profileUsername.trim(), profilePassword);
+      setProfileSuccess("Personal profile updated successfully.");
+      setProfilePassword("");
+      setProfileConfirmPassword("");
+    } catch (err: any) {
+      setProfileError(err.response?.data?.message || "Failed to update profile details.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   // UI state
   const [loading, setLoading] = useState(true);
@@ -1641,28 +1689,124 @@ const LeaderDashboard: React.FC = () => {
           {activeTab === "profile" && (
             <>
               <h1 className={styles["page-title"]}>Profile</h1>
-              <div className={styles["card"]} style={{ maxWidth: "480px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-                  <div className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "52px", height: "52px", fontSize: "1rem", borderRadius: "14px" }}>
-                    {getInitials(user?.username || "")}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: "1rem" }}>{user?.username}</div>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b" }}>{user?.email}</div>
-                    <div style={{ marginTop: "4px" }}>
-                      <span style={{ fontSize: "0.7rem", fontWeight: 700, background: "var(--admin-primary-light)", color: "var(--admin-primary)", padding: "2px 8px", borderRadius: "6px" }}>
-                        LEADER
-                      </span>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "24px", alignItems: "start", marginTop: "20px" }}>
+                {/* Left Card: Read-only summary */}
+                <div className={styles["card"]} style={{ margin: 0, padding: "24px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "16px", textAlign: "center" }}>
+                    <div className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "80px", height: "80px", fontSize: "1.5rem", borderRadius: "18px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {getInitials(user?.username || "")}
+                    </div>
+                    <div style={{ width: "100%", textAlign: "left" }}>
+                      <div style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "16px", color: "var(--admin-text-main)", textAlign: "center" }}>
+                        {user?.username}
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                        <strong>Email: </strong>{user?.email}
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                        <strong>Current Role (Read-only): </strong>{user?.role || "LEADER"}
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                        <strong>Workspace: </strong>{currentWsName}
+                      </div>
+
+                      <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)" }}>
+                        <strong>Status: </strong>Active
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div className={styles["form-group"]}>
-                  <label className={styles["form-label"]}>Workspace</label>
-                  <input className={styles["form-input"]} value={currentWsName} readOnly />
-                </div>
-                <div className={styles["form-group"]}>
-                  <label className={styles["form-label"]}>Email</label>
-                  <input className={styles["form-input"]} value={user?.email || ""} readOnly />
+
+                {/* Right Card: Update Profile Form */}
+                <div className={styles["card"]} style={{ margin: 0, padding: "24px" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "1.05rem", fontWeight: 700, color: "var(--admin-text-main)", borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
+                    Update Personal Information
+                  </h3>
+
+                  {user?.provider !== "LOCAL" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", padding: "10px 12px", marginBottom: "16px", color: "#d97706", fontSize: "0.82rem", fontWeight: 500 }}>
+                      <i className="bi bi-info-circle-fill" style={{ fontSize: "0.95rem" }}></i>
+                      <span>This account is authenticated via {user?.provider || "OAuth2"}. Password changes are disabled for OAuth2 accounts.</span>
+                    </div>
+                  )}
+
+                  {profileSuccess && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-success"]}`} style={{ marginBottom: "16px", padding: "10px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "#047857", borderRadius: "8px", fontSize: "0.82rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <i className="bi bi-check-circle-fill"></i>
+                      <span>{profileSuccess}</span>
+                    </div>
+                  )}
+
+                  {profileError && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-error"]}`} style={{ marginBottom: "16px", padding: "10px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "#b91c1c", borderRadius: "8px", fontSize: "0.82rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <i className="bi bi-exclamation-triangle-fill"></i>
+                      <span>{profileError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateProfileSubmit}>
+                    <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
+                      <label className={styles["form-label"]} htmlFor="profile-username" style={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                        Display Name / Full Name
+                      </label>
+                      <input
+                        type="text"
+                        id="profile-username"
+                        className={styles["form-input"]}
+                        value={profileUsername}
+                        onChange={(e) => setProfileUsername(e.target.value)}
+                        required
+                        placeholder="Enter your name"
+                      />
+                    </div>
+
+                    {user?.provider === "LOCAL" && (
+                      <>
+                        <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
+                          <label className={styles["form-label"]} htmlFor="profile-password" style={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                            New Password (Leave blank to keep current)
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-password"
+                            className={styles["form-input"]}
+                            value={profilePassword}
+                            onChange={(e) => setProfilePassword(e.target.value)}
+                            placeholder="Minimum 6 characters"
+                          />
+                        </div>
+
+                        <div className={styles["form-group"]} style={{ marginBottom: "20px" }}>
+                          <label className={styles["form-label"]} htmlFor="profile-confirm-password" style={{ fontWeight: 600, fontSize: "0.82rem" }}>
+                            Confirm New Password
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-confirm-password"
+                            className={styles["form-input"]}
+                            value={profileConfirmPassword}
+                            onChange={(e) => setProfileConfirmPassword(e.target.value)}
+                            placeholder="Re-enter new password"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <button type="submit" style={{ width: "100%", height: "40px", borderRadius: "8px", border: "none", background: "var(--admin-primary)", color: "#fff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }} disabled={profileLoading}>
+                      {profileLoading ? (
+                        <span>Updating Profile...</span>
+                      ) : (
+                        <>
+                          <i className="bi bi-person-check-fill"></i>
+                          <span>Save Profile Details</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
               </div>
             </>
@@ -1703,11 +1847,10 @@ const LeaderDashboard: React.FC = () => {
                             <div>
                               <h3 className={styles["history-ws-name"]}>
                                 {ws.workspaceName}
-                                {isActive ? (
+                                {isActive && (
                                   <span className={styles["active-badge"]}>Active</span>
-                                ) : (
-                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
                                 )}
+
                               </h3>
                               <p className={styles["history-ws-meta"]}>
                                 Role: <strong>{ws.roleName === "WORKSPACE_ADMIN" ? "Admin" : ws.roleName}</strong>

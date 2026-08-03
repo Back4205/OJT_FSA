@@ -315,4 +315,19 @@ public class WorkspaceAdminController {
         DashboardStatsResponse response = workspaceAdminService.getDashboardStats(workspaceId);
         return ResponseEntity.ok(ApiResponse.success("Lấy số liệu thống kê Dashboard thành công", response));
     }
+
+    /**
+     * Lấy danh sách nhật ký hoạt động (ActivityLog) của toàn bộ Workspace hiện tại.
+     * @param workspaceId ID của workspace đang đăng nhập (JWT)
+     * @return ApiResponse chứa danh sách ActivityLogResponse
+     */
+    @GetMapping("/activity-logs")
+    public ResponseEntity<ApiResponse<List<ActivityLogResponse>>> getActivityLogs(
+            @CurrentWorkspaceId Long workspaceId) {
+        if (workspaceId == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+        }
+        List<ActivityLogResponse> response = workspaceAdminService.getActivityLogs(workspaceId);
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách nhật ký hoạt động thành công", response));
+    }
 }

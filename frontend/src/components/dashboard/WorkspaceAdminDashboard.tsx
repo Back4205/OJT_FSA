@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -15,9 +15,48 @@ import styles from "./WorkspaceAdminDashboard.module.css";
 
 const WorkspaceAdminDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
-  
+
+  const formatRelativeTime = (dateStr: string) => {
+    try {
+      const now = new Date();
+      const past = new Date(dateStr);
+      const diffMs = now.getTime() - past.getTime();
+      if (isNaN(diffMs) || diffMs < 0) return "just now";
+
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins < 1) return "just now";
+      if (diffMins < 60) return `${diffMins}m ago`;
+
+      const diffHours = Math.floor(diffMins / 60);
+      if (diffHours < 24) return `${diffHours}h ago`;
+
+      const diffDays = Math.floor(diffHours / 24);
+      return `${diffDays}d ago`;
+    } catch {
+      return "recently";
+    }
+  };
+
+  const getActionIndicatorColor = (action: string) => {
+    switch (action) {
+      case "CREATE_PROJECT":
+      case "CREATE_TASK":
+        return "var(--admin-success)";
+      case "DELETE_TASK":
+      case "DELETE_PROJECT":
+        return "var(--admin-danger)";
+      case "UPDATE_TASK":
+      case "UPDATE_PROJECT":
+        return "var(--admin-warning)";
+      case "CHANGE_TASK_STATUS":
+        return "var(--admin-info)";
+      default:
+        return "var(--admin-primary)";
+    }
+  };
+
   type ActiveTab = "dashboard" | "users" | "projects" | "settings" | "profile" | "history";
-  
+
   const { "*": splat } = useParams();
   const navigate = useNavigate();
   const pathParts = (splat || "").split("/").filter(Boolean);
@@ -62,12 +101,108 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const [newProjMaxMembers, setNewProjMaxMembers] = useState<number>(10);
   const [showProjModal, setShowProjModal] = useState<boolean>(false);
 
+  // Project members popup modal state
+  const [selectedProjForMembers, setSelectedProjForMembers] = useState<ProjectResponse | null>(null);
+
+  // Profile update states
+  const { updateProfile } = useAuth();
+  const [profileUsername, setProfileUsername] = useState<string>(user?.username || "");
+  const [profilePassword, setProfilePassword] = useState<string>("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState<string>("");
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileSuccess, setProfileSuccess] = useState<string>("");
+  const [profileError, setProfileError] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setProfileUsername(user.username);
+    }
+  }, [user]);
+
+  const handleUpdateProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSuccess("");
+    setProfileError("");
+
+    if (!profileUsername.trim()) {
+      setProfileError("Username cannot be empty");
+      return;
+    }
+
+    if (profilePassword) {
+      if (profilePassword.length < 6) {
+        setProfileError("Password must be at least 6 characters long");
+        return;
+      }
+      if (profilePassword !== profileConfirmPassword) {
+        setProfileError("Confirm password does not match");
+        return;
+      }
+    }
+
+    setProfileLoading(true);
+    try {
+      await updateProfile(profileUsername.trim(), profilePassword);
+      setProfileSuccess("Personal profile updated successfully.");
+      setProfilePassword("");
+      setProfileConfirmPassword("");
+    } catch (err: any) {
+      setProfileError(err.response?.data?.message || "Failed to update profile details.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  // Autocomplete states for Project Leader selection
+  const [leaderSearchInput, setLeaderSearchInput] = useState<string>("");
+  const [showLeaderSuggestions, setShowLeaderSuggestions] = useState<boolean>(false);
+  const autocompleteRef = useRef<HTMLDivElement>(null);
+
+  // Close suggestions dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target as Node)) {
+        setShowLeaderSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleLeaderSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setLeaderSearchInput(val);
+    setNewProjLeader(0); // Reset selection
+    setShowLeaderSuggestions(true);
+  };
+
+  const handleSelectLeader = (m: MembershipResponse) => {
+    setNewProjLeader(m.userId);
+    setLeaderSearchInput(`${m.username} (${m.email})`);
+    setShowLeaderSuggestions(false);
+  };
+
+  const closeProjModal = () => {
+    setShowProjModal(false);
+    setNewProjName("");
+    setNewProjDesc("");
+    setNewProjLeader(0);
+    setNewProjMaxMembers(10);
+    setLeaderSearchInput("");
+    setShowLeaderSuggestions(false);
+  };
+
   // 3. Tạo workspace mới (mock notice modal)
   const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState<boolean>(false);
 
   // Notifications
   const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
-  
+
+  // Workspace Activity Logs
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+
   // Tự động làm sạch các thông báo thành công / thất bại sau một khoảng thời gian
   useEffect(() => {
     if (successMsg || errorMsg) {
@@ -79,48 +214,59 @@ const WorkspaceAdminDashboard: React.FC = () => {
     }
   }, [successMsg, errorMsg]);
 
+  // Refresh data in background without full-screen loading spinner
+  const refreshData = async () => {
+    // 1. Dữ liệu Workspace của context hiện tại
+    const workspaceData = await workspaceService.getWorkspaceDetails();
+    setWorkspace(workspaceData);
+
+    // 2. Lấy dữ liệu Members của Workspace
+    const membersData = await workspaceService.getMembers();
+    setMembers(membersData);
+
+    // 3. Lấy dữ liệu Projects của Workspace
+    const projectsData = await workspaceService.getProjects();
+    setProjects(projectsData);
+
+    // 4. Lấy dữ liệu thống kê stats
+    try {
+      const statsData = await workspaceService.getDashboardStats();
+      if (statsData && statsData.tasksByStatus) {
+        const raw = statsData.tasksByStatus;
+        statsData.tasksByStatus = {
+          COMPLETED: raw.DONE || 0,
+          IN_PROGRESS: raw.IN_PROGRESS || 0,
+          TODO: raw.TODO || 0,
+          REVIEW: raw.REVIEW || 0,
+        };
+      }
+      setStats(statsData);
+    } catch (err: any) {
+      console.error("Mất kết nối lấy thống kê", err);
+    }
+
+    const listWorkspaces = await workspaceService.getUserWorkspaces();
+    setUserWorkspaces(listWorkspaces);
+
+    // 6. Load notifications
+    try {
+      const notis = await memberService.getNotifications();
+      setNotifications(notis);
+    } catch { setNotifications([]); }
+
+    // 7. Load activity logs
+    try {
+      const logs = await workspaceService.getActivityLogs();
+      setActivityLogs(logs);
+    } catch { setActivityLogs([]); }
+  };
+
   // Load toàn bộ dữ liệu ban đầu
   const loadData = async () => {
     setLoading(true);
     setErrorMsg("");
     try {
-      // 1. Dữ liệu Workspace của context hiện tại
-      const workspaceData = await workspaceService.getWorkspaceDetails();
-      setWorkspace(workspaceData);
-
-      // 2. Lấy dữ liệu Members của Workspace
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
-
-      // 3. Lấy dữ liệu Projects của Workspace
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
-
-      // 4. Lấy dữ liệu thống kê stats
-      try {
-        const statsData = await workspaceService.getDashboardStats();
-        if (statsData && statsData.tasksByStatus) {
-          const raw = statsData.tasksByStatus;
-          statsData.tasksByStatus = {
-            COMPLETED: raw.DONE || 0,
-            IN_PROGRESS: raw.IN_PROGRESS || 0,
-            TODO: raw.TODO || 0,
-            REVIEW: raw.REVIEW || 0,
-          };
-        }
-        setStats(statsData);
-      } catch (err: any) {
-        console.error("Mất kết nối lấy thống kê", err);
-      }
-
-      const listWorkspaces = await workspaceService.getUserWorkspaces();
-      setUserWorkspaces(listWorkspaces);
-
-      // 6. Load notifications
-      try {
-        const notis = await memberService.getNotifications();
-        setNotifications(notis);
-      } catch { setNotifications([]); }
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot nạp thông tin quản trị của Workspace.");
     } finally {
@@ -214,9 +360,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
       setSuccessMsg(`Successfully added/invited member ${inviteEmail} successfully.`);
       setShowInviteModal(false);
       setInviteEmail("");
-      // Nạp lại danh sách
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot invite this member.");
     }
@@ -237,9 +381,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
         await workspaceService.activateMember(userId);
         setSuccessMsg("Đã kích hoạt thành viên successfully.");
       }
-      // Nạp lại danh sách
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || `Cannot ${actionText} members.`);
     }
@@ -260,14 +402,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
         maxMembers: newProjMaxMembers
       });
       setSuccessMsg("Create project mới successfully.");
-      setShowProjModal(false);
-      setNewProjName("");
-      setNewProjDesc("");
-      setNewProjLeader(0);
-      setNewProjMaxMembers(10);
-      // Nạp lại dự án
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
+      closeProjModal();
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Failed to create project.");
     }
@@ -278,10 +414,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     try {
       await workspaceService.completeProject(projectId);
       setSuccessMsg("Complete project successfully.");
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot complete project.");
     }
@@ -292,10 +425,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     try {
       await workspaceService.reactivateProject(projectId);
       setSuccessMsg("Reactivate dự án successfully.");
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot reactivate project.");
     }
@@ -313,11 +443,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     try {
       await workspaceService.addProjectMember(projectId, userId);
       setSuccessMsg("Đã thêm thành viên vào dự án successfully.");
-      // Nạp lại thành viên và dự án
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot add member to project.");
     }
@@ -328,11 +454,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     try {
       await workspaceService.removeProjectMember(projectId, userId);
       setSuccessMsg("Removed member from project.");
-      // Nạp lại thành viên và dự án
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot remove member from project.");
     }
@@ -342,11 +464,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     try {
       await workspaceService.updateProjectMemberRole(projectId, userId, newRole);
       setSuccessMsg("Cập nhật vai trò thành viên trong dự án successfully.");
-      // Nạp lại thành viên và dự án
-      const membersData = await workspaceService.getMembers();
-      setMembers(membersData);
-      const projectsData = await workspaceService.getProjects();
-      setProjects(projectsData);
+      await refreshData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Cannot update project role.");
     }
@@ -403,7 +521,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     };
 
     const total = defaultData.COMPLETED + defaultData.TODO + defaultData.IN_PROGRESS + defaultData.REVIEW;
-    
+
     // Nếu tổng thống kê số task bằng 0 thì gán giả định trực quan để sinh động màu
     const plotData = total > 0 ? defaultData : { COMPLETED: 6914, IN_PROGRESS: 2014, TODO: 2868, REVIEW: 270 };
     const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.TODO + plotData.REVIEW;
@@ -493,13 +611,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
     let currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const todayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
 
-    const createdData = (stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
-    const completedData = (stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+    const createdData = stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0];
+    const completedData = stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0];
 
-    const maxVal = Math.max(...createdData, ...completedData, 5);
+    const realMax = Math.max(...createdData, ...completedData, 1);
+    const maxVal = Math.max(Math.ceil(realMax / 4) * 4, 4);
 
     const xCoords = [50, 150, 250, 350, 450, 550, 650];
-    
+
     const createdPoints = createdData.map((val, i) => ({
       x: xCoords[i],
       y: 110 - (val / maxVal) * 90
@@ -510,18 +629,18 @@ const WorkspaceAdminDashboard: React.FC = () => {
       y: 110 - (val / maxVal) * 90
     }));
 
-    const createdPath = createdPoints.length > 0 
+    const createdPath = createdPoints.length > 0
       ? `M ${createdPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
       : "";
     const createdArea = createdPoints.length > 0
-      ? `${createdPath} L ${createdPoints[createdPoints.length - 1].x},120 L 50,120 Z`
+      ? `${createdPath} L ${createdPoints[createdPoints.length - 1].x},110 L 50,110 Z`
       : "";
 
     const completedPath = completedPoints.length > 0
       ? `M ${completedPoints.map(p => `${p.x},${p.y}`).join(" L ")}`
       : "";
     const completedArea = completedPoints.length > 0
-      ? `${completedPath} L ${completedPoints[completedPoints.length - 1].x},120 L 50,120 Z`
+      ? `${completedPath} L ${completedPoints[completedPoints.length - 1].x},110 L 50,110 Z`
       : "";
 
     return (
@@ -536,24 +655,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
             <span>Completed tasks</span>
           </div>
         </div>
-        
-        <div className={styles["line-chart-wrapper"]}>
-          <div className={styles["axis-y-labels"]}>
-            <span>{Math.round(maxVal)}</span>
-            <span>{Math.round(maxVal * 0.75)}</span>
-            <span>{Math.round(maxVal * 0.5)}</span>
-            <span>{Math.round(maxVal * 0.25)}</span>
-            <span>0</span>
-          </div>
 
-          <div className={styles["chart-grid-lines"]}>
-            <div className={styles["grid-line"]} style={{ top: "0%" }}></div>
-            <div className={styles["grid-line"]} style={{ top: "25%" }}></div>
-            <div className={styles["grid-line"]} style={{ top: "50%" }}></div>
-            <div className={styles["grid-line"]} style={{ top: "75%" }}></div>
-          </div>
-
-          <svg className={styles["chart-svg-content"]} viewBox="0 0 700 136">
+        <div className={styles["line-chart-wrapper"]} style={{ height: "180px", position: "relative", marginTop: "16px" }}>
+          <svg className={styles["chart-svg-content"]} viewBox="0 0 700 145" style={{ width: "100%", height: "100%", overflow: "visible" }}>
             <defs>
               <linearGradient id="createdGrad" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#6366f1" stopOpacity="0.4" />
@@ -565,6 +669,20 @@ const WorkspaceAdminDashboard: React.FC = () => {
               </linearGradient>
             </defs>
 
+            {/* Horizontal Grid Lines */}
+            <line x1="45" y1="20" x2="665" y2="20" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="45" y1="42.5" x2="665" y2="42.5" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="45" y1="65" x2="665" y2="65" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="45" y1="87.5" x2="665" y2="87.5" stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+            <line x1="45" y1="110" x2="665" y2="110" stroke="#e2e8f0" strokeWidth="1" />
+
+            {/* Y-axis Labels */}
+            <text x="32" y="23" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="600">{Math.round(maxVal)}</text>
+            <text x="32" y="45.5" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="600">{Math.round(maxVal * 0.75)}</text>
+            <text x="32" y="68" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="600">{Math.round(maxVal * 0.5)}</text>
+            <text x="32" y="90.5" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="600">{Math.round(maxVal * 0.25)}</text>
+            <text x="32" y="113" textAnchor="end" fill="#64748b" fontSize="10" fontWeight="600">0</text>
+
             {/* Area Created */}
             <path d={createdArea} fill="url(#createdGrad)" />
             {/* Stroke line Created */}
@@ -574,25 +692,24 @@ const WorkspaceAdminDashboard: React.FC = () => {
             <path d={completedArea} fill="url(#completedGrad)" />
             {/* Stroke line Completed */}
             <path d={completedPath} fill="transparent" stroke="#10b981" strokeWidth="2.5" />
-            
+
             {/* Draw dots */}
             {createdPoints.map((pt, i) => (
-              <circle key={`c-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1" />
+              <circle key={`c-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#6366f1" stroke="#fff" strokeWidth="1.5" />
             ))}
             {completedPoints.map((pt, i) => (
-              <circle key={`cp-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#10b981" stroke="#fff" strokeWidth="1" />
+              <circle key={`cp-dot-${i}`} cx={pt.x} cy={pt.y} r="3.5" fill="#10b981" stroke="#fff" strokeWidth="1.5" />
             ))}
-          </svg>
 
-          <div className={styles["axis-x-labels"]}>
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span>Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
-            <span>Sun</span>
-          </div>
+            {/* X-axis Labels */}
+            <text x="50" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Mon</text>
+            <text x="150" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Tue</text>
+            <text x="250" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Wed</text>
+            <text x="350" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Thu</text>
+            <text x="450" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Fri</text>
+            <text x="550" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Sat</text>
+            <text x="650" y="130" textAnchor="middle" fill="#64748b" fontSize="10" fontWeight="600">Sun</text>
+          </svg>
         </div>
       </div>
     );
@@ -676,8 +793,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   <div className={styles["workspace-item-meta"]}>
                     <span className={styles["workspace-item-name"]}>{ws.workspaceName}</span>
                     <span className={styles["workspace-item-role"]}>
-                      {ws.roleName === "WORKSPACE_ADMIN" 
-                        ? "Admin · Team" 
+                      {ws.roleName === "WORKSPACE_ADMIN"
+                        ? "Admin · Team"
                         : `${ws.uncompletedTaskCount} Uncompleted`}
                     </span>
                   </div>
@@ -764,7 +881,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
       {/* 2. CHÍNH CÓ TIÊU ĐỀ & TOPBAR */}
       <main className={styles["main-area"]}>
-        
+
         {/* TOPBAR */}
         <header className={styles["topbar"]}>
           <div className={styles["search-container"]}>
@@ -789,7 +906,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 await memberService.markAllNotificationsRead();
                 setNotifications(prev => prev.map(n => ({ ...n, read: true })));
               }}
-              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => {})}
+              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => { })}
             />
 
             {/* Profile trigger */}
@@ -841,7 +958,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
         {/* DYNAMIC CONTENT AREA */}
         <section className={styles["content-body"]}>
-          
+
           {/* Thông báo và lỗi nạp */}
           {successMsg && (
             <div className={`${styles["alert-box"]} ${styles["alert-success"]}`}>
@@ -985,7 +1102,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
               {/* Grid of details recent */}
               <div className={styles["details-grid"]}>
-                
+
                 {/* Panel 1: Recent Users/Members */}
                 <div className={styles["chart-card"]}>
                   <h3 className={styles["chart-title"]} style={{ borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -1044,120 +1161,25 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   <h3 className={styles["chart-title"]} style={{ borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
                     Notifications & Activities
                   </h3>
-                  
+
                   <div className={styles["timeline-box"]} style={{ height: "auto", maxHeight: "280px", overflowY: "auto" }}>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Priya completed <strong>"Migrate billing gateway"</strong></span>
-                        <span className={styles["timeline-time"]}>2m ago</span>
+                    {activityLogs.length === 0 ? (
+                      <div style={{ textAlign: "center", color: "var(--admin-text-muted)", padding: "20px", fontSize: "0.82rem", fontStyle: "italic" }}>
+                        No workspace activities logged yet.
                       </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>New comment on <strong>Atlas · Sprint 42</strong></span>
-                        <span className={styles["timeline-time"]}>12m ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Deadline approaching: <strong>Aurora QA</strong></span>
-                        <span className={styles["timeline-time"]}>45m ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Workspace created by <strong>vuongbach4205@gmail.com</strong></span>
-                        <span className={styles["timeline-time"]}>2h ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Project <strong>"task1 22/7/2026"</strong> completed successfully</span>
-                        <span className={styles["timeline-time"]}>3h ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>User <strong>recept1</strong> joined the workspace</span>
-                        <span className={styles["timeline-time"]}>5h ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-info)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Task <strong>"Review UI/UX"</strong> moved to In Progress</span>
-                        <span className={styles["timeline-time"]}>6h ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Leader updated project description for <strong>"Atlas"</strong></span>
-                        <span className={styles["timeline-time"]}>8h ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Critical bug reported on <strong>Billing Module</strong></span>
-                        <span className={styles["timeline-time"]}>1d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Database backup completed successfully</span>
-                        <span className={styles["timeline-time"]}>1d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>New member <strong>lisa1234</strong> promoted to Leader</span>
-                        <span className={styles["timeline-time"]}>2d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-warning)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Server CPU usage warning: 85% load detected</span>
-                        <span className={styles["timeline-time"]}>2d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>System settings updated by Admin</span>
-                        <span className={styles["timeline-time"]}>3d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-success)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Weekly activity report generated</span>
-                        <span className={styles["timeline-time"]}>4d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-info)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Task <strong>"Write documentation"</strong> assigned to recept1</span>
-                        <span className={styles["timeline-time"]}>5d ago</span>
-                      </div>
-                    </div>
-                    <div className={styles["timeline-item"]}>
-                      <span className={styles["timeline-indicator"]} style={{ backgroundColor: "var(--admin-danger)" }}></span>
-                      <div className={styles["timeline-content"]}>
-                        <span className={styles["timeline-txt"]}>Integration test failed on main branch</span>
-                        <span className={styles["timeline-time"]}>6d ago</span>
-                      </div>
-                    </div>
+                    ) : (
+                      activityLogs.map((log) => (
+                        <div key={log.id} className={styles["timeline-item"]}>
+                          <span className={styles["timeline-indicator"]} style={{ backgroundColor: getActionIndicatorColor(log.action) }}></span>
+                          <div className={styles["timeline-content"]}>
+                            <span className={styles["timeline-txt"]}>
+                              {log.description}
+                            </span>
+                            <span className={styles["timeline-time"]}>{formatRelativeTime(log.timestamp)}</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
 
@@ -1222,9 +1244,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                         value={memberStatusFilter}
                         onChange={(e) => setMemberStatusFilter(e.target.value as any)}
                       >
-                        <option value="ALL">Role / Status: All</option>
-                        <option value="ACTIVE">Active members</option>
-                        <option value="INACTIVE">Banned members</option>
+                        <option value="ALL">All</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Banned</option>
                       </select>
                     </div>
                   </div>
@@ -1276,10 +1298,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                     <span className={`${styles["project-role-badge"]} ${proj.roleInProject === 'LEADER' ? styles["leader"] : styles["member"]}`}>
                                       {proj.roleInProject === 'LEADER' ? 'Leader' : 'Member'}
                                     </span>
-                                    
+
                                     {/* Đổi vai trò dự án */}
                                     {member.roleName !== "WORKSPACE_ADMIN" && (
-                                      <button 
+                                      <button
                                         className={styles["tag-action-btn"]}
                                         title={proj.roleInProject === 'LEADER' ? "Demote to Member" : "Promote to Leader"}
                                         onClick={() => handleUpdateProjectRole(proj.projectId, member.userId, proj.roleInProject === 'LEADER' ? 'MEMBER' : 'LEADER')}
@@ -1287,10 +1309,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                         <i className={proj.roleInProject === 'LEADER' ? "bi bi-arrow-down-circle-fill" : "bi bi-arrow-up-circle-fill"}></i>
                                       </button>
                                     )}
-                                    
+
                                     {/* Banned/Removed cụ thể theo dự án */}
                                     {member.roleName !== "WORKSPACE_ADMIN" && (
-                                      <button 
+                                      <button
                                         className={`${styles["tag-action-btn"]} ${styles["danger"]}`}
                                         title="Remove from Project"
                                         onClick={() => handleRemoveFromProjectDetail(proj.projectId, member.userId)}
@@ -1300,7 +1322,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                     )}
                                   </div>
                                 ))}
-                                
+
                                 {/* Chọn để thêm vào dự án mới */}
                                 {member.roleName !== "WORKSPACE_ADMIN" && (
                                   <div className={styles["add-to-project-wrapper"]}>
@@ -1325,7 +1347,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 )}
 
                                 {(!member.projects || member.projects.length === 0) && member.roleName === "WORKSPACE_ADMIN" && (
-                                  <span style={{ color: "var(--admin-text-muted)", fontStyle: "italic", fontSize: "0.78rem" }}>—</span>
+                                  <span style={{ color: "var(--admin-text-muted)", fontStyle: "italic", fontSize: "0.78rem" }}>All Project</span>
                                 )}
                               </div>
                             </td>
@@ -1344,7 +1366,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                               )}
                               {member.roleName === "WORKSPACE_ADMIN" && (
                                 <span style={{ fontSize: "0.75rem", color: "var(--admin-text-muted)", fontStyle: "italic" }}>
-                                  Workspace Admin (Owner)
+                                  Workspace Admin
                                 </span>
                               )}
                             </td>
@@ -1426,21 +1448,17 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["proj-filter-chips"]}>
-                    <div className={styles["filter-select-wrapper"]} style={{ height: "36px", padding: "0 10px", display: "flex", alignItems: "center", border: "1px solid var(--admin-border)", borderRadius: "8px", background: "#fff", gap: "6px" }}>
-                      <i className="bi bi-funnel" style={{ color: "var(--admin-text-secondary)", fontSize: "0.85rem" }}></i>
+                    <div className={styles["filter-select-wrapper"]}>
+                      <i className="bi bi-funnel"></i>
                       <select
                         className={styles["filter-select-input"]}
-                        style={{ border: "none", background: "transparent", outline: "none", fontSize: "0.85rem", cursor: "pointer", color: "var(--admin-text-secondary)", fontWeight: 600, paddingRight: "4px" }}
                         value={projectStatusFilter}
                         onChange={(e) => setProjectStatusFilter(e.target.value as any)}
                       >
-                        <option value="ACTIVE">Status: Active</option>
-                        <option value="COMPLETED">Status: Completed</option>
-                        <option value="ALL">Status: All</option>
+                        <option value="ACTIVE">Active</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="ALL">All</option>
                       </select>
-                    </div>
-                    <div className={styles["proj-filter-chip"]}>
-                      <i className="bi bi-person"></i> Owner: Anyone
                     </div>
                   </div>
 
@@ -1478,7 +1496,12 @@ const WorkspaceAdminDashboard: React.FC = () => {
                           : getStatus(progress, proj.taskCount);
 
                         return (
-                          <div key={proj.id} className={styles["proj-card"]}>
+                          <div
+                            key={proj.id}
+                            className={styles["proj-card"]}
+                            onClick={() => setSelectedProjForMembers(proj)}
+                            style={{ cursor: "pointer" }}
+                          >
                             {/* Card Header */}
                             <div className={styles["proj-card-header"]}>
                               <div className={styles["proj-card-avatar"]}>
@@ -1536,6 +1559,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
                               </div>
                             </div>
 
+
+
                             {/* Card Actions */}
                             <div className={styles["proj-card-actions"]} style={{ marginTop: "12px", borderTop: "1px solid var(--admin-border)", paddingTop: "12px" }}>
                               {proj.isDeleted ? (
@@ -1592,7 +1617,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
                             ? { label: "Completed", cls: "proj-status-notask" }
                             : getStatus(progress, proj.taskCount);
                           return (
-                            <tr key={proj.id}>
+                            <tr
+                              key={proj.id}
+                              onClick={() => setSelectedProjForMembers(proj)}
+                              style={{ cursor: "pointer" }}
+                            >
                               <td>
                                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                   <div className={styles["proj-card-avatar"]} style={{ width: "32px", height: "32px", fontSize: "0.65rem", flexShrink: 0 }}>
@@ -1629,7 +1658,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 {proj.isDeleted ? (
                                   <button
                                     className={styles["btn-text"]}
-                                    onClick={() => handleReopenProject(proj.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleReopenProject(proj.id);
+                                    }}
                                     style={{ color: "var(--admin-success)", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
                                   >
                                     Reactivate
@@ -1637,7 +1669,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 ) : (
                                   <button
                                     className={styles["btn-text"]}
-                                    onClick={() => handleCompleteProject(proj.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCompleteProject(proj.id);
+                                    }}
                                     style={{ color: "#ef4444", border: "none", background: "none", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600 }}
                                   >
                                     Complete
@@ -1655,47 +1690,105 @@ const WorkspaceAdminDashboard: React.FC = () => {
             );
           })()}
 
-          {/* TAB 4: WORKSPACE SETTINGS */}
-
           {activeTab === "settings" && (
             <>
               <div className={styles["page-header"]}>
                 <div className={styles["header-title-area"]}>
                   <h1 className={styles["header-title"]}>Workspace Settings</h1>
-                  <span className={styles["header-subtitle"]}>Change brand name and overview description of the Organization.</span>
+                  <span className={styles["header-subtitle"]}>Change brand name, logo preview, and overview description of the Organization.</span>
                 </div>
               </div>
 
-              <div className={styles["settings-form-container"]}>
-                <form onSubmit={handleUpdateWorkspace} className={styles["modal-body"]} style={{ padding: 0 }}>
-                  <div className={styles["form-group"]}>
-                    <label htmlFor="ws-name">Workspace/Organization Name</label>
-                    <input
-                      type="text"
-                      id="ws-name"
-                      className={styles["form-control"]}
-                      value={wsName}
-                      onChange={(e) => setWsName(e.target.value)}
-                      required
-                    />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "24px", alignItems: "start" }}>
+                {/* Left Card: Brand Identity Card */}
+                <div className={styles["profile-card-container"]} style={{ margin: 0, padding: "28px", background: "var(--admin-card-bg)", borderRadius: "12px", border: "1px solid var(--admin-border)", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                  <div style={{
+                    width: "80px",
+                    height: "80px",
+                    background: "linear-gradient(135deg, #a855f7 0%, #6366f1 100%)",
+                    borderRadius: "20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: "2rem",
+                    marginBottom: "16px",
+                    boxShadow: "0 8px 20px rgba(99, 102, 241, 0.2)"
+                  }}>
+                    {getInitials(wsName || "WS")}
                   </div>
 
-                  <div className={styles["form-group"]}>
-                    <label htmlFor="ws-desc">Overview Description</label>
-                    <textarea
-                      id="ws-desc"
-                      className={styles["form-textarea"]}
-                      value={wsDesc}
-                      onChange={(e) => setWsDesc(e.target.value)}
-                    />
-                  </div>
+                  <div className={styles["profile-details"]} style={{ width: "100%", textAlign: "left" }}>
+                    <h2 className={styles["profile-name"]} style={{ textAlign: "center", marginBottom: "16px", fontSize: "1.25rem", color: "var(--admin-text-main)", fontWeight: 700 }}>
+                      {wsName || "Flowspace Organization"}
+                    </h2>
 
-                  <div style={{ marginTop: "10px" }}>
-                    <button type="submit" className={styles["btn-primary"]}>
-                      <i className="bi bi-save"></i> Save Changes
-                    </button>
+                    <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed var(--admin-border)" }}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Identity Type</span>
+                      <strong>Workspace Organization</strong>
+                    </div>
+
+                    <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed var(--admin-border)" }}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Owner/Admin Role</span>
+                      <strong style={{ color: "var(--admin-primary)" }}>WORKSPACE_ADMIN</strong>
+                    </div>
+
+                    <div className={styles["profile-meta-item"]}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Description Overview</span>
+                      <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "var(--admin-text-main)", lineHeight: "1.4", wordBreak: "break-word" }}>
+                        {wsDesc || <em style={{ color: "var(--admin-text-secondary)" }}>No overview description set. Add one on the right panel.</em>}
+                      </p>
+                    </div>
                   </div>
-                </form>
+                </div>
+
+                {/* Right Card: Settings Edit Form */}
+                <div style={{ background: "var(--admin-card-bg)", padding: "28px", borderRadius: "12px", border: "1px solid var(--admin-border)" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "1.1rem", fontWeight: 700, color: "var(--admin-text-main)", borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
+                    Organization Customization
+                  </h3>
+
+                  <form onSubmit={handleUpdateWorkspace} className={styles["modal-body"]} style={{ padding: 0 }}>
+                    <div className={styles["form-group"]} style={{ marginBottom: "20px" }}>
+                      <label htmlFor="ws-name" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
+                        <i className="bi bi-tag-fill" style={{ marginRight: "6px", color: "var(--admin-primary)" }}></i>
+                        Workspace/Organization Name
+                      </label>
+                      <input
+                        type="text"
+                        id="ws-name"
+                        className={styles["form-control"]}
+                        value={wsName}
+                        onChange={(e) => setWsName(e.target.value)}
+                        required
+                        placeholder="Enter brand name"
+                      />
+                    </div>
+
+                    <div className={styles["form-group"]} style={{ marginBottom: "24px" }}>
+                      <label htmlFor="ws-desc" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
+                        <i className="bi bi-file-earmark-text-fill" style={{ marginRight: "6px", color: "var(--admin-primary)" }}></i>
+                        Overview Description
+                      </label>
+                      <textarea
+                        id="ws-desc"
+                        className={styles["form-textarea"]}
+                        value={wsDesc}
+                        onChange={(e) => setWsDesc(e.target.value)}
+                        placeholder="Provide details about this workspace organization..."
+                        style={{ minHeight: "120px", resize: "vertical" }}
+                      />
+                    </div>
+
+                    <div style={{ display: "flex", gap: "12px" }}>
+                      <button type="submit" className={styles["btn-primary"]} style={{ flex: 1, justifyContent: "center", height: "40px" }}>
+                        <i className="bi bi-save-fill" style={{ marginRight: "6px" }}></i>
+                        Save Changes
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             </>
           )}
@@ -1706,33 +1799,130 @@ const WorkspaceAdminDashboard: React.FC = () => {
               <div className={styles["page-header"]}>
                 <div className={styles["header-title-area"]}>
                   <h1 className={styles["header-title"]}>My Profile</h1>
-                  <span className={styles["header-subtitle"]}>Your identity and system-wide role information.</span>
+                  <span className={styles["header-subtitle"]}>Manage your personal identity information and view system-wide role.</span>
                 </div>
               </div>
 
-              <div className={styles["profile-card-container"]}>
-                <div className={styles["profile-avatar-large"]}>
-                  {getInitials(user?.username || "Admin")}
-                </div>
-                
-                <div className={styles["profile-details"]}>
-                  <h2 className={styles["profile-name"]}>{user?.username || "Workspace Administrator"}</h2>
-                  
-                  <div className={styles["profile-meta-item"]}>
-                    Registered Email: <strong>{user?.email}</strong>
-                  </div>
-                  
-                  <div className={styles["profile-meta-item"]}>
-                    Current Role: <strong>{user?.role} (Workspace admin)</strong>
-                  </div>
-                  
-                  <div className={styles["profile-meta-item"]}>
-                    Active Organization: <strong>{currentWorkspaceName} (ID: {user?.workspaceId})</strong>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "24px", alignItems: "start" }}>
+                {/* Left card: Current Info (Read-only) */}
+                <div className={styles["profile-card-container"]} style={{ margin: 0, padding: "24px", background: "var(--admin-card-bg)", borderRadius: "12px", border: "1px solid var(--admin-border)", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                  <div className={styles["profile-avatar-large"]} style={{ width: "90px", height: "90px", fontSize: "1.8rem", marginBottom: "16px" }}>
+                    {getInitials(user?.username || "Admin")}
                   </div>
 
-                  <div className={styles["profile-meta-item"]}>
-                    Account Status: <span style={{ color: "var(--admin-success)", fontWeight: "bold" }}>Active</span>
+                  <div className={styles["profile-details"]} style={{ width: "100%", textAlign: "left" }}>
+                    <h2 className={styles["profile-name"]} style={{ textAlign: "center", marginBottom: "20px", fontSize: "1.25rem", color: "var(--admin-text-main)" }}>
+                      {user?.username || "Workspace Administrator"}
+                    </h2>
+
+                    <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed var(--admin-border)" }}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Registered Email</span>
+                      <strong>{user?.email}</strong>
+                    </div>
+
+                    <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed var(--admin-border)" }}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Current Role (Read-only)</span>
+                      <strong style={{ color: "var(--admin-primary)" }}>{user?.role === "WORKSPACE_ADMIN" ? "WORKSPACE ADMIN" : user?.role || "MEMBER"}</strong>
+                    </div>
+
+                    <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed var(--admin-border)" }}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Active Workspace</span>
+                      <strong>{currentWorkspaceName} (ID: {user?.workspaceId})</strong>
+                    </div>
+
+                    <div className={styles["profile-meta-item"]}>
+                      <span style={{ color: "var(--admin-text-secondary)", fontSize: "0.8rem", display: "block" }}>Account Status</span>
+                      <span style={{ color: "var(--admin-success)", fontWeight: "bold", fontSize: "0.9rem" }}>Active</span>
+                    </div>
                   </div>
+                </div>
+
+                {/* Right card: Edit Profile Form */}
+                <div style={{ background: "var(--admin-card-bg)", padding: "24px", borderRadius: "12px", border: "1px solid var(--admin-border)" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "1.1rem", fontWeight: 700, color: "var(--admin-text-main)", borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
+                    Update Personal Information
+                  </h3>
+
+                  {user?.provider !== "LOCAL" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", padding: "10px 12px", marginBottom: "16px", color: "#d97706", fontSize: "0.82rem", fontWeight: 500 }}>
+                      <i className="bi bi-info-circle-fill" style={{ fontSize: "0.95rem" }}></i>
+                      <span>This account is authenticated via {user?.provider || "OAuth2"}. Password changes are disabled for OAuth2 accounts.</span>
+                    </div>
+                  )}
+
+                  {profileSuccess && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-success"]}`} style={{ marginBottom: "16px", padding: "10px" }}>
+                      <i className="bi bi-check-circle-fill"></i>
+                      <span>{profileSuccess}</span>
+                    </div>
+                  )}
+
+                  {profileError && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-error"]}`} style={{ marginBottom: "16px", padding: "10px" }}>
+                      <i className="bi bi-exclamation-triangle-fill"></i>
+                      <span>{profileError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateProfileSubmit}>
+                    <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
+                      <label htmlFor="profile-username" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
+                        Display Name / Full Name
+                      </label>
+                      <input
+                        type="text"
+                        id="profile-username"
+                        className={styles["form-control"]}
+                        value={profileUsername}
+                        onChange={(e) => setProfileUsername(e.target.value)}
+                        required
+                        placeholder="Enter your name"
+                      />
+                    </div>
+
+                    {user?.provider === "LOCAL" && (
+                      <>
+                        <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
+                          <label htmlFor="profile-password" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
+                            New Password (Leave blank to keep current)
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-password"
+                            className={styles["form-control"]}
+                            value={profilePassword}
+                            onChange={(e) => setProfilePassword(e.target.value)}
+                            placeholder="Minimum 6 characters"
+                          />
+                        </div>
+
+                        <div className={styles["form-group"]} style={{ marginBottom: "20px" }}>
+                          <label htmlFor="profile-confirm-password" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
+                            Confirm New Password
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-confirm-password"
+                            className={styles["form-control"]}
+                            value={profileConfirmPassword}
+                            onChange={(e) => setProfileConfirmPassword(e.target.value)}
+                            placeholder="Re-enter new password"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <button type="submit" className={styles["btn-primary"]} style={{ width: "100%", justifyContent: "center", height: "40px" }} disabled={profileLoading}>
+                      {profileLoading ? (
+                        <span>Updating Profile...</span>
+                      ) : (
+                        <>
+                          <i className="bi bi-person-check-fill" style={{ marginRight: "6px" }}></i>
+                          <span>Save Profile Details</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
               </div>
             </>
@@ -1760,7 +1950,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     return (
                       <div
                         key={ws.workspaceId}
-                        className={`${styles["history-card"]} ${!isActive ? styles["history-card-clickable"] : ""}`}
+                        className={styles["history-card"]}
                         onClick={() => {
                           if (!isActive) {
                             handleSwitchWorkspace(ws.workspaceId);
@@ -1775,10 +1965,8 @@ const WorkspaceAdminDashboard: React.FC = () => {
                             <div>
                               <h3 className={styles["history-ws-name"]}>
                                 {ws.workspaceName}
-                                {isActive ? (
+                                {isActive && (
                                   <span className={styles["active-badge"]}>Active</span>
-                                ) : (
-                                  <span className={styles["switch-hint-badge"]}>Click to switch</span>
                                 )}
                               </h3>
                               <p className={styles["history-ws-meta"]}>
@@ -1787,48 +1975,48 @@ const WorkspaceAdminDashboard: React.FC = () => {
                             </div>
                           </div>
 
-                        <div className={styles["history-ws-stats"]}>
-                          <span className={styles["stat-count-badge"]}>
-                            <i className="bi bi-clock"></i> Uncompleted: {ws.uncompletedTaskCount}
-                          </span>
-                          <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
-                            <i className="bi bi-check-circle"></i> Completed: {ws.completedTaskCount}
-                          </span>
+                          <div className={styles["history-ws-stats"]}>
+                            <span className={styles["stat-count-badge"]}>
+                              <i className="bi bi-clock"></i> Uncompleted: {ws.uncompletedTaskCount}
+                            </span>
+                            <span className={`${styles["stat-count-badge"]} ${styles["success"]}`}>
+                              <i className="bi bi-check-circle"></i> Completed: {ws.completedTaskCount}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Uncompleted tasks inside this workspace */}
+                        <div className={styles["history-tasks-section"]}>
+                          <h4 className={styles["history-tasks-title"]}>
+                            <i className="bi bi-clock"></i> Uncompleted tasks ({ws.uncompletedTasks?.length || 0})
+                          </h4>
+
+                          {!ws.uncompletedTasks || ws.uncompletedTasks.length === 0 ? (
+                            <p className={styles["no-tasks-text"]}>No uncompleted tasks in this Workspace.</p>
+                          ) : (
+                            <div className={styles["history-tasks-grid"]}>
+                              {ws.uncompletedTasks.map((t) => (
+                                <div key={t.id} className={styles["history-task-item"]}>
+                                  <div className={styles["history-task-top"]}>
+                                    <span className={styles["history-task-proj"]}>{t.projectName}</span>
+                                    <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
+                                      {t.priority}
+                                    </span>
+                                  </div>
+                                  <h5 className={styles["history-task-title"]}>{t.title}</h5>
+                                  {t.deadline && (
+                                    <div className={styles["history-task-deadline"]}>
+                                      <i className="bi bi-calendar-event"></i> Deadline: {t.deadline}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
-
-                      {/* Completed tasks inside this workspace */}
-                      <div className={styles["history-tasks-section"]}>
-                        <h4 className={styles["history-tasks-title"]}>
-                          <i className="bi bi-check2-all"></i> Your completed tasks ({ws.completedTasks?.length || 0})
-                        </h4>
-                        
-                        {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                          <p className={styles["no-tasks-text"]}>No completed tasks in this Workspace.</p>
-                        ) : (
-                          <div className={styles["history-tasks-grid"]}>
-                            {ws.completedTasks.map((t) => (
-                              <div key={t.id} className={styles["history-task-item"]}>
-                                <div className={styles["history-task-top"]}>
-                                  <span className={styles["history-task-proj"]}>{t.projectName}</span>
-                                  <span className={`${styles["history-task-priority"]} ${styles[t.priority] || ""}`}>
-                                    {t.priority}
-                                  </span>
-                                </div>
-                                <h5 className={styles["history-task-title"]}>{t.title}</h5>
-                                {t.deadline && (
-                                  <div className={styles["history-task-deadline"]}>
-                                    <i className="bi bi-calendar-event"></i> Deadline: {t.deadline}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                }))}
+                    );
+                  }))}
               </div>
             </>
           )}
@@ -1844,7 +2032,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
               <h3>Invite new member to join Workspace</h3>
               <button className={styles["modal-close-btn"]} onClick={() => setShowInviteModal(false)}>&times;</button>
             </div>
-            
+
             <form onSubmit={handleInviteMember}>
               <div className={styles["modal-body"]}>
                 <div className={styles["form-group"]}>
@@ -1872,7 +2060,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                     <option value="LEADER">LEADER (Project Manager)</option>
                   </select>
                 </div>
-                
+
                 <p style={{ fontSize: "0.72rem", color: "var(--admin-text-muted)", margin: 0 }}>
                   * If the user's email does not have an account in Task OS, the system will automatically create a secure draft account for the user to activate.
                 </p>
@@ -1893,7 +2081,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
           <div className={styles["modal-content"]}>
             <div className={styles["modal-header"]}>
               <h3>Initialize new project in Workspace</h3>
-              <button className={styles["modal-close-btn"]} onClick={() => setShowProjModal(false)}>&times;</button>
+              <button className={styles["modal-close-btn"]} onClick={closeProjModal}>&times;</button>
             </div>
 
             <form onSubmit={handleCreateProject}>
@@ -1922,43 +2110,74 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   />
                 </div>
 
-                <div className={styles["form-group"]}>
-                  <label htmlFor="proj-leader">Assign Project Leader*</label>
-                  <select
-                    id="proj-leader"
-                    className={styles["form-select"]}
-                    value={newProjLeader}
-                    onChange={(e) => setNewProjLeader(Number(e.target.value))}
-                    required
-                  >
-                    <option value={0}>-- Select team leader (must belong to Workspace) --</option>
-                    {members
-                      .filter(m => m.active) // Chỉ chọn các thành viên đang hoạt động
-                      .map(m => (
-                        <option key={m.userId} value={m.userId}>
-                          {m.username} ({m.email}) - {m.roleName}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                <div className={styles["form-row"]} style={{ marginBottom: showLeaderSuggestions ? "190px" : "0px" }}>
+                  <div className={styles["form-group"]} style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                    <label htmlFor="proj-leader">Assign Project Leader*</label>
+                    <div className={styles["autocomplete-wrapper"]} ref={autocompleteRef}>
+                      <input
+                        type="text"
+                        id="proj-leader"
+                        className={styles["form-control"]}
+                        placeholder="Type email or name to search..."
+                        value={leaderSearchInput}
+                        onChange={handleLeaderSearchChange}
+                        onFocus={() => setShowLeaderSuggestions(true)}
+                        autoComplete="off"
+                        required
+                      />
+                      {showLeaderSuggestions && (
+                        <div className={styles["suggestions-list"]}>
+                          {members
+                            .filter(m => m.active && (
+                              m.username.toLowerCase().includes(leaderSearchInput.toLowerCase()) ||
+                              m.email.toLowerCase().includes(leaderSearchInput.toLowerCase())
+                            ))
+                            .map(m => (
+                              <div
+                                key={m.userId}
+                                className={styles["suggestion-item"]}
+                                onClick={() => handleSelectLeader(m)}
+                              >
+                                <span className={styles["suggestion-name"]}>{m.username}</span>
+                                <span className={styles["suggestion-email"]}>{m.email}</span>
+                              </div>
+                            ))}
+                          {members.filter(m => m.active && (
+                            m.username.toLowerCase().includes(leaderSearchInput.toLowerCase()) ||
+                            m.email.toLowerCase().includes(leaderSearchInput.toLowerCase())
+                          )).length === 0 && (
+                              <div className={styles["suggestion-empty"]}>
+                                No active workspace members found
+                              </div>
+                            )}
+                        </div>
+                      )}
+                    </div>
+                    {newProjLeader > 0 && (
+                      <div style={{ fontSize: "0.75rem", color: "var(--admin-success)", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <i className="bi bi-check-circle-fill"></i> Leader selected successfully
+                      </div>
+                    )}
+                  </div>
 
-                <div className={styles["form-group"]}>
-                  <label htmlFor="proj-max-members">Maximum number of members (Max members)*</label>
-                  <input
-                    type="number"
-                    id="proj-max-members"
-                    className={styles["form-control"]}
-                    placeholder="Enter maximum number of members (e.g., 10)"
-                    value={newProjMaxMembers}
-                    onChange={(e) => setNewProjMaxMembers(Number(e.target.value))}
-                    min={1}
-                    required
-                  />
+                  <div className={styles["form-group"]} style={{ width: "120px", flexShrink: 0 }}>
+                    <label htmlFor="proj-max-members">Max members*</label>
+                    <input
+                      type="number"
+                      id="proj-max-members"
+                      className={`${styles["form-control"]} ${styles["number-input-compact"]}`}
+                      placeholder="e.g. 10"
+                      value={newProjMaxMembers}
+                      onChange={(e) => setNewProjMaxMembers(Number(e.target.value))}
+                      min={1}
+                      required
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className={styles["modal-footer"]}>
-                <button type="button" className={styles["btn-secondary"]} onClick={() => setShowProjModal(false)}>Cancel</button>
+                <button type="button" className={styles["btn-secondary"]} onClick={closeProjModal}>Cancel</button>
                 <button type="submit" className={styles["btn-primary"]} disabled={!newProjLeader}>Create project</button>
               </div>
             </form>
@@ -2013,7 +2232,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
               </div>
               <button className={styles["modal-close-btn"]} onClick={() => setShowCreateWorkspaceModal(false)}>&times;</button>
             </div>
-            
+
             <div className={styles["modal-body"]}>
               {wsModalError && (
                 <div className={`${styles["alert-box"]} ${styles["alert-error"]}`} style={{ marginBottom: "15px", padding: "10px" }}>
@@ -2087,6 +2306,67 @@ const WorkspaceAdminDashboard: React.FC = () => {
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* POPUP MODAL: VIEW PROJECT MEMBERS */}
+      {selectedProjForMembers && (
+        <div className={styles["modal-overlay"]}>
+          <div className={styles["modal-content"]} style={{ maxWidth: "500px" }}>
+            <div className={styles["modal-header"]}>
+              <h3>Project Members - {selectedProjForMembers.name}</h3>
+              <button className={styles["modal-close-btn"]} onClick={() => setSelectedProjForMembers(null)}>&times;</button>
+            </div>
+
+            <div className={styles["modal-body"]}>
+              <div className={styles["proj-members-list"]} style={{ display: "flex", flexDirection: "column", gap: "10px", maxHeight: "350px", overflowY: "auto" }}>
+                {/* Project Leader */}
+                {selectedProjForMembers.leaderUsername && (
+                  <div className={styles["proj-member-item"]} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--admin-card-bg)", border: "1px solid var(--admin-border)", borderRadius: "8px" }}>
+                    <div className={styles["proj-member-identity"]} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div className={styles["proj-member-avatar"]} style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--admin-primary-light)", color: "var(--admin-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.82rem" }}>
+                        {getInitials(selectedProjForMembers.leaderUsername)}
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column" }}>
+                        <span className={styles["proj-member-name"]} style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--admin-text-main)" }}>{selectedProjForMembers.leaderUsername}</span>
+                        <span className={styles["proj-member-email"]} style={{ fontSize: "0.78rem", color: "var(--admin-text-secondary)" }}>{selectedProjForMembers.leaderEmail || "Leader"}</span>
+                      </div>
+                    </div>
+                    <span className={styles["proj-leader-badge"]} style={{ fontSize: "0.72rem", padding: "4px 8px", background: "rgba(99, 102, 241, 0.1)", color: "var(--admin-primary)", borderRadius: "12px", fontWeight: 700 }}>Leader</span>
+                  </div>
+                )}
+
+                {/* Project Members */}
+                {selectedProjForMembers.members && selectedProjForMembers.members
+                  .filter(m => m.username !== selectedProjForMembers.leaderUsername)
+                  .map(m => (
+                    <div key={m.id} className={styles["proj-member-item"]} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: "var(--admin-card-bg)", border: "1px solid var(--admin-border)", borderRadius: "8px" }}>
+                      <div className={styles["proj-member-identity"]} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div className={styles["proj-member-avatar"]} style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#f1f5f9", color: "#64748b", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "0.82rem" }}>
+                          {getInitials(m.username)}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column" }}>
+                          <span className={styles["proj-member-name"]} style={{ fontWeight: 600, fontSize: "0.88rem", color: "var(--admin-text-main)" }}>{m.username}</span>
+                          <span className={styles["proj-member-email"]} style={{ fontSize: "0.78rem", color: "var(--admin-text-secondary)" }}>{m.email}</span>
+                        </div>
+                      </div>
+                      <span className={styles["proj-leader-badge"]} style={{ fontSize: "0.72rem", padding: "4px 8px", background: "#f1f5f9", color: "#64748b", borderRadius: "12px", fontWeight: 700 }}>Member</span>
+                    </div>
+                  ))
+                }
+
+                {(!selectedProjForMembers.members || selectedProjForMembers.members.length === 0) && !selectedProjForMembers.leaderUsername && (
+                  <p style={{ fontSize: "0.82rem", color: "var(--admin-text-muted)", fontStyle: "italic", textAlign: "center", margin: "20px 0" }}>
+                    No members assigned.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className={styles["modal-footer"]} style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button type="button" className={styles["btn-primary"]} onClick={() => setSelectedProjForMembers(null)}>Close</button>
             </div>
           </div>
         </div>

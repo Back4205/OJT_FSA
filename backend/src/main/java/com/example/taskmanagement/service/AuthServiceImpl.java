@@ -405,9 +405,9 @@ public class AuthServiceImpl implements AuthService {
                     long uncompleted = taskRepository.countUncompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
                     long completed = taskRepository.countCompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
                     
-                    List<Task> completedTaskList = taskRepository.findCompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
-                    List<com.example.taskmanagement.dto.response.UserWorkspaceResponse.CompletedTaskInfo> completedTasks = completedTaskList.stream()
-                            .map(t -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse.CompletedTaskInfo(
+                    List<Task> uncompletedTaskList = taskRepository.findUncompletedTasksByAssigneeIdAndWorkspaceId(user.getId(), m.getWorkspace().getId());
+                    List<com.example.taskmanagement.dto.response.UserWorkspaceResponse.UncompletedTaskInfo> uncompletedTasks = uncompletedTaskList.stream()
+                            .map(t -> new com.example.taskmanagement.dto.response.UserWorkspaceResponse.UncompletedTaskInfo(
                                     t.getId(),
                                     t.getTitle(),
                                     t.getProject() != null ? t.getProject().getName() : "General",
@@ -423,7 +423,7 @@ public class AuthServiceImpl implements AuthService {
                             m.getWorkspace().isActive(),
                             uncompleted,
                             completed,
-                            completedTasks
+                            uncompletedTasks
                     );
                 })
                 .collect(java.util.stream.Collectors.toList());
@@ -519,5 +519,36 @@ public class AuthServiceImpl implements AuthService {
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
         return UserResponse.fromEntity(user, workspace, membership.getRole());
+    }
+
+    @Override
+    @Transactional
+    public UserResponse updateProfile(String email, com.example.taskmanagement.dto.request.UpdateProfileRequest request, Long activeWorkspaceId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalStateException("User not found"));
+
+        if (request.getUsername() != null && !request.getUsername().trim().isEmpty()) {
+            user.setUsername(request.getUsername().trim());
+        }
+
+        if (request.getPassword() != null && !request.getPassword().trim().isEmpty()) {
+            if (user.getProvider() != com.example.taskmanagement.model.enums.AuthProvider.LOCAL) {
+                throw new IllegalArgumentException("Accounts logged in via external provider (" + user.getProvider() + ") cannot change passwords.");
+            }
+            user.setPassword(passwordEncoder.encode(request.getPassword().trim()));
+        }
+
+        user = userRepository.save(user);
+
+        Workspace workspace = null;
+        WorkspaceMembership membership = null;
+        if (activeWorkspaceId != null) {
+            workspace = workspaceRepository.findById(activeWorkspaceId).orElse(null);
+            if (workspace != null) {
+                membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), activeWorkspaceId).orElse(null);
+            }
+        }
+
+        return UserResponse.fromEntity(user, workspace, membership != null ? membership.getRole() : null);
     }
 }

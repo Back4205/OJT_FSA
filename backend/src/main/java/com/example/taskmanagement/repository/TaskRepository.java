@@ -28,6 +28,9 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     @Query("SELECT t FROM Task t WHERE t.assignee.id = :assigneeId AND t.project.workspace.id = :workspaceId AND t.status = com.example.taskmanagement.model.enums.TaskStatus.DONE ORDER BY t.id DESC")
     List<Task> findCompletedTasksByAssigneeIdAndWorkspaceId(@Param("assigneeId") Long assigneeId, @Param("workspaceId") Long workspaceId);
 
+    @Query("SELECT t FROM Task t WHERE t.assignee.id = :assigneeId AND t.project.workspace.id = :workspaceId AND t.status != com.example.taskmanagement.model.enums.TaskStatus.DONE ORDER BY t.id DESC")
+    List<Task> findUncompletedTasksByAssigneeIdAndWorkspaceId(@Param("assigneeId") Long assigneeId, @Param("workspaceId") Long workspaceId);
+
     long countByProjectWorkspaceIdAndStatus(Long workspaceId, TaskStatus status);
 
     long countByProjectWorkspaceIdAndPriority(Long workspaceId, TaskPriority priority);

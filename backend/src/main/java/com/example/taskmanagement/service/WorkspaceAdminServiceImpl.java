@@ -485,4 +485,13 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         }
         // Nếu đã là LEADER hoặc WORKSPACE_ADMIN → không cần thay đổi
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActivityLogResponse> getActivityLogs(Long workspaceId) {
+        List<ActivityLog> logs = activityLogRepository.findAllActivitiesInWorkspace(workspaceId);
+        return logs.stream()
+                .map(ActivityLogResponse::from)
+                .toList();
+    }
 }
