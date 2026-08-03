@@ -12,14 +12,12 @@ const LoginForm: React.FC = () => {
   const navigate = useNavigate();
   const { login, verifyOtp } = useAuth();
 
-  // Các trạng thái xác thực hai lớp OTP
   const [otpMode, setOtpMode] = useState<boolean>(false);
   const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(""));
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string>("");
   const [resendCooldown, setResendCooldown] = useState<number>(0);
 
-  // Khôi phục thông tin đăng nhập đã lưu từ trước (Nếu chọn Remember Me)
   useEffect(() => {
     const savedRememberMe = localStorage.getItem("rememberMe") === "true";
     if (savedRememberMe) {
@@ -31,19 +29,17 @@ const LoginForm: React.FC = () => {
     }
   }, []);
 
-  // Kiểm tra tham số trên URL để xử lý xác thực email qua link kích hoạt
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const verified = params.get("verified");
     const error = params.get("error");
     if (verified === "true") {
-      setSuccessMsg("Tài khoản của bạn đã được kích hoạt thành công. Vui lòng đăng nhập!");
+      setSuccessMsg("Your account has been activated successfully. Please sign in.");
     } else if (error) {
-      setErrorMsg(`Kích hoạt tài khoản thất bại: ${decodeURIComponent(error)}`);
+      setErrorMsg(`Account activation failed: ${decodeURIComponent(error)}`);
     }
   }, []);
 
-  // Bộ đếm thời gian cooldown cho việc gửi lại mã OTP
   useEffect(() => {
     if (resendCooldown <= 0) return;
     const timer = setInterval(() => {
@@ -52,7 +48,6 @@ const LoginForm: React.FC = () => {
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
-  // Đăng nhập tài khoản tiêu chuẩn
   const handleStandardLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
@@ -61,7 +56,6 @@ const LoginForm: React.FC = () => {
     try {
       const result = await login(email, password);
 
-      // Lưu trữ tài khoản nếu chọn Remember Me
       if (rememberMe) {
         localStorage.setItem("rememberEmail", email);
         localStorage.setItem("rememberPassword", password);
@@ -74,32 +68,29 @@ const LoginForm: React.FC = () => {
 
       if (result && result.otpRequired) {
         setOtpMode(true);
-        setSuccessMsg("Mã kiểm tra bảo mật OTP đã được gửi đến email của bạn.");
-        setResendCooldown(60); // Đặt thời gian cooldown 60 giây
+        setSuccessMsg("A security OTP code has been sent to your email.");
+        setResendCooldown(60);
       } else {
         navigate("/taskmanager/dashboard");
       }
     } catch (error: any) {
       console.error(error);
-      setErrorMsg(error.response?.data?.message ?? "Email hoặc mật khẩu không chính xác.");
+      setErrorMsg(error.response?.data?.message ?? "Email or password is incorrect.");
     }
   };
 
-  // Tăng hiệu quả trải nghiệm nhập mã OTP
   const handleOtpChange = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const newDigits = [...otpDigits];
     newDigits[index] = value.substring(value.length - 1);
     setOtpDigits(newDigits);
 
-    // Tự động nhảy sang ô nhập tiếp theo
     if (value && index < 5) {
       const nextInput = document.getElementById(`otp-${index + 1}`) as HTMLInputElement;
       nextInput?.focus();
     }
   };
 
-  // Nhấn Backspace để quay lại ô trước
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Backspace" && !otpDigits[index] && index > 0) {
       const prevInput = document.getElementById(`otp-${index - 1}`) as HTMLInputElement;
@@ -107,39 +98,36 @@ const LoginForm: React.FC = () => {
     }
   };
 
-  // Xác thực mã OTP
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
     const otpCode = otpDigits.join("");
     if (otpCode.length !== 6) {
-      setErrorMsg("Vui lòng nhập đầy đủ 6 chữ số OTP.");
+      setErrorMsg("Please enter all 6 OTP digits.");
       return;
     }
     try {
       await verifyOtp(email, otpCode);
       navigate("/taskmanager/dashboard");
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message ?? "Mã OTP không chính xác hoặc đã hết hạn.");
+      setErrorMsg(err.response?.data?.message ?? "The OTP code is incorrect or expired.");
     }
   };
 
-  // Gửi lại mã OTP
   const handleResendOtp = async () => {
     if (resendCooldown > 0) return;
     try {
       setErrorMsg("");
       setSuccessMsg("");
       await api.post("/auth/login", { email, password });
-      setSuccessMsg("Mã OTP mới đã được gửi vào email của bạn.");
+      setSuccessMsg("A new OTP code has been sent to your email.");
       setResendCooldown(60);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message ?? "Không thể gửi lại mã OTP.");
+      setErrorMsg(err.response?.data?.message ?? "Unable to resend the OTP code.");
     }
   };
 
-  // Chuyển hướng đăng nhập OAuth2 Google và GitHub của Backend cũ
   const handleGoogleLogin = () => {
     window.location.href = "http://localhost:8080/taskmanager/oauth2/authorization/google";
   };
@@ -151,7 +139,7 @@ const LoginForm: React.FC = () => {
   return (
     <div className={styles["login-container-page"]}>
       
-      {/* CỘT TRÁI: FORM ĐĂNG NHẬP MOCKUP */}
+
       <div className={styles["login-left-column"]}>
         <div className={styles["login-form-area"]}>
           
@@ -168,19 +156,17 @@ const LoginForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Tiêu đề */}
           <div className={styles["login-header"]}>
             <h1>Welcome back</h1>
             <p>Sign in to continue to your workspace.</p>
           </div>
 
-          {/* Các thông báo lỗi/thành công */}
           {errorMsg && <div className={styles["alert-error"]}>{errorMsg}</div>}
           {successMsg && <div className={styles["alert-success"]}>{successMsg}</div>}
 
           {!otpMode ? (
             <>
-              {/* Nút đăng nhập liên kết Google & GitHub */}
+
               <div className={styles["social-buttons-wrapper"]}>
                 <button
                   type="button"
@@ -209,12 +195,10 @@ const LoginForm: React.FC = () => {
                 </button>
               </div>
 
-              {/* Bộ chia OR */}
               <div className={styles["or-divider"]}>
                 <span>OR</span>
               </div>
 
-              {/* Form nhập tài khoản mật khẩu tiêu chuẩn */}
               <form onSubmit={handleStandardLogin} className={styles["standard-form"]}>
                 <div className={styles["input-field-group"]}>
                   <label htmlFor="email">Work email</label>
@@ -272,20 +256,18 @@ const LoginForm: React.FC = () => {
                 </button>
               </form>
 
-              {/* Hướng dẫn tạo tài khoản mới */}
               <div className={styles["create-account-prompt"]}>
                 Don't have an account? <Link to="/taskmanager/register">Create one</Link>
               </div>
             </>
           ) : (
             <>
-              {/* Giao diện xác thực OTP Email dựa theo mockup */}
+
               <div className={styles["login-header"]}>
                 <h1>Verify your email</h1>
                 <p>We sent a 6-digit code to {email || "you@company.com"}.</p>
               </div>
 
-              {/* Banner gợi ý màu xanh lá */}
               <div className={styles["otp-banner-card"]}>
                 <div className={styles["otp-banner-icon-box"]}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -299,7 +281,7 @@ const LoginForm: React.FC = () => {
               </div>
 
               <form onSubmit={handleOtpSubmit} className={styles["standard-form"]}>
-                {/* 6 ô nhập dạng liền khối thống nhất */}
+
                 <div className={styles["otp-inputs-unified"]}>
                   {otpDigits.map((digit, idx) => (
                     <input
@@ -322,7 +304,6 @@ const LoginForm: React.FC = () => {
                 </button>
               </form>
 
-              {/* Chân trang OTP liên kết gửi lại mã / quay lại trang login */}
               <div className={styles["otp-footer-row"]}>
                 Didn't get it?{" "}
                 <button
@@ -349,7 +330,6 @@ const LoginForm: React.FC = () => {
             </>
           )}
 
-          {/* Footer chân trang cột trái */}
           <div className={styles["mockup-footer"]}>
             <span>© 2026 Flowspace, Inc. · Privacy · Terms</span>
           </div>
@@ -357,7 +337,6 @@ const LoginForm: React.FC = () => {
         </div>
       </div>
 
-      {/* CỘT PHẢI: TESTIMONIAL & STATS MOCKUP (CHỈ HIỂN THỊ TRÊN DESKTOP) */}
       <div className={styles["login-right-column"]}>
         <div className={styles["right-content-wrapper"]}>
           
@@ -386,12 +365,10 @@ const LoginForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Danh ngôn bình chọn */}
           <div className={styles["testimonial-quote"]}>
             "Flowspace replaced Jira, Notion and Linear for our engineering org. We ship 2x faster."
           </div>
 
-          {/* Tác giả */}
           <div className={styles["testimonial-author"]}>
             <div className={styles["author-avatar"]}></div>
             <div className={styles["author-info"]}>
@@ -400,7 +377,6 @@ const LoginForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Biểu thống kê metrics */}
           <div className={styles["stats-row"]}>
             <div className={styles["stat-item"]}>
               <div className={styles["stat-number"]}>2.4M</div>

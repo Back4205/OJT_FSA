@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProjectMemberRequest {
-    @NotNull(message = "ID của user không được để trống")
+    @NotNull(message = "User ID is required")
     private Long userId;
 }

@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Entity đại diện cho một Workspace/Công ty
+
  */
 @Entity
 @Table(name = "workspaces")

@@ -17,7 +17,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Lớp triển khai các API nghiệp vụ cho role WORKSPACE_ADMIN
+ * Service implementation for WORKSPACE_ADMIN business APIs.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,7 +37,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional(readOnly = true)
     public WorkspaceResponse getWorkspaceDetails(Long workspaceId) {
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Workspace với ID: " + workspaceId));
+                .orElseThrow(() -> new IllegalArgumentException("Workspace not found with ID: " + workspaceId));
         return WorkspaceResponse.fromEntity(workspace);
     }
 
@@ -45,12 +45,12 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public WorkspaceResponse updateWorkspaceDetails(Long workspaceId, WorkspaceUpdateRequest request) {
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Workspace với ID: " + workspaceId));
+                .orElseThrow(() -> new IllegalArgumentException("Workspace not found with ID: " + workspaceId));
 
         String newName = request.getName().trim();
-        // Kiểm tra trùng tên Workspace khác
+        // Check duplicate workspace names.
         if (!workspace.getName().equalsIgnoreCase(newName) && workspaceRepository.existsByName(newName)) {
-            throw new IllegalArgumentException("Tên Workspace/Tổ chức này đã được sử dụng");
+            throw new IllegalArgumentException("This workspace/organization name is already in use");
         }
 
         workspace.setName(newName);
@@ -68,11 +68,11 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
 
         return memberships.stream()
                 .filter(m -> {
-                    // Lọc theo trạng thái hoạt động nếu có yêu cầu
+                    // Filter by active state when requested.
                     if (isActive != null && m.isActive() != isActive) {
                         return false;
                     }
-                    // Lọc theo vai trò nếu có yêu cầu
+                    // Filter by role when requested.
                     if (roleName != null && !roleName.trim().isEmpty()) {
                         if (!m.getRole().getName().name().equalsIgnoreCase(roleName.trim())) {
                             return false;
@@ -99,28 +99,28 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     public MembershipResponse addWorkspaceMember(Long workspaceId, MemberAddRequest request) {
         String email = request.getEmail().trim().toLowerCase();
         
-        // Xác thực vai trò phân cấp (chỉ cho phép gán LEADER hoặc MEMBER)
+        // Validate role hierarchy; only LEADER or MEMBER can be assigned.
         RoleName roleToAssign;
         try {
             roleToAssign = RoleName.valueOf(request.getRoleName().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Vai trò không hợp lệ. Chỉ chấp nhận LEADER hoặc MEMBER");
+            throw new IllegalArgumentException("Invalid role. Only LEADER or MEMBER is accepted");
         }
 
         if (roleToAssign != RoleName.LEADER && roleToAssign != RoleName.MEMBER) {
-            throw new IllegalArgumentException("Quản trị viên Workspace chỉ được gán vai trò LEADER hoặc MEMBER");
+            throw new IllegalArgumentException("Workspace admins can assign only LEADER or MEMBER roles");
         }
 
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Workspace hiện tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Current workspace not found"));
 
         Role dbRole = roleRepository.findByName(roleToAssign)
-                .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình vai trò: " + roleToAssign));
+                .orElseThrow(() -> new IllegalStateException("Role is not configured in the system: " + roleToAssign));
 
-        // Tìm User theo email
+        // Find the user by email.
         User user = userRepository.findByEmail(email).orElse(null);
 
-        // Trường hợp người dùng chưa tồn tại trên toàn bộ platform -> tự động tạo tài khoản nháp
+        // If the user does not exist on the platform, create a draft account.
         if (user == null) {
             user = new User();
             String usernamePart = email.split("@")[0];
@@ -132,28 +132,28 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
             }
             user.setUsername(uniqueUsername);
             user.setEmail(email);
-            // Tạo mật khẩu ngẫu nhiên để tài khoản nháp tạm thời an toàn
+            // Create a random password so the draft account is temporarily safe.
             user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
             user.setProvider(AuthProvider.LOCAL);
             user.setActive(true);
-            user.setEmailVerified(false); // Chưa xác thực email
+            user.setEmailVerified(false); // Email is not verified yet.
             user = userRepository.save(user);
         }
 
-        // Kiểm tra xem user này đã từng tham gia Workspace này chưa
+        // Check whether this user has joined this workspace before.
         var membershipOpt = workspaceMembershipRepository.findByUserIdAndWorkspaceId(user.getId(), workspaceId);
 
         WorkspaceMembership membership;
         if (membershipOpt.isPresent()) {
             membership = membershipOpt.get();
             if (membership.isActive()) {
-                throw new IllegalArgumentException("Người dùng có email này đã hoạt động trong Workspace");
+                throw new IllegalArgumentException("A user with this email is already active in the workspace");
             }
-            // Nếu đã từng có membership nhưng bị khóa -> Kích hoạt lại và cập nhật vai trò mới
+            // If a locked membership exists, reactivate it and update the role.
             membership.setActive(true);
             membership.setRole(dbRole);
         } else {
-            // Tạo mới membership hoàn toàn
+            // Create a completely new membership.
             membership = new WorkspaceMembership();
             membership.setUser(user);
             membership.setWorkspace(workspace);
@@ -169,24 +169,24 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public MembershipResponse updateMemberRole(Long workspaceId, Long userId, MemberRoleUpdateRequest request) {
         WorkspaceMembership membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(userId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này trong Workspace hiện tại"));
+                .orElseThrow(() -> new IllegalArgumentException("This member was not found in the current workspace"));
 
-        // Xác thực vai trò phân cấp (chỉ cho phép gán LEADER hoặc MEMBER)
+        // Validate role hierarchy; only LEADER or MEMBER can be assigned.
         RoleName newRoleName;
         try {
             newRoleName = RoleName.valueOf(request.getRoleName().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Vai trò đổi mới không hợp lệ. Chỉ chấp nhận LEADER hoặc MEMBER");
+            throw new IllegalArgumentException("Invalid new role. Only LEADER or MEMBER is accepted");
         }
 
         if (newRoleName != RoleName.LEADER && newRoleName != RoleName.MEMBER) {
-            throw new IllegalArgumentException("Quản trị viên Workspace chỉ được cập nhật vai trò sang LEADER hoặc MEMBER");
+            throw new IllegalArgumentException("Workspace admins can update roles only to LEADER or MEMBER");
         }
 
         Role dbRole = roleRepository.findByName(newRoleName)
-                .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình vai trò: " + newRoleName));
+                .orElseThrow(() -> new IllegalStateException("Role is not configured in the system: " + newRoleName));
 
-        // Cập nhật vai trò
+        // Update role.
         membership.setRole(dbRole);
         WorkspaceMembership savedMembership = workspaceMembershipRepository.save(membership);
 
@@ -207,39 +207,39 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public void updateProjectMemberRole(Long workspaceId, Long projectId, Long userId, MemberRoleUpdateRequest request) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Project does not exist or does not belong to this workspace"));
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này"));
+                .orElseThrow(() -> new IllegalArgumentException("This member was not found"));
 
         RoleName newRole;
         try {
             newRole = RoleName.valueOf(request.getRoleName().trim().toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Vai trò đổi mới không hợp lệ. Chỉ chấp nhận LEADER hoặc MEMBER");
+            throw new IllegalArgumentException("Invalid new role. Only LEADER or MEMBER is accepted");
         }
 
         if (newRole == RoleName.LEADER) {
-            // Thăng chức làm Leader dự án
+            // Promote to project leader.
             project.getMembers().add(user);
             project.setLeader(user);
             projectRepository.save(project);
 
-            // [Phương án B] Tự động nâng workspace role lên LEADER nếu hiện là MEMBER
+            // Option B: automatically promote workspace role to LEADER if currently MEMBER.
             WorkspaceMembership membership = workspaceMembershipRepository
                     .findByUserIdAndWorkspaceId(userId, workspaceId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy membership của user trong Workspace"));
+                    .orElseThrow(() -> new IllegalArgumentException("User membership was not found in the workspace"));
             upgradeToLeaderIfNeeded(membership);
 
         } else if (newRole == RoleName.MEMBER) {
-            // Hạ chức xuống làm Member dự án
+            // Demote to project member.
             if (project.getLeader().getId().equals(userId)) {
-                throw new IllegalArgumentException("Không thể trực tiếp hạ chức Project Leader. Vui lòng thăng chức thành viên khác làm Leader trước.");
+                throw new IllegalArgumentException("Cannot directly demote the project leader. Please promote another member to leader first.");
             }
             project.getMembers().add(user);
             projectRepository.save(project);
 
-            // [Phương án B] Nếu user không còn là leader của project nào khác trong WS → hạ về MEMBER
+            // Option B: if the user no longer leads any other project in the workspace, demote to MEMBER.
             boolean stillLeadsAnotherProject = projectRepository.findByWorkspaceId(workspaceId)
                     .stream()
                     .anyMatch(p -> !p.getId().equals(projectId) && p.getLeader().getId().equals(userId));
@@ -249,7 +249,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                         .orElseThrow();
                 if (membership.getRole().getName() == RoleName.LEADER) {
                     Role memberRole = roleRepository.findByName(RoleName.MEMBER)
-                            .orElseThrow(() -> new IllegalStateException("Không tìm thấy role MEMBER"));
+                            .orElseThrow(() -> new IllegalStateException("MEMBER role not found"));
                     membership.setRole(memberRole);
                     workspaceMembershipRepository.save(membership);
                 }
@@ -261,11 +261,11 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public void deactivateWorkspaceMember(Long workspaceId, Long userId) {
         WorkspaceMembership membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(userId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này trong Workspace"));
+                .orElseThrow(() -> new IllegalArgumentException("This member was not found in the workspace"));
 
-        // Luật nghiệp vụ: Không được phép tự loại bỏ hoặc vô hiệu hóa vai trò quản trị viên chính mình/ADMIN
+        // Business rule: do not remove or deactivate the workspace admin account.
         if (membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
-            throw new IllegalArgumentException("Không thể vô hiệu hóa tài khoản quản trị viên Workspace");
+            throw new IllegalArgumentException("Cannot deactivate the workspace admin account");
         }
 
         membership.setActive(false);
@@ -276,7 +276,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public void activateWorkspaceMember(Long workspaceId, Long userId) {
         WorkspaceMembership membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(userId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này trong Workspace"));
+                .orElseThrow(() -> new IllegalArgumentException("This member was not found in the workspace"));
 
         boolean wasInactive = !membership.isActive();
         membership.setActive(true);
@@ -308,15 +308,15 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public ProjectResponse createProject(Long workspaceId, ProjectCreateRequest request) {
         Workspace workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Workspace hiện tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Current workspace not found"));
 
-        // Kiểm tra xem leader được chọn có trực thuộc và đang hoạt động trong Workspace hay không
+        // Check that the selected leader belongs to and is active in the workspace.
         WorkspaceMembership leaderMembership = workspaceMembershipRepository
                 .findByUserIdAndWorkspaceId(request.getLeaderId(), workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Leader được chọn không phải là thành viên của Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Selected leader is not a member of this workspace"));
 
         if (!leaderMembership.isActive()) {
-            throw new IllegalArgumentException("Tài khoản của Leader được chọn hiện đang bị khóa trong Workspace");
+            throw new IllegalArgumentException("Selected leader account is currently locked in the workspace");
         }
 
         Project project = new Project();
@@ -326,12 +326,12 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         project.setWorkspace(workspace);
         project.setMaxMembers(request.getMaxMembers());
 
-        // Tự động thêm leader làm thành viên đầu tiên của dự án
+        // Automatically add the leader as the first project member.
         project.getMembers().add(leaderMembership.getUser());
 
         Project savedProject = projectRepository.save(project);
 
-        // [Phương án B] Tự động nâng workspace role lên LEADER nếu hiện là MEMBER
+        // Option B: automatically promote workspace role to LEADER if currently MEMBER.
         upgradeToLeaderIfNeeded(leaderMembership);
 
         return ProjectResponse.fromEntity(savedProject);
@@ -341,26 +341,26 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public ProjectResponse addProjectMember(Long workspaceId, Long projectId, ProjectMemberRequest request) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Project does not exist or does not belong to this workspace"));
 
-        // Kiểm tra xem người dùng được add có trực thuộc và đang hoạt động trong Workspace không
+        // Check that the user being added belongs to and is active in the workspace.
         WorkspaceMembership membership = workspaceMembershipRepository
                 .findByUserIdAndWorkspaceId(request.getUserId(), workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Người dùng cần thêm không thuộc thành viên Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("The user to add is not a member of this workspace"));
 
         if (!membership.isActive()) {
-            throw new IllegalArgumentException("Tài khoản thành viên cần thêm đang bị khóa");
+            throw new IllegalArgumentException("The member account to add is locked");
         }
 
         if (project.getMembers().contains(membership.getUser())) {
-            throw new IllegalArgumentException("Thành viên đã có trong dự án này");
+            throw new IllegalArgumentException("Member is already in this project");
         }
 
         if (project.getMaxMembers() != null && project.getMembers().size() >= project.getMaxMembers()) {
-            throw new IllegalArgumentException("Dự án đã đạt giới hạn số lượng thành viên tối đa quy định (" + project.getMaxMembers() + ")");
+            throw new IllegalArgumentException("Project has reached the maximum member limit (" + project.getMaxMembers() + ")");
         }
 
-        // Add vào project
+        // Add to project.
         project.getMembers().add(membership.getUser());
         Project savedProject = projectRepository.save(project);
 
@@ -371,14 +371,14 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public ProjectResponse removeProjectMember(Long workspaceId, Long projectId, Long userId) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Project does not exist or does not belong to this workspace"));
 
         User userToRemove = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy người dùng này"));
+                .orElseThrow(() -> new IllegalArgumentException("This user was not found"));
 
-        // Luật nghiệp vụ: Không được gỡ leader ra khỏi dự án bằng phương thức này (Leader quản lý dự án)
+        // Business rule: do not remove the project leader through this method.
         if (project.getLeader().getId().equals(userId)) {
-            throw new IllegalArgumentException("Không thể gỡ bỏ Project Leader khỏi dự án này");
+            throw new IllegalArgumentException("Cannot remove the project leader from this project");
         }
 
         project.getMembers().remove(userToRemove);
@@ -390,24 +390,24 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Override
     @Transactional(readOnly = true)
     public DashboardStatsResponse getDashboardStats(Long workspaceId) {
-        // Lấy danh sách các project đang hoạt động (chưa hoàn thành / soft delete)
+        // Get active projects that have not been completed or soft-deleted.
         List<Project> activeProjects = projectRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(p -> p.getIsDeleted() == null || !p.getIsDeleted())
                 .collect(Collectors.toList());
 
         long totalProjects = activeProjects.size();
 
-        // Đếm tổng số thành viên đang hoạt động trong Workspace
+        // Count active workspace members.
         long totalMembers = workspaceMembershipRepository.findByWorkspaceId(workspaceId).stream()
                 .filter(WorkspaceMembership::isActive)
                 .count();
 
-        // Lấy danh sách ID của các project đang hoạt động
+        // Get active project IDs.
         List<Long> activeProjectIds = activeProjects.stream()
                 .map(Project::getId)
                 .collect(Collectors.toList());
 
-        // Lấy tất cả task thuộc các project đang hoạt động
+        // Get all tasks in active projects.
         List<Task> activeTasks = activeProjectIds.isEmpty() ? new java.util.ArrayList<>()
                 : taskRepository.findAll().stream()
                         .filter(t -> activeProjectIds.contains(t.getProject().getId()))
@@ -415,21 +415,21 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
 
         long totalTasks = activeTasks.size();
 
-        // Báo cáo số lượng task theo Status cho các project đang hoạt động
+        // Report task counts by status for active projects.
         Map<String, Long> tasksByStatus = new HashMap<>();
         for (TaskStatus status : TaskStatus.values()) {
             long countStr = activeTasks.stream().filter(t -> t.getStatus() == status).count();
             tasksByStatus.put(status.name(), countStr);
         }
 
-        // Báo cáo số lượng task theo mức độ ưu tiên Priority cho các project đang hoạt động
+        // Report task counts by priority for active projects.
         Map<String, Long> tasksByPriority = new HashMap<>();
         for (TaskPriority priority : TaskPriority.values()) {
             long countPri = activeTasks.stream().filter(t -> t.getPriority() == priority).count();
             tasksByPriority.put(priority.name(), countPri);
         }
 
-        // Tính toán số lượng task được tạo và hoàn thành trong tuần này (Monday - Sunday)
+        // Calculate created and completed task counts for this week (Monday - Sunday).
         java.time.LocalDateTime now = java.time.LocalDateTime.now();
         java.time.LocalDateTime startOfWeek = now.with(java.time.DayOfWeek.MONDAY).withHour(0).withMinute(0).withSecond(0).withNano(0);
         java.time.LocalDateTime endOfWeek = startOfWeek.plusDays(7);
@@ -500,7 +500,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public void completeProject(Long workspaceId, Long projectId) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Project does not exist or does not belong to this workspace"));
         project.setIsDeleted(true);
         projectRepository.save(project);
     }
@@ -509,25 +509,25 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     @Transactional
     public void reactivateProject(Long workspaceId, Long projectId) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Dự án không tồn tại hoặc không thuộc Workspace này"));
+                .orElseThrow(() -> new IllegalArgumentException("Project does not exist or does not belong to this workspace"));
         project.setIsDeleted(false);
         projectRepository.save(project);
     }
 
     /**
-     * [Phương án B] Helper: Tự động nâng workspace membership role lên LEADER
-     * nếu user hiện đang là MEMBER. Gọi mỗi khi một user được chỉ định làm
-     * project leader trong workspace này.
+     * Option B helper: automatically promote a workspace membership to LEADER
+     * if the user is currently MEMBER. Called whenever a user is assigned as
+     * project leader in this workspace.
      */
     private void upgradeToLeaderIfNeeded(WorkspaceMembership membership) {
         RoleName currentRole = membership.getRole().getName();
         if (currentRole == RoleName.MEMBER) {
             Role leaderRole = roleRepository.findByName(RoleName.LEADER)
-                    .orElseThrow(() -> new IllegalStateException("Không tìm thấy role LEADER trong hệ thống"));
+                    .orElseThrow(() -> new IllegalStateException("LEADER role not found in the system"));
             membership.setRole(leaderRole);
             workspaceMembershipRepository.save(membership);
         }
-        // Nếu đã là LEADER hoặc WORKSPACE_ADMIN → không cần thay đổi
+        // If already LEADER or WORKSPACE_ADMIN, no change is needed.
     }
 
     @Override

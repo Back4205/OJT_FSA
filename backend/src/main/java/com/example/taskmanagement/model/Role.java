@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(name = "roles")

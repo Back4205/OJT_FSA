@@ -143,8 +143,8 @@ public class AuthServiceImpl implements AuthService {
                 new UsernamePasswordAuthenticationToken(user.getEmail(), request.getPassword())
         );
 
-        // MÃ OTP CHỈ CẦN XÁC THỰC 1 LẦN KHI CHƯA XÁC THỰC EMAIL.
-        // NẾU TÀI KHOẢN ĐÃ XÁC THỰC RỒI (isEmailVerified = true), CHO PHÉP ĐĂNG NHẬP THẲNG.
+        // OTP verification is required only once while the email is unverified.
+        // Verified accounts can sign in directly.
         if (!user.isEmailVerified()) {
             // Generate 6-digit OTP code
             String otp = String.format("%06d", new java.util.Random().nextInt(1000000));
@@ -163,10 +163,10 @@ public class AuthServiceImpl implements AuthService {
             // Send OTP email
             emailService.sendOtpEmail(user.getEmail(), otp);
 
-            throw new com.example.taskmanagement.exception.OtpRequiredException("Mã OTP đăng nhập đã được gửi đến email của bạn.");
+            throw new com.example.taskmanagement.exception.OtpRequiredException("A login OTP has been sent to your email.");
         }
 
-        // --- ĐĂNG NHẬP THẲNG KHI ĐÃ XÁC THỰC TÀI KHOẢN ---
+        // --- Direct login after account verification ---
         // Fetch active memberships
         List<WorkspaceMembership> memberships = workspaceMembershipRepository.findByUserIdAndIsActiveOrderByIdDesc(user.getId(), true);
 
@@ -271,11 +271,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void verifyEmail(String token) {
         VerificationToken verificationToken = verificationTokenRepository.findByTokenAndType(token, TokenType.EMAIL_VERIFICATION)
-                .orElseThrow(() -> new IllegalArgumentException("Mã xác thực không hợp lệ hoặc đã qua sử dụng."));
+                .orElseThrow(() -> new IllegalArgumentException("Verification code is invalid or has already been used."));
 
         if (verificationToken.isExpired()) {
             verificationTokenRepository.delete(verificationToken);
-            throw new IllegalArgumentException("Mã xác thực đã hết hạn. Vui lòng đăng ký lại.");
+            throw new IllegalArgumentException("Verification code has expired. Please register again.");
         }
 
         User user = verificationToken.getUser();
@@ -289,10 +289,10 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void forgotPassword(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
+                .orElseThrow(() -> new IllegalArgumentException("No account found for this email."));
 
         if (user.getProvider() != AuthProvider.LOCAL) {
-            throw new IllegalArgumentException("Tài khoản này được đăng ký thông qua " + user.getProvider() + ". Vui lòng đăng nhập qua đó.");
+            throw new IllegalArgumentException("This account was registered through " + user.getProvider() + ". Please sign in with that provider.");
         }
 
         // Delete old password reset tokens for this user
@@ -316,11 +316,11 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void resetPassword(String token, String newPassword) {
         VerificationToken resetToken = verificationTokenRepository.findByTokenAndType(token, TokenType.PASSWORD_RESET)
-                .orElseThrow(() -> new IllegalArgumentException("Mã đặt lại mật khẩu không hợp lệ."));
+                .orElseThrow(() -> new IllegalArgumentException("Password reset code is invalid."));
 
         if (resetToken.isExpired()) {
             verificationTokenRepository.delete(resetToken);
-            throw new IllegalArgumentException("Mã đặt lại mật khẩu đã hết hạn.");
+            throw new IllegalArgumentException("Password reset code has expired.");
         }
 
         User user = resetToken.getUser();
@@ -338,18 +338,18 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public UserResponse verifyLoginOtp(LoginOtpRequest request, HttpServletResponse response) {
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với email này."));
+                .orElseThrow(() -> new IllegalArgumentException("No account found for this email."));
 
         VerificationToken otpToken = verificationTokenRepository.findByTokenAndType(request.getOtpCode(), TokenType.LOGIN_OTP)
-                .orElseThrow(() -> new IllegalArgumentException("Mã OTP không đúng hoặc đã được sử dụng."));
+                .orElseThrow(() -> new IllegalArgumentException("OTP code is incorrect or has already been used."));
 
         if (!otpToken.getUser().getId().equals(user.getId())) {
-             throw new IllegalArgumentException("Mã OTP không đúng với tài khoản này.");
+             throw new IllegalArgumentException("OTP code does not match this account.");
         }
 
         if (otpToken.isExpired()) {
             verificationTokenRepository.delete(otpToken);
-            throw new IllegalArgumentException("Mã OTP đã hết hạn. Vui lòng đăng nhập lại để nhận mã mới.");
+            throw new IllegalArgumentException("OTP code has expired. Please sign in again to receive a new code.");
         }
 
         // OTP is correct! Delete it
@@ -485,10 +485,10 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new IllegalStateException("User does not exist"));
 
         Workspace workspace = workspaceRepository.findByInviteCode(inviteCode.trim())
-                .orElseThrow(() -> new IllegalArgumentException("Mã mời không tồn tại hoặc không hợp lệ."));
+                .orElseThrow(() -> new IllegalArgumentException("Invitation code does not exist or is invalid."));
 
         if (!workspace.isActive()) {
-            throw new IllegalArgumentException("Workspace này đã bị ngừng hoạt động.");
+            throw new IllegalArgumentException("This workspace has been deactivated.");
         }
 
         Role memberRole = roleRepository.findByName(RoleName.MEMBER)

@@ -11,29 +11,28 @@ import lombok.Setter;
 import java.time.LocalDate;
 
 /**
- * @author Vương Bách
- * Request DTO để tạo Task mới trong một Project.
- * Chỉ LEADER hoặc WORKSPACE_ADMIN được dùng endpoint này.
+ * Request DTO for creating a new task in a project.
+ * Only LEADER or WORKSPACE_ADMIN can use this endpoint.
  */
 @Getter
 @Setter
 public class CreateTaskRequest {
 
-    @NotBlank(message = "Tiêu đề task không được để trống")
-    @Size(max = 255, message = "Tiêu đề task không được vượt quá 255 ký tự")
+    @NotBlank(message = "Task title is required")
+    @Size(max = 255, message = "Task title must not exceed 255 characters")
     private String title;
 
     private String description;
 
-    @NotNull(message = "Priority không được để trống")
+    @NotNull(message = "Priority is required")
     private TaskPriority priority;
 
-    @Future(message = "Deadline phải là ngày trong tương lai")
+    @Future(message = "Deadline must be in the future")
     private LocalDate deadline;
 
-    @NotNull(message = "projectId không được để trống")
+    @NotNull(message = "projectId is required")
     private Long projectId;
 
-    // nullable — task có thể chưa được gán cho ai
+    // nullable: a task can remain unassigned
     private Long assigneeId;
 }

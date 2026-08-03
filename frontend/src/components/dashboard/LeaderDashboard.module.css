@@ -3,7 +3,6 @@
    Design tokens are reused from WorkspaceAdminDashboard (:root)
    ============================================================ */
 
-/* â”€â”€ Layout â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .leader-layout {
   display: flex;
   height: 100vh;
@@ -14,7 +13,6 @@
   text-align: left;
 }
 
-/* â”€â”€ Sidebar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .sidebar {
   width: 220px;
   min-width: 220px;
@@ -353,7 +351,6 @@
   color: #6366f1;
 }
 
-/* â”€â”€ Main area â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .main-area {
   flex: 1;
   display: flex;
@@ -505,7 +502,6 @@
 .user-dropdown-item:hover { background: #f8fafc; }
 .user-dropdown-item.danger { color: #ef4444; }
 
-/* â”€â”€ Content body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .content-body {
   flex: 1;
   padding: 28px;
@@ -589,7 +585,6 @@
   transform: scale(1.05);
 }
 
-/* â”€â”€ Dashboard grid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .dash-top {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -635,7 +630,6 @@
   padding: 2px 8px;
 }
 
-/* â”€â”€ My Projects card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .project-row {
   padding: 14px 0;
   border-bottom: 1px solid #f1f5f9;
@@ -699,7 +693,6 @@
   margin-top: 5px;
 }
 
-/* â”€â”€ My Members card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .member-row {
   display: flex;
   align-items: center;
@@ -750,7 +743,6 @@
   border-radius: 4px;
 }
 
-/* â”€â”€ My Tasks card â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .task-row {
   display: flex;
   align-items: center;
@@ -792,7 +784,6 @@
 .priority-badge.MEDIUM   { background: #fff7ed; color: #f59e0b; }
 .priority-badge.LOW      { background: #f0fdf4; color: #10b981; }
 
-/* â”€â”€ Task completion line chart â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .chart-badge {
   font-size: 0.72rem;
   font-weight: 700;
@@ -818,7 +809,6 @@
 }
 .axis-x span { font-size: 0.68rem; color: #94a3b8; }
 
-/* â”€â”€ Upcoming deadlines â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .deadline-row {
   display: flex;
   align-items: center;
@@ -847,7 +837,6 @@
 .deadline-title { font-size: 0.84rem; font-weight: 500; color: var(--admin-text-main); }
 .deadline-date  { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
 
-/* â”€â”€ Recent activities â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .activity-row {
   display: flex;
   align-items: flex-start;
@@ -886,8 +875,6 @@
   min-width: 0;
 }
 
-
-/* â”€â”€ Alerts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .alert {
   display: flex;
   align-items: center;
@@ -923,7 +910,6 @@
 
 .spinner-text { font-size: 0.88rem; color: #64748b; }
 
-/* â”€â”€ Modal overlay â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -984,7 +970,6 @@
   margin-top: 20px;
 }
 
-/* â”€â”€ Empty state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -1007,7 +992,6 @@
 .av-rose    { background: linear-gradient(135deg, #e11d48, #fda4af); }
 .av-indigo  { background: linear-gradient(135deg, #4f46e5, #818cf8); }
 
-/* â”€â”€ Project Details View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .view-toggle {
   display: flex;
   align-items: center;
@@ -1104,7 +1088,6 @@
   cursor: not-allowed;
 }
 
-/* â”€â”€ Task Details View â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 .task-detail-grid {
   display: grid;
   grid-template-columns: 1fr 300px;
@@ -1662,7 +1645,7 @@
   background-color: #e2e8f0;
   color: #0f172a;
 }
-/* ── Project Card Grid ── */
+
 .proj-card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1681,7 +1664,6 @@
   }
 }
 
-/* ── Project Card ── */
 .proj-card {
   background: var(--admin-card-bg);
   border: 1px solid var(--admin-border);

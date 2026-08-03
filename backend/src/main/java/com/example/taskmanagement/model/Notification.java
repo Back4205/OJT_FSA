@@ -6,7 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(name = "notifications")
@@ -28,22 +28,18 @@ public class Notification {
     @Column(nullable = false, updatable = false)
     private LocalDateTime timestamp;
 
-    // Người nhận thông báo
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // Task liên quan, phục vụ điều hướng khi bấm vào thông báo (có thể null)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "task_id")
     private Task task;
 
-    // Workspace liên quan, phục vụ cho WS Admin lấy thông báo
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "workspace_id")
     private Workspace workspace;
 
-    // Tự động set thời gian hiện tại khi lưu notification xuống DB
     @PrePersist
     protected void onCreate() {
         timestamp = LocalDateTime.now();

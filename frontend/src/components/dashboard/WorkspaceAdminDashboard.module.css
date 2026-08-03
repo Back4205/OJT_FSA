@@ -1,4 +1,4 @@
-/* Variables và nền tảng phong cách */
+
 :root {
   --admin-sidebar-bg: #0b0f19;
   --admin-sidebar-hover: #162032;
@@ -2063,7 +2063,6 @@
   color: #ffffff;
 }
 
-/* ── Project Card Grid ── */
 .proj-card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2082,7 +2081,6 @@
   }
 }
 
-/* ── Project Card ── */
 .proj-card {
   background: var(--admin-card-bg);
   border: 1px solid var(--admin-border);

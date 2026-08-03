@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author Vương Bách
+
  */
 @Service
 @RequiredArgsConstructor
@@ -34,8 +34,6 @@ public class ProjectServiceImpl implements ProjectService {
     private final UserRepository userRepository;
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMembershipRepository membershipRepository;
-
-    // ─── Create ───────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -51,14 +49,12 @@ public class ProjectServiceImpl implements ProjectService {
         project.setWorkspace(workspace);
         project.setMaxMembers(request.getMaxMembers());
 
-        // Tự động thêm leader vào danh sách member của project
+        // Automatically add the leader to the project's member list.
         project.getMembers().add(leader);
 
         Project saved = projectRepository.save(project);
         return ProjectResponse.from(saved);
     }
-
-    // ─── Read ─────────────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -83,13 +79,11 @@ public class ProjectServiceImpl implements ProjectService {
     public ProjectDetailResponse getProjectById(Long projectId, Long workspaceId) {
         Project project = projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Project không tồn tại hoặc không thuộc workspace của bạn"));
+                        "Project does not exist or does not belong to your workspace"));
 
         List<MemberResponse> members = buildMemberResponses(project, workspaceId);
         return ProjectDetailResponse.from(project, members);
     }
-
-    // ─── Update ───────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -108,8 +102,6 @@ public class ProjectServiceImpl implements ProjectService {
         return ProjectResponse.from(projectRepository.save(project));
     }
 
-    // ─── Delete ───────────────────────────────────────────────────────────────
-
     @Override
     @Transactional
     public void deleteProject(Long projectId, Long currentUserId,
@@ -118,8 +110,6 @@ public class ProjectServiceImpl implements ProjectService {
         checkProjectOwnership(project, currentUserId, currentRole);
         projectRepository.delete(project);
     }
-
-    // ─── Member management ────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -130,24 +120,24 @@ public class ProjectServiceImpl implements ProjectService {
 
         Long memberId = request.getMemberId();
 
-        // Kiểm tra user tồn tại và là member active của workspace
+        // Check that the user exists and is an active workspace member.
         WorkspaceMembership membership = membershipRepository
                 .findByUserIdAndWorkspaceId(memberId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "User không phải member của workspace này"));
+                        "User is not a member of this workspace"));
 
         if (!membership.isActive()) {
-            throw new IllegalArgumentException("User đã bị khóa trong workspace này");
+            throw new IllegalArgumentException("User is locked in this workspace");
         }
 
         User newMember = membership.getUser();
 
         if (project.getMembers().contains(newMember)) {
-            throw new IllegalArgumentException("User đã là member của project này rồi");
+            throw new IllegalArgumentException("User is already a member of this project");
         }
 
         if (project.getMaxMembers() != null && project.getMembers().size() >= project.getMaxMembers()) {
-            throw new IllegalArgumentException("Dự án đã đạt giới hạn số lượng thành viên tối đa quy định (" + project.getMaxMembers() + ")");
+            throw new IllegalArgumentException("Project has reached the maximum member limit (" + project.getMaxMembers() + ")");
         }
 
         project.getMembers().add(newMember);
@@ -161,48 +151,46 @@ public class ProjectServiceImpl implements ProjectService {
         Project project = getProjectInWorkspace(projectId, workspaceId);
         checkProjectOwnership(project, currentUserId, currentRole);
 
-        // Không được xóa leader khỏi project
+        // Do not remove the project leader.
         if (project.getLeader().getId().equals(memberId)) {
-            throw new IllegalArgumentException("Không thể xóa Leader ra khỏi project");
+            throw new IllegalArgumentException("Cannot remove the leader from the project");
         }
 
         User memberToRemove = getUserById(memberId);
 
         if (!project.getMembers().contains(memberToRemove)) {
-            throw new IllegalArgumentException("User không phải member của project này");
+            throw new IllegalArgumentException("User is not a member of this project");
         }
 
         project.getMembers().remove(memberToRemove);
         projectRepository.save(project);
     }
 
-    // ─── Private helpers ──────────────────────────────────────────────────────
-
     /**
-     * Lấy project và đảm bảo nó thuộc workspace hiện tại (từ JWT).
+     * Load a project and ensure it belongs to the current workspace from the JWT.
      */
     private Project getProjectInWorkspace(Long projectId, Long workspaceId) {
         return projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Project không tồn tại hoặc không thuộc workspace của bạn"));
+                        "Project does not exist or does not belong to your workspace"));
     }
 
     /**
-     * Kiểm tra quyền thao tác project:
-     * - WORKSPACE_ADMIN: luôn được phép
-     * - LEADER: chỉ được phép nếu là leader của project đó
+     * Check project access:
+     * - WORKSPACE_ADMIN: always allowed
+     * - LEADER: allowed only for projects they lead
      */
     private void checkProjectOwnership(Project project, Long currentUserId, String currentRole) {
         if (RoleName.WORKSPACE_ADMIN.name().equals(currentRole)) {
-            return; // WORKSPACE_ADMIN có full quyền
+            return; // WORKSPACE_ADMIN has full access.
         }
         if (!project.getLeader().getId().equals(currentUserId)) {
-            throw new AccessDeniedException("Bạn chỉ có thể thao tác project do mình tạo");
+            throw new AccessDeniedException("You can only manage projects you created");
         }
     }
 
     /**
-     * Build danh sách MemberResponse với thông tin role trong workspace.
+     * Build MemberResponse list with workspace role information.
      */
     private List<MemberResponse> buildMemberResponses(Project project, Long workspaceId) {
         return project.getMembers().stream()
@@ -218,11 +206,11 @@ public class ProjectServiceImpl implements ProjectService {
 
     private User getUserById(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User không tồn tại: " + userId));
+                .orElseThrow(() -> new IllegalArgumentException("User does not exist: " + userId));
     }
 
     private Workspace getWorkspaceById(Long workspaceId) {
         return workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new IllegalArgumentException("Workspace không tồn tại: " + workspaceId));
+                .orElseThrow(() -> new IllegalArgumentException("Workspace does not exist: " + workspaceId));
     }
 }

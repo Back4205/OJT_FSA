@@ -17,7 +17,6 @@ import { memberService, type MemberNotificationResponse } from "../../services/m
 import NotificationDropdown from "../common/NotificationDropdown";
 import styles from "./LeaderDashboard.module.css";
 
-// ── Avatar helpers ─────────────────────────────────────────────────────────
 const AVATAR_COLORS = ["av-violet", "av-blue", "av-teal", "av-amber", "av-rose", "av-indigo"];
 
 const getInitials = (name: string) => {
@@ -30,7 +29,6 @@ const getInitials = (name: string) => {
 
 const avatarColor = (idx: number) => AVATAR_COLORS[idx % AVATAR_COLORS.length];
 
-// ── Due date helpers ───────────────────────────────────────────────────────
 const formatDue = (iso?: string) => {
   if (!iso) return "";
   const d = new Date(iso);
@@ -52,7 +50,6 @@ const deadlineVariant = (iso?: string): "overdue" | "upcoming" | "normal" => {
   return "normal";
 };
 
-// ── Component ──────────────────────────────────────────────────────────────
 type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile" | "history";
 type ChartPoint = { x: number; y: number };
 
@@ -193,7 +190,6 @@ const LeaderDashboard: React.FC = () => {
     return () => clearTimeout(t);
   }, [successMsg, errorMsg]);
 
-  // ── Load initial data ────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -257,16 +253,13 @@ const LeaderDashboard: React.FC = () => {
     }
   }, [activeTab, selectedTaskId]);
 
-
-
-  // ── Workspace switch ─────────────────────────────────────────────────────
   const handleSwitchWs = async (wsId: number) => {
     setWsDdOpen(false);
     setLoading(true);
     try {
       await workspaceService.switchWorkspace(wsId);
       await checkAuth();
-      window.location.replace("/taskmanager/dashboard"); // reset về dashboard, tránh stale tab URL
+      window.location.replace("/taskmanager/dashboard"); // reset to dashboard to avoid stale tab URLs
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Failed to switch workspace.");
       setLoading(false);
@@ -317,7 +310,6 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  // ── Create project ───────────────────────────────────────────────────────
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!projName.trim()) return;
@@ -333,7 +325,6 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  // ── Create task ──────────────────────────────────────────────────────────
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!taskTitle.trim() || !taskProject) {
@@ -365,7 +356,6 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  // ── Update task status ───────────────────────────────────────────────────
   const handleUpdateTaskStatus = async (taskId: number, newStatus: TaskStatus) => {
     if (isWorkspaceLocked) {
       setErrorMsg("Workspace is locked. You can view tasks only.");
@@ -448,7 +438,6 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  // ── Invite member ────────────────────────────────────────────────────────
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
@@ -491,7 +480,7 @@ const LeaderDashboard: React.FC = () => {
 
     const currentMemberCount = proj.members ? proj.members.length : 0;
     if (proj.maxMembers !== undefined && proj.maxMembers !== null && currentMemberCount + selectedMemberIds.length > proj.maxMembers) {
-      setErrorMsg(`Cannot add. Project has reached max limit of ${proj.maxMembers} thành viên.`);
+      setErrorMsg(`Cannot add. Project has reached the maximum limit of ${proj.maxMembers} members.`);
       return;
     }
 
@@ -528,9 +517,8 @@ const LeaderDashboard: React.FC = () => {
     }
   };
 
-  // ── Derived data ─────────────────────────────────────────────────────────
   const doneTasks = allTasks.filter(t => t.status === "DONE");
-  // ── Render helpers ────────────────────────────────────────────────────────
+
   const currentWsName = user?.workspaceName || "Workspace";
   const currentWsObj = userWs.find(ws => ws.workspaceId === user?.workspaceId);
   const isWorkspaceLocked = currentWsObj ? (currentWsObj as any).locked : false;
@@ -546,14 +534,14 @@ const LeaderDashboard: React.FC = () => {
 
     const total = defaultData.COMPLETED + defaultData.TODO + defaultData.IN_PROGRESS + defaultData.REVIEW;
 
-    // Nếu tổng thống kê số task bằng 0 thì gán giả định trực quan để sinh động màu
+    // Use fallback slices when there are no tasks so the chart still has visible colors.
     const plotData = total > 0 ? defaultData : { COMPLETED: 6914, IN_PROGRESS: 2014, TODO: 2868, REVIEW: 270 };
     const plotTotal = plotData.COMPLETED + plotData.IN_PROGRESS + plotData.TODO + plotData.REVIEW;
 
     const r = 40;
     const circ = 2 * Math.PI * r;
 
-    // Tính toán góc hoặc dash offset cho 4 loại
+    // Calculate the angle or dash offset for each status segment.
     const items = [
       { key: "COMPLETED", value: plotData.COMPLETED, color: "var(--admin-success)" },
       { key: "IN_PROGRESS", value: plotData.IN_PROGRESS, color: "var(--admin-info)" },
@@ -739,7 +727,6 @@ const LeaderDashboard: React.FC = () => {
     );
   };
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className={styles["spinner-container"]}>
@@ -749,11 +736,9 @@ const LeaderDashboard: React.FC = () => {
     );
   }
 
-  // ── Main render ───────────────────────────────────────────────────────────
   return (
     <div className={styles["leader-layout"]}>
 
-      {/* ═══════════════════════════════════════ SIDEBAR ══════════════════ */}
       <aside className={styles["sidebar"]}>
         {/* Logo */}
         <div className={styles["sidebar-header"]}>
@@ -855,7 +840,6 @@ const LeaderDashboard: React.FC = () => {
         <div className={styles["sidebar-role-badge"]}>⬡ {user?.role === "MEMBER" ? "Member" : "Leader"}</div>
       </aside>
 
-      {/* ═══════════════════════════════════════ MAIN ═════════════════════ */}
       <main className={styles["main-area"]}>
 
         {/* Topbar */}
@@ -928,7 +912,6 @@ const LeaderDashboard: React.FC = () => {
             </div>
           )}
 
-          {/* ══════════════ TAB: DASHBOARD ══════════════ */}
           {activeTab === "dashboard" && (
             <>
               {/* Breadcrumb + title */}
@@ -1135,7 +1118,6 @@ const LeaderDashboard: React.FC = () => {
             </>
           )}
 
-          {/* ══════════════ TAB: PROJECTS ══════════════ */}
           {activeTab === "projects" && (
             <>
               <div className={styles["page-header-row"]}>
@@ -1189,7 +1171,6 @@ const LeaderDashboard: React.FC = () => {
             </>
           )}
 
-          {/* ══════════════ TAB: MEMBERS ══════════════ */}
           {activeTab === "members" && (
             <>
               <div className={styles["page-header-row"]}>
@@ -1228,7 +1209,6 @@ const LeaderDashboard: React.FC = () => {
             </>
           )}
 
-          {/* ══════════════ TAB: PROJECT DETAIL ══════════════ */}
           {activeTab === "project_detail" && selectedProjectId !== null && (() => {
             const project = projects.find(p => p.id === selectedProjectId);
             if (!project) return null;
@@ -1571,7 +1551,6 @@ const LeaderDashboard: React.FC = () => {
             );
           })()}
 
-          {/* ══════════════ TAB: TASK DETAIL ══════════════ */}
           {activeTab === "task_detail" && selectedTaskId !== null && (() => {
             const task = allTasks.find(t => t.id === selectedTaskId);
             if (!task) return null;
@@ -1726,7 +1705,6 @@ const LeaderDashboard: React.FC = () => {
             );
           })()}
 
-          {/* ══════════════ TAB: PROFILE ══════════════ */}
           {activeTab === "profile" && (
             <>
               <h1 className={styles["page-title"]}>Profile</h1>
@@ -1948,8 +1926,6 @@ const LeaderDashboard: React.FC = () => {
         </section>
       </main>
 
-      {/* ══════════════════════════════════════ MODALS ════════════════════ */}
-
       {/* Create project modal */}
       {showCreateProject && (
         <div className={styles["modal-overlay"]} onClick={() => setShowCreateProject(false)}>
@@ -2082,7 +2058,7 @@ const LeaderDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* Phần tạo mới */}
+              {/* Create section */}
               <div>
                 <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
                   Create new Workspace
@@ -2118,7 +2094,7 @@ const LeaderDashboard: React.FC = () => {
                 </form>
               </div>
 
-              {/* Phần tham gia */}
+              {/* Join section */}
               <div>
                 <h3 style={{ fontSize: "0.95rem", fontWeight: 600, color: "#1e293b", marginBottom: "12px", borderBottom: "1px solid #e2e8f0", paddingBottom: "8px" }}>
                   Or Join via Invite Code

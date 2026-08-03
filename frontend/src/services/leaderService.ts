@@ -1,8 +1,6 @@
 import api from "./api";
 import { type UserWorkspaceResponse } from "./workspaceService";
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
 export type TaskStatus   = "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
 export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
@@ -79,14 +77,12 @@ export interface PageResponse<T> {
 
 export interface WorkspaceMemberShort {
   id: number;       // membership id
-  userId: number;   // user id (dùng để gán assignee)
+  userId: number;
   username: string;
   email: string;
   roleName: string;
   active: boolean;
 }
-
-// ── API calls ──────────────────────────────────────────────────────────────
 
 export const leaderService = {
 
@@ -166,13 +162,13 @@ export const leaderService = {
 
   // Workspace members (read + invite MEMBER only) ---------------------------
   getWorkspaceMembers: async (): Promise<WorkspaceMemberShort[]> => {
-    // Gọi /api/leader/members — endpoint riêng cho LEADER, không phải /workspaces/current/members
+
     const res = await api.get("/leader/members");
     return res.data.data;
   },
 
   inviteMember: async (email: string): Promise<void> => {
-    // Backend tự ép roleName = "MEMBER", LEADER không được invite LEADER khác
+
     await api.post("/leader/members/invite", { email, roleName: "MEMBER" });
   },
 

@@ -14,10 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Controller cung cấp các API hỗ trợ cho LEADER trong Workspace.
- * LEADER được phép:
- *   - Xem danh sách member trong workspace (để add vào project)
- *   - Invite thêm MEMBER mới vào workspace (không được invite LEADER)
+
  *
  * Endpoint root: /api/leader
  */
@@ -30,9 +27,7 @@ public class LeaderController {
     private final WorkspaceAdminService workspaceAdminService;
 
     /**
-     * Lấy danh sách thành viên đang hoạt động trong Workspace hiện tại.
-     * LEADER cần endpoint này để chọn assignee khi tạo task và
-     * chọn member khi add vào project.
+
      */
     @GetMapping("/members")
     public ResponseEntity<ApiResponse<List<MembershipResponse>>> getWorkspaceMembers(
@@ -41,22 +36,20 @@ public class LeaderController {
 
         if (workspaceId == null) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+                    .body(ApiResponse.error("Active workspace context not found"));
         }
 
-        // Mặc định chỉ lấy thành viên đang active
+        // Default to active members only.
         Boolean activeFilter = (isActive != null) ? isActive : true;
         List<MembershipResponse> members = workspaceAdminService
                 .getWorkspaceMembers(workspaceId, activeFilter, null);
 
         return ResponseEntity.ok(ApiResponse.success(
-                "Lấy danh sách thành viên thành công", members));
+                "Members loaded successfully", members));
     }
 
     /**
-     * LEADER invite thêm MEMBER mới vào workspace.
-     * Quy tắc: LEADER chỉ được mời với role MEMBER,
-     * backend sẽ tự ép roleName = "MEMBER" bất kể request gửi gì.
+
      */
     @PostMapping("/members/invite")
     public ResponseEntity<ApiResponse<MembershipResponse>> inviteMember(
@@ -65,34 +58,32 @@ public class LeaderController {
 
         if (workspaceId == null) {
             return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+                    .body(ApiResponse.error("Active workspace context not found"));
         }
 
-        // Ép role = MEMBER — LEADER không được invite LEADER khác
+        // Force role = MEMBER; leaders cannot invite other leaders.
         request.setRoleName("MEMBER");
 
         try {
             MembershipResponse response = workspaceAdminService
                     .addWorkspaceMember(workspaceId, request);
             return ResponseEntity.ok(ApiResponse.success(
-                    "Mời thành viên vào Workspace thành công", response));
+                    "Member invited to workspace successfully", response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
 
     /**
-     * Lấy các số liệu thống kê tổng hợp phục vụ hiển thị Dashboard của Leader.
-     * @param workspaceId ID của workspace đang đăng nhập
-     * @return ApiResponse chứa DashboardStatsResponse (Tổng số dự án, thành viên, và phân bố các trạng thái/mức ưu tiên)
+
      */
     @GetMapping("/dashboard-stats")
     public ResponseEntity<ApiResponse<com.example.taskmanagement.dto.response.DashboardStatsResponse>> getDashboardStats(
             @CurrentWorkspaceId Long workspaceId) {
         if (workspaceId == null) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Không tìm thấy ngữ cảnh Workspace hoạt động"));
+            return ResponseEntity.badRequest().body(ApiResponse.error("Active workspace context not found"));
         }
         com.example.taskmanagement.dto.response.DashboardStatsResponse response = workspaceAdminService.getDashboardStats(workspaceId);
-        return ResponseEntity.ok(ApiResponse.success("Lấy số liệu thống kê Dashboard thành công", response));
+        return ResponseEntity.ok(ApiResponse.success("Dashboard statistics loaded successfully", response));
     }
 }

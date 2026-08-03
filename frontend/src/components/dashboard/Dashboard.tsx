@@ -38,7 +38,7 @@ const Dashboard: React.FC = () => {
   }, [checkAuth, user]);
 
   if (!user) {
-    return <div style={{ padding: "40px", textAlign: "center" }}>Vui lòng đăng nhập.</div>;
+    return <div style={{ padding: "40px", textAlign: "center" }}>Please sign in.</div>;
   }
 
   if (user.role === "SUPER_ADMIN") {
@@ -48,7 +48,7 @@ const Dashboard: React.FC = () => {
   if (resolvingWorkspace) {
     return (
       <div style={{ padding: "40px", textAlign: "center" }}>
-        Đang mở workspace gần nhất...
+        Opening your latest workspace...
       </div>
     );
   }

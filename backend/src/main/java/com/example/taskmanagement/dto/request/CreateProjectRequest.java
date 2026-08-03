@@ -6,16 +6,15 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Request DTO để tạo Project mới.
- * workspaceId KHÔNG nhận từ body — lấy từ JWT claim.
+ * Request DTO for creating a new project.
+ * workspaceId is not accepted from the body; it comes from the JWT claim.
  */
 @Getter
 @Setter
 public class CreateProjectRequest {
 
-    @NotBlank(message = "Tên project không được để trống")
-    @Size(max = 255, message = "Tên project không được vượt quá 255 ký tự")
+    @NotBlank(message = "Project name is required")
+    @Size(max = 255, message = "Project name must not exceed 255 characters")
     private String name;
 
     private String description;

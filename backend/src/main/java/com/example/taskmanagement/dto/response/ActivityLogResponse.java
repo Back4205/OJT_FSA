@@ -38,7 +38,7 @@ public class ActivityLogResponse {
                 if (Character.isUpperCase(first)) {
                     desc = Character.toLowerCase(first) + desc.substring(1);
                 }
-                desc = actor + " đã " + desc;
+                desc = actor + " " + desc;
             }
         }
         

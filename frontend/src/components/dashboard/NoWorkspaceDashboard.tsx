@@ -34,17 +34,17 @@ const NoWorkspaceDashboard: React.FC = () => {
     setProfileError("");
 
     if (!profileUsername.trim()) {
-      setProfileError("Tên hiển thị không được trống");
+      setProfileError("Display name is required.");
       return;
     }
 
     if (profilePassword) {
       if (profilePassword.length < 6) {
-        setProfileError("Mật khẩu phải từ 6 ký tự trở lên");
+        setProfileError("Password must be at least 6 characters.");
         return;
       }
       if (profilePassword !== profileConfirmPassword) {
-        setProfileError("Mật khẩu xác nhận không khớp");
+        setProfileError("Password confirmation does not match.");
         return;
       }
     }
@@ -52,11 +52,11 @@ const NoWorkspaceDashboard: React.FC = () => {
     setProfileLoading(true);
     try {
       await updateProfile(profileUsername.trim(), profilePassword);
-      setProfileSuccess("Cập nhật thông tin cá nhân thành công.");
+      setProfileSuccess("Profile updated successfully.");
       setProfilePassword("");
       setProfileConfirmPassword("");
     } catch (err: any) {
-      setProfileError(err.response?.data?.message || "Cập nhật thông tin thất bại.");
+      setProfileError(err.response?.data?.message || "Failed to update profile.");
     } finally {
       setProfileLoading(false);
     }
@@ -78,7 +78,7 @@ const NoWorkspaceDashboard: React.FC = () => {
   const handleJoinWorkspace = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!inviteCode.trim()) {
-      setErrorMsg("Vui lòng nhập mã mời hợp lệ.");
+      setErrorMsg("Please enter a valid invitation code.");
       return;
     }
 
@@ -90,7 +90,7 @@ const NoWorkspaceDashboard: React.FC = () => {
       setInviteCode("");
       setLoading(false);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không thể tham gia workspace. Vui lòng kiểm tra lại mã mời.");
+      setErrorMsg(err.response?.data?.message || "Cannot join workspace. Please check the invitation code.");
       setLoading(false);
     }
   };
@@ -98,7 +98,7 @@ const NoWorkspaceDashboard: React.FC = () => {
   const handleCreateWorkspace = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!newWsName.trim()) {
-      setErrorMsg("Tên workspace không được để trống.");
+      setErrorMsg("Workspace name is required.");
       return;
     }
 
@@ -106,13 +106,13 @@ const NoWorkspaceDashboard: React.FC = () => {
     setErrorMsg("");
     try {
       await workspaceService.createWorkspace(newWsName.trim(), newWsDesc.trim());
-      setSuccessMsg("Tạo workspace thành công. Đang chuyển đến dashboard...");
+      setSuccessMsg("Workspace created successfully. Redirecting to the dashboard...");
       setNewWsName("");
       setNewWsDesc("");
       await checkAuth();
       window.setTimeout(() => window.location.reload(), 800);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Tạo workspace thất bại. Vui lòng thử tên khác.");
+      setErrorMsg(err.response?.data?.message || "Failed to create workspace. Please try another name.");
       setLoading(false);
     }
   };
@@ -133,7 +133,7 @@ const NoWorkspaceDashboard: React.FC = () => {
     return (
       <div className={styles["spinner-container"]}>
         <div className={styles["spinner"]}></div>
-        <p className={styles["spinner-text"]}>Đang đồng bộ workspace...</p>
+        <p className={styles["spinner-text"]}>Syncing workspace...</p>
       </div>
     );
   }
@@ -227,21 +227,21 @@ const NoWorkspaceDashboard: React.FC = () => {
           {activeTab === "join" && (
             <>
               <div className={styles["page-header"]}>
-                <h1 className={styles["header-title"]}>Gia nhập Workspace</h1>
+                <h1 className={styles["header-title"]}>Join Workspace</h1>
                 <p className={styles["header-subtitle"]}>
-                  Nhập mã mời do quản trị viên cung cấp để tham gia làm việc cùng đội nhóm.
+                  Enter the invitation code provided by your administrator to join your team.
                 </p>
               </div>
 
               <div className={styles["card-form-container"]}>
                 <form onSubmit={handleJoinWorkspace}>
                   <div className={styles["form-group"]}>
-                    <label htmlFor="invite-code-input">Mã mời Workspace (Invitation Key)</label>
+                    <label htmlFor="invite-code-input">Workspace Invitation Code</label>
                     <input
                       type="text"
                       id="invite-code-input"
                       className={styles["form-control"]}
-                      placeholder="Ví dụ: WS-A2B4C6D8"
+                      placeholder="Example: WS-A2B4C6D8"
                       value={inviteCode}
                       onChange={(event) => setInviteCode(event.target.value)}
                       disabled={loading}
@@ -254,7 +254,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                     className={styles["btn-primary"]}
                     disabled={loading || !inviteCode.trim()}
                   >
-                    {loading ? "Đang xử lý..." : "Tham gia không gian làm việc"}
+                    {loading ? "Processing..." : "Join workspace"}
                   </button>
                 </form>
               </div>
@@ -264,21 +264,21 @@ const NoWorkspaceDashboard: React.FC = () => {
           {activeTab === "create" && (
             <>
               <div className={styles["page-header"]}>
-                <h1 className={styles["header-title"]}>Tạo Workspace mới</h1>
+                <h1 className={styles["header-title"]}>Create New Workspace</h1>
                 <p className={styles["header-subtitle"]}>
-                  Khởi tạo một tổ chức/doanh nghiệp mới của riêng bạn trên Flowspace.
+                  Start a new organization or business workspace on Flowspace.
                 </p>
               </div>
 
               <div className={styles["card-form-container"]}>
                 <form onSubmit={handleCreateWorkspace}>
                   <div className={styles["form-group"]}>
-                    <label htmlFor="workspace-name-input">Tên doanh nghiệp / Tổ chức</label>
+                    <label htmlFor="workspace-name-input">Business / Organization Name</label>
                     <input
                       type="text"
                       id="workspace-name-input"
                       className={styles["form-control"]}
-                      placeholder="Ví dụ: Vinamilk, FPT Software,..."
+                      placeholder="Example: Acme, FPT Software,..."
                       value={newWsName}
                       onChange={(event) => setNewWsName(event.target.value)}
                       disabled={loading}
@@ -287,11 +287,11 @@ const NoWorkspaceDashboard: React.FC = () => {
                   </div>
 
                   <div className={styles["form-group"]}>
-                    <label htmlFor="workspace-desc-input">Mô tả chi tiết (Tùy chọn)</label>
+                    <label htmlFor="workspace-desc-input">Detailed Description (Optional)</label>
                     <textarea
                       id="workspace-desc-input"
                       className={styles["form-textarea"]}
-                      placeholder="Mô tả mục tiêu hoạt động của tổ chức..."
+                      placeholder="Describe the organization's goals..."
                       value={newWsDesc}
                       onChange={(event) => setNewWsDesc(event.target.value)}
                       disabled={loading}
@@ -303,7 +303,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                     className={styles["btn-primary"]}
                     disabled={loading || !newWsName.trim()}
                   >
-                    {loading ? "Đang khởi tạo..." : "Tạo mới Workspace"}
+                    {loading ? "Creating..." : "Create workspace"}
                   </button>
                 </form>
               </div>
@@ -313,9 +313,9 @@ const NoWorkspaceDashboard: React.FC = () => {
           {activeTab === "profile" && (
             <>
               <div className={styles["page-header"]}>
-                <h1 className={styles["header-title"]}>Hồ sơ cá nhân</h1>
+                <h1 className={styles["header-title"]}>Personal Profile</h1>
                 <p className={styles["header-subtitle"]}>
-                  Thông tin liên hệ và cập nhật chi tiết tài khoản của bạn.
+                  Contact information and account details.
                 </p>
               </div>
 
@@ -332,18 +332,18 @@ const NoWorkspaceDashboard: React.FC = () => {
                     </h2>
 
                     <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed #e2e8f0" }}>
-                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Email liên kết</span>
+                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Linked email</span>
                       <strong>{user?.email}</strong>
                     </div>
 
                     <div className={styles["profile-meta-item"]} style={{ marginBottom: "12px", paddingBottom: "8px", borderBottom: "1px dashed #e2e8f0" }}>
-                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Vai trò hiện tại (Đọc ghi hạn chế)</span>
+                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Current role (limited access)</span>
                       <strong style={{ color: "var(--admin-primary)" }}>{user?.role}</strong>
                     </div>
 
                     <div className={styles["profile-meta-item"]}>
-                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Không gian làm việc</span>
-                      <em style={{ color: "#64748b" }}>Chưa tham gia workspace nào</em>
+                      <span style={{ color: "#64748b", fontSize: "0.8rem", display: "block" }}>Workspace</span>
+                      <em style={{ color: "#64748b" }}>No workspace joined yet</em>
                     </div>
                   </div>
                 </div>
@@ -351,13 +351,13 @@ const NoWorkspaceDashboard: React.FC = () => {
                 {/* Right Card: Update Profile form */}
                 <div style={{ background: "#fff", padding: "24px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
                   <h3 style={{ margin: "0 0 16px 0", fontSize: "1.1rem", fontWeight: 700, color: "#0f172a", borderBottom: "1px solid #e2e8f0", paddingBottom: "12px" }}>
-                    Cập nhật thông tin cá nhân
+                    Update personal information
                   </h3>
 
                   {user?.provider !== "LOCAL" && (
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", padding: "10px 12px", marginBottom: "16px", color: "#d97706", fontSize: "0.82rem", fontWeight: 500 }}>
                       <i className="bi bi-info-circle-fill" style={{ fontSize: "0.95rem" }}></i>
-                      <span>Tài khoản liên kết bằng {user?.provider || "mạng xã hội"}. Không thể đổi mật khẩu tại đây.</span>
+                      <span>This account signs in with {user?.provider || "a social provider"}. Password changes are not available here.</span>
                     </div>
                   )}
 
@@ -378,7 +378,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                   <form onSubmit={handleUpdateProfileSubmit}>
                     <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
                       <label htmlFor="profile-username" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
-                        Tên hiển thị / Họ tên
+                        Display name / Full name
                       </label>
                       <input
                         type="text"
@@ -387,7 +387,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                         value={profileUsername}
                         onChange={(e) => setProfileUsername(e.target.value)}
                         required
-                        placeholder="Nhập tên hiển thị của bạn"
+                        placeholder="Enter your display name"
                       />
                     </div>
 
@@ -395,7 +395,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                       <>
                         <div className={styles["form-group"]} style={{ marginBottom: "16px" }}>
                           <label htmlFor="profile-password" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
-                            Mật khẩu mới (Để trống nếu không đổi)
+                            New password (leave blank to keep current)
                           </label>
                           <input
                             type="password"
@@ -403,13 +403,13 @@ const NoWorkspaceDashboard: React.FC = () => {
                             className={styles["form-control"]}
                             value={profilePassword}
                             onChange={(e) => setProfilePassword(e.target.value)}
-                            placeholder="Mật khẩu tối thiểu 6 ký tự"
+                            placeholder="Minimum 6 characters"
                           />
                         </div>
 
                         <div className={styles["form-group"]} style={{ marginBottom: "20px" }}>
                           <label htmlFor="profile-confirm-password" style={{ fontWeight: 600, fontSize: "0.85rem", display: "block", marginBottom: "6px" }}>
-                            Xác nhận mật khẩu mới
+                            Confirm new password
                           </label>
                           <input
                             type="password"
@@ -417,7 +417,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                             className={styles["form-control"]}
                             value={profileConfirmPassword}
                             onChange={(e) => setProfileConfirmPassword(e.target.value)}
-                            placeholder="Nhập lại mật khẩu mới"
+                            placeholder="Re-enter the new password"
                           />
                         </div>
                       </>
@@ -425,11 +425,11 @@ const NoWorkspaceDashboard: React.FC = () => {
 
                     <button type="submit" className={styles["btn-primary"]} style={{ width: "100%", justifyContent: "center", height: "40px" }} disabled={profileLoading}>
                       {profileLoading ? (
-                        <span>Đang cập nhật...</span>
+                        <span>Updating...</span>
                       ) : (
                         <>
                           <i className="bi bi-person-check-fill" style={{ marginRight: "6px" }}></i>
-                          <span>Lưu thông tin</span>
+                          <span>Save information</span>
                         </>
                       )}
                     </button>

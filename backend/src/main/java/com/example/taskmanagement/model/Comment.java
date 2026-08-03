@@ -5,7 +5,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(name = "comments")
@@ -32,7 +32,7 @@ public class Comment {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
     
-    // Tự động set thời gian hiện tại khi lưu comment xuống DB
+
     @PrePersist
     protected void onCreate() {
         timestamp = LocalDateTime.now();

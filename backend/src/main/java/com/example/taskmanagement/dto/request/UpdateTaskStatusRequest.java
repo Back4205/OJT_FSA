@@ -6,15 +6,14 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Request DTO để cập nhật status của Task.
- * MEMBER, LEADER, WORKSPACE_ADMIN đều có thể dùng.
- * Trạng thái hợp lệ: TODO → IN_PROGRESS → REVIEW → DONE (cho phép chuyển linh hoạt).
+ * Request DTO for updating a task status.
+ * MEMBER, LEADER, and WORKSPACE_ADMIN can use it.
+ * Valid statuses: TODO -> IN_PROGRESS -> REVIEW -> DONE.
  */
 @Getter
 @Setter
 public class UpdateTaskStatusRequest {
 
-    @NotNull(message = "Status không được để trống")
+    @NotNull(message = "Status is required")
     private TaskStatus status;
 }

@@ -45,7 +45,7 @@ public class AuthController {
         try {
             UserResponse response = authService.register(request);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản.", response));
+                    .body(ApiResponse.success("Registration successful. Please check your email to verify your account.", response));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error(e.getMessage()));
@@ -71,7 +71,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         try {
             authService.forgotPassword(request.getEmail());
-            return ResponseEntity.ok(ApiResponse.success("Yêu cầu đặt lại mật khẩu đã được gửi đến email của bạn.", null));
+            return ResponseEntity.ok(ApiResponse.success("Password reset request has been sent to your email.", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -81,7 +81,7 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         try {
             authService.resetPassword(request.getToken(), request.getPassword());
-            return ResponseEntity.ok(ApiResponse.success("Mật khẩu đã được thay đổi thành công. Bạn hãy đăng nhập bằng mật khẩu mới.", null));
+            return ResponseEntity.ok(ApiResponse.success("Password changed successfully. Please sign in with your new password.", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -95,7 +95,7 @@ public class AuthController {
             UserResponse userResponse = authService.login(request, response);
             return ResponseEntity.ok(ApiResponse.success("Login successful", userResponse));
         } catch (com.example.taskmanagement.exception.OtpRequiredException e) {
-            // Trả về luồng OTP để frontend hiển thị màn hình nhập mã xác thực
+            // Return the OTP flow so the frontend can show the verification screen.
             return ResponseEntity.status(HttpStatus.ACCEPTED) // 202 Accepted
                     .body(ApiResponse.success("OTP_REQUIRED", request.getEmail()));
         } catch (BadCredentialsException e) {
@@ -110,7 +110,7 @@ public class AuthController {
             HttpServletResponse response) {
         try {
             UserResponse userResponse = authService.verifyLoginOtp(request, response);
-            return ResponseEntity.ok(ApiResponse.success("Đăng nhập thành công.", userResponse));
+            return ResponseEntity.ok(ApiResponse.success("Login successful.", userResponse));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(ApiResponse.error(e.getMessage()));

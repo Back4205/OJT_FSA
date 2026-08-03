@@ -4,7 +4,7 @@ import GithubIcon from "../../assets/Icon/GithubIcon";
 import styles from "./LoginForm.module.css";
 
 const SocialLoginButtons: React.FC = () => {
-  // Đưa logic chuyển hướng vào đây để file LoginForm gọn hơn
+
   const handleGoogleLogin = () => {
     window.location.href =
       "http://localhost:8080/taskmanager/oauth2/authorization/google";
@@ -17,7 +17,7 @@ const SocialLoginButtons: React.FC = () => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      {/* Nút Đăng nhập Google */}
+
       <button
         type="button"
         className={styles["btn-google"]}
@@ -27,7 +27,6 @@ const SocialLoginButtons: React.FC = () => {
         Google
       </button>
 
-      {/* Nút Đăng nhập GitHub */}
       <button
         type="button"
         className={styles["btn-google"]}

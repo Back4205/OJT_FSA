@@ -44,7 +44,7 @@ public class MemberNotificationResponse {
         }
         String content = notification.getContent();
         if (currentUserId != null && notification.getUser() != null && !notification.getUser().getId().equals(currentUserId)) {
-            content = content.replace("cho bạn", "cho " + notification.getUser().getUsername());
+            content = content.replace("for you", "for " + notification.getUser().getUsername());
         }
         return MemberNotificationResponse.builder()
                 .id(notification.getId())

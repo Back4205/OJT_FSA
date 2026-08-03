@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * Controller quản lý Comment.
+
  */
 @RestController
 @RequestMapping("/api/comments")
@@ -32,7 +32,7 @@ public class CommentController {
     public ResponseEntity<ApiResponse<List<CommentResponse>>> getCommentsByTaskId(@PathVariable Long taskId) {
         try {
             List<CommentResponse> comments = commentService.getCommentsByTaskId(taskId);
-            return ResponseEntity.ok(ApiResponse.success("Lấy danh sách bình luận thành công", comments));
+            return ResponseEntity.ok(ApiResponse.success("Comments loaded successfully", comments));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
@@ -46,12 +46,12 @@ public class CommentController {
         try {
             String email = AuthEmailExtractor.extractEmail(authentication);
             Long currentUserId = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new IllegalStateException("User không tồn tại"))
+                    .orElseThrow(() -> new IllegalStateException("User does not exist"))
                     .getId();
                     
             CommentResponse created = commentService.createComment(request, currentUserId);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Tạo bình luận thành công", created));
+                    .body(ApiResponse.success("Comment created successfully", created));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

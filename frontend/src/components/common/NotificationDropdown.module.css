@@ -2,7 +2,6 @@
    NotificationDropdown — shared CSS module
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── Bell wrapper ── */
 .bellWrapper {
   position: relative;
   display: inline-flex;
@@ -42,7 +41,6 @@
   pointer-events: none;
 }
 
-/* ── Dropdown panel ── */
 .overlay {
   position: fixed;
   inset: 0;
@@ -69,7 +67,6 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Header ── */
 .header {
   display: flex;
   align-items: center;
@@ -99,7 +96,6 @@
   background: #eef2ff;
 }
 
-/* ── Tabs ── */
 .tabs {
   display: flex;
   gap: 0;
@@ -128,7 +124,6 @@
   border-bottom-color: #4f46e5;
 }
 
-/* ── List ── */
 .list {
   max-height: 340px;
   overflow-y: auto;
@@ -141,7 +136,6 @@
   border-radius: 999px;
 }
 
-/* ── Notification item ── */
 .item {
   display: flex;
   align-items: flex-start;
@@ -222,7 +216,6 @@
   color: #94a3b8;
 }
 
-/* ── Empty state ── */
 .empty {
   padding: 40px 18px;
   text-align: center;
@@ -235,7 +228,6 @@
   color: #cbd5e1;
 }
 
-/* ── Footer ── */
 .footer {
   padding: 10px 18px;
   border-top: 1px solid #f1f5f9;

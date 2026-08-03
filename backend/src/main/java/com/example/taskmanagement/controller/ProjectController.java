@@ -23,9 +23,7 @@ import com.example.taskmanagement.security.CookieUtil;
 import java.util.List;
 
 /**
- * @author Vương Bách
- * Controller quản lý Project.
- * Mọi API đều scope theo workspaceId lấy từ JWT — KHÔNG lấy từ path hay body.
+
  */
 @RestController
 @RequestMapping("/api/projects")
@@ -37,8 +35,7 @@ public class ProjectController {
     private final CookieUtil cookieUtil;
     private final UserRepository userRepository;
 
-    // ─── GET /api/projects ───────────────────────────────────────────────────
-    // Tất cả role trong workspace đều xem được danh sách project
+    // All workspace roles can view the project list.
 
     @GetMapping
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
@@ -52,11 +49,10 @@ public class ProjectController {
                 .findFirst().map(a -> a.getAuthority().replace("ROLE_", "")).orElse("");
 
         List<ProjectResponse> projects = projectService.getProjectsByWorkspace(workspaceId, currentUserId, currentRole);
-        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách project thành công", projects));
+        return ResponseEntity.ok(ApiResponse.success("Projects loaded successfully", projects));
     }
 
-    // ─── POST /api/projects ──────────────────────────────────────────────────
-    // Chỉ LEADER và WORKSPACE_ADMIN mới tạo được project
+    // Only LEADER and WORKSPACE_ADMIN can create projects.
 
     @PostMapping
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -71,13 +67,11 @@ public class ProjectController {
         try {
             ProjectResponse created = projectService.createProject(body, currentUserId, workspaceId);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Tạo project thành công", created));
+                    .body(ApiResponse.success("Project created successfully", created));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── GET /api/projects/{id} ──────────────────────────────────────────────
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
@@ -89,15 +83,14 @@ public class ProjectController {
 
         try {
             ProjectDetailResponse detail = projectService.getProjectById(id, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Lấy thông tin project thành công", detail));
+            return ResponseEntity.ok(ApiResponse.success("Project details loaded successfully", detail));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
 
-    // ─── PUT /api/projects/{id} ──────────────────────────────────────────────
-    // LEADER chỉ sửa project do mình tạo; WORKSPACE_ADMIN sửa tất cả
+    // LEADER can edit only projects they lead; WORKSPACE_ADMIN can edit all projects.
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -113,7 +106,7 @@ public class ProjectController {
 
         try {
             ProjectResponse updated = projectService.updateProject(id, body, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Cập nhật project thành công", updated));
+            return ResponseEntity.ok(ApiResponse.success("Project updated successfully", updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -121,8 +114,6 @@ public class ProjectController {
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── DELETE /api/projects/{id} ───────────────────────────────────────────
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -137,7 +128,7 @@ public class ProjectController {
 
         try {
             projectService.deleteProject(id, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Xóa project thành công", null));
+            return ResponseEntity.ok(ApiResponse.success("Project deleted successfully", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -146,8 +137,7 @@ public class ProjectController {
         }
     }
 
-    // ─── POST /api/projects/{id}/members ─────────────────────────────────────
-    // Thêm member vào project
+    // Add a member to the project.
 
     @PostMapping("/{id}/members")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -163,7 +153,7 @@ public class ProjectController {
 
         try {
             projectService.addMemberToProject(id, body, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Thêm member vào project thành công", null));
+            return ResponseEntity.ok(ApiResponse.success("Member added to project successfully", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -171,8 +161,6 @@ public class ProjectController {
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── DELETE /api/projects/{id}/members/{memberId} ────────────────────────
 
     @DeleteMapping("/{id}/members/{memberId}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -188,7 +176,7 @@ public class ProjectController {
 
         try {
             projectService.removeMemberFromProject(id, memberId, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Xóa member khỏi project thành công", null));
+            return ResponseEntity.ok(ApiResponse.success("Member removed from project successfully", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -197,36 +185,33 @@ public class ProjectController {
         }
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
-
     /**
-     * Trích xuất workspaceId từ JWT cookie — KHÔNG lấy từ path hay body.
+
      */
     private Long extractWorkspaceId(HttpServletRequest request) {
         String token = cookieUtil.extractTokenFromCookies(request);
         if (token == null) {
-            throw new IllegalStateException("Không tìm thấy access token");
+            throw new IllegalStateException("Access token not found");
         }
         Long workspaceId = jwtService.extractWorkspaceId(token);
         if (workspaceId == null) {
-            throw new IllegalStateException("Token không chứa workspaceId. Hãy chọn workspace trước.");
+            throw new IllegalStateException("Token does not contain workspaceId. Please select a workspace first.");
         }
         return workspaceId;
     }
 
     /**
-     * Trích xuất userId của user đang đăng nhập từ email trong Authentication.
+
      */
     private Long extractCurrentUserId(Authentication authentication) {
         String email = AuthEmailExtractor.extractEmail(authentication);
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalStateException("User không tồn tại"))
+                .orElseThrow(() -> new IllegalStateException("User does not exist"))
                 .getId();
     }
 
     /**
-     * Lấy role hiện tại từ Spring Security (đã được set bởi UserDetailsServiceImpl).
-     * Loại bỏ prefix "ROLE_" mà Spring tự thêm vào.
+
      */
     private String extractCurrentRole(Authentication authentication) {
         return authentication.getAuthorities().stream()

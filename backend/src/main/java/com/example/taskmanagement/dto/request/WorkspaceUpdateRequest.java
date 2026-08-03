@@ -7,7 +7,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class WorkspaceUpdateRequest {
-    @NotBlank(message = "Tên workspace không được trống")
+    @NotBlank(message = "Workspace name is required")
     private String name;
 
     private String description;

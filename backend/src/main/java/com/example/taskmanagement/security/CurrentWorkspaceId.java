@@ -4,8 +4,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.lang.annotation.*;
 
 /**
- * Annotation giúp inject trực tiếp workspaceId hiện tại từ SecurityContext vào Controller.
- * Sử dụng SpEL để trích xuất activeWorkspaceId từ CustomUserDetails.
+
  */
 @Target({ElementType.PARAMETER, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)

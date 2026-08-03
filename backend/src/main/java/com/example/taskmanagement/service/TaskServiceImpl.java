@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * @author Vương Bách
+
  */
 @Service
 @RequiredArgsConstructor
@@ -29,13 +29,11 @@ public class TaskServiceImpl implements TaskService {
     private final NotificationRepository notificationRepository;
     private final ActivityLogRepository activityLogRepository;
 
-    // ─── Create ───────────────────────────────────────────────────────────────
-
     @Override
     @Transactional
     public TaskResponse createTask(CreateTaskRequest request,
                                    Long currentUserId, Long workspaceId) {
-        // Lấy project và kiểm tra thuộc đúng workspace
+        // Load the project and verify it belongs to the workspace.
         Project project = getProjectInWorkspace(request.getProjectId(), workspaceId);
 
         User currentUser = getUserById(currentUserId);
@@ -52,7 +50,7 @@ public class TaskServiceImpl implements TaskService {
         task.setDeadline(request.getDeadline());
         task.setProject(project);
 
-        // Gán assignee nếu có
+        // Assign an assignee when provided.
         if (request.getAssigneeId() != null) {
             User assignee = getUserById(request.getAssigneeId());
             validateAssigneeIsMember(project, assignee);
@@ -61,12 +59,12 @@ public class TaskServiceImpl implements TaskService {
 
         Task saved = taskRepository.save(task);
 
-        // Ghi ActivityLog: tạo task
+        // Write ActivityLog: task creation.
         logActivity(ActionType.CREATE_TASK, "Task", saved.getId(),
-                "Tạo task \"" + saved.getTitle() + "\" trong project \"" + project.getName() + "\"",
+                "created task \"" + saved.getTitle() + "\" in project \"" + project.getName() + "\"",
                 currentUser);
 
-        // Gửi Notification cho assignee (nếu có và khác người tạo)
+        // Send a notification to the assignee when present and different from the creator.
         if (saved.getAssignee() != null && !saved.getAssignee().getId().equals(currentUserId)) {
             sendAssignNotification(saved, currentUser);
         }
@@ -74,17 +72,15 @@ public class TaskServiceImpl implements TaskService {
         return TaskResponse.from(saved);
     }
 
-    // ─── Read ─────────────────────────────────────────────────────────────────
-
     @Override
     @Transactional(readOnly = true)
     public Page<TaskResponse> getTasksByProject(Long projectId, Long workspaceId,
                                                  TaskStatus statusFilter, TaskPriority priorityFilter,
                                                  Pageable pageable) {
-        // Kiểm tra project thuộc workspace
+        // Verify the project belongs to the workspace.
         if (!projectRepository.existsByIdAndWorkspaceId(projectId, workspaceId)) {
             throw new IllegalArgumentException(
-                    "Project không tồn tại hoặc không thuộc workspace của bạn");
+                    "Project does not exist or does not belong to your workspace");
         }
 
         return taskRepository
@@ -97,11 +93,9 @@ public class TaskServiceImpl implements TaskService {
     public TaskResponse getTaskById(Long taskId, Long workspaceId) {
         Task task = taskRepository.findByIdAndWorkspaceId(taskId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Task không tồn tại hoặc không thuộc workspace của bạn"));
+                        "Task does not exist or does not belong to your workspace"));
         return TaskResponse.from(task);
     }
-
-    // ─── Update ───────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -126,8 +120,8 @@ public class TaskServiceImpl implements TaskService {
             task.setDeadline(request.getDeadline());
         }
 
-        // Xử lý thay đổi assignee
-        // null = không thay đổi; -1L = bỏ assignee; khác = gán mới
+        // Handle assignee changes.
+        // null = unchanged; -1L = unassign; otherwise assign to the given user.
         if (request.getAssigneeId() != null) {
             if (request.getAssigneeId() == -1L) {
                 task.setAssignee(null); // Unassign
@@ -137,7 +131,7 @@ public class TaskServiceImpl implements TaskService {
                 User oldAssignee = task.getAssignee();
                 task.setAssignee(newAssignee);
 
-                // Gửi notification khi thay đổi assignee
+                // Send notification when assignee changes.
                 if (oldAssignee == null || !oldAssignee.getId().equals(newAssignee.getId())) {
                     if (!newAssignee.getId().equals(currentUserId)) {
                         sendAssignNotification(task, currentUser);
@@ -148,14 +142,12 @@ public class TaskServiceImpl implements TaskService {
 
         Task saved = taskRepository.save(task);
 
-        // Ghi ActivityLog: cập nhật task
+        // Write ActivityLog: task update.
         logActivity(ActionType.UPDATE_TASK, "Task", saved.getId(),
-                "Cập nhật task \"" + saved.getTitle() + "\"", currentUser);
+                "updated task \"" + saved.getTitle() + "\"", currentUser);
 
         return TaskResponse.from(saved);
     }
-
-    // ─── Delete ───────────────────────────────────────────────────────────────
 
     @Override
     @Transactional
@@ -167,15 +159,13 @@ public class TaskServiceImpl implements TaskService {
 
         User currentUser = getUserById(currentUserId);
 
-        // Ghi ActivityLog trước khi xóa
+        // Write ActivityLog before deleting.
         logActivity(ActionType.DELETE_TASK, "Task", task.getId(),
-                "Xóa task \"" + task.getTitle() + "\" khỏi project \""
+                "deleted task \"" + task.getTitle() + "\" from project \""
                         + task.getProject().getName() + "\"", currentUser);
 
         taskRepository.delete(task);
     }
-
-    // ─── Update Status (MEMBER, LEADER, WORKSPACE_ADMIN) ─────────────────────
 
     @Override
     @Transactional
@@ -184,7 +174,7 @@ public class TaskServiceImpl implements TaskService {
         Task task = getTaskInWorkspace(taskId, workspaceId);
         User currentUser = getUserById(currentUserId);
 
-        // MEMBER chỉ được cập nhật status task được gán cho mình
+        // MEMBER can update only tasks assigned to them.
         if (!task.getProject().getWorkspace().isActive()) {
             throw new AccessDeniedException("Workspace is locked. You can view tasks only.");
         }
@@ -213,30 +203,28 @@ public class TaskServiceImpl implements TaskService {
         return TaskResponse.from(saved);
     }
 
-    // ─── Private helpers ──────────────────────────────────────────────────────
-
     /**
-     * Lấy project và kiểm tra phải thuộc workspaceId từ JWT.
+     * Load a project and verify it belongs to the workspaceId from the JWT.
      */
     private Project getProjectInWorkspace(Long projectId, Long workspaceId) {
         return projectRepository.findByIdAndWorkspaceId(projectId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Project không tồn tại hoặc không thuộc workspace của bạn"));
+                        "Project does not exist or does not belong to your workspace"));
     }
 
     /**
-     * Lấy task và kiểm tra phải thuộc workspaceId từ JWT (qua project → workspace).
+     * Load a task and verify it belongs to the workspaceId from the JWT through its project.
      */
     private Task getTaskInWorkspace(Long taskId, Long workspaceId) {
         return taskRepository.findByIdAndWorkspaceId(taskId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Task không tồn tại hoặc không thuộc workspace của bạn"));
+                        "Task does not exist or does not belong to your workspace"));
     }
 
     /**
-     * Kiểm tra quyền sửa/xóa task:
-     * - WORKSPACE_ADMIN: luôn được phép
-     * - LEADER: chỉ được phép nếu là leader của project chứa task
+     * Check permission to edit/delete a task:
+     * - WORKSPACE_ADMIN: always allowed
+     * - LEADER: allowed only when leading the task's project
      */
     private void ensureProjectCanBeChanged(Project project) {
         if (project != null && Boolean.TRUE.equals(project.getIsDeleted())) {
@@ -251,25 +239,25 @@ public class TaskServiceImpl implements TaskService {
         Long leaderId = task.getProject().getLeader().getId();
         if (!leaderId.equals(currentUserId)) {
             throw new AccessDeniedException(
-                    "Bạn chỉ có thể thao tác task trong project do mình quản lý");
+                    "You can only manage tasks in projects you lead");
         }
     }
 
     /**
-     * Kiểm tra assignee phải là member của project.
+     * Check that the assignee is a project member.
      */
     private void validateAssigneeIsMember(Project project, User assignee) {
         boolean isMember = project.getMembers().stream()
                 .anyMatch(m -> m.getId().equals(assignee.getId()));
         if (!isMember) {
             throw new IllegalArgumentException(
-                    "User \"" + assignee.getUsername() + "\" không phải member của project này. "
-                            + "Hãy thêm user vào project trước khi gán task.");
+                    "User \"" + assignee.getUsername() + "\" is not a member of this project. "
+                            + "Please add the user to the project before assigning the task.");
         }
     }
 
     /**
-     * Gửi notification cho assignee khi được giao task.
+     * Send a notification to the assignee when assigned a task.
      */
     private void sendAssignNotification(Task task, User assigner) {
         Notification notification = new Notification();
@@ -278,15 +266,15 @@ public class TaskServiceImpl implements TaskService {
         notification.setTask(task);
         notification.setWorkspace(task.getProject().getWorkspace());
         notification.setContent(
-                assigner.getUsername() + " đã giao task \""
-                        + task.getTitle() + "\" cho bạn trong project \""
+                assigner.getUsername() + " assigned task \""
+                        + task.getTitle() + "\" to you in project \""
                         + task.getProject().getName() + "\"");
         notification.setRead(false);
         notificationRepository.save(notification);
     }
 
     /**
-     * Ghi ActivityLog cho một hành động.
+     * Write ActivityLog for an action.
      */
     private void logActivity(ActionType action, String targetType,
                               Long targetId, String description, User actor) {
@@ -301,6 +289,6 @@ public class TaskServiceImpl implements TaskService {
 
     private User getUserById(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User không tồn tại: " + userId));
+                .orElseThrow(() -> new IllegalArgumentException("User does not exist: " + userId));
     }
 }

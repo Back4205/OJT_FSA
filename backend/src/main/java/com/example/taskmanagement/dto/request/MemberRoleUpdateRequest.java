@@ -7,6 +7,6 @@ import lombok.Setter;
 @Getter
 @Setter
 public class MemberRoleUpdateRequest {
-    @NotBlank(message = "Vai trò không được trống")
+    @NotBlank(message = "Role is required")
     private String roleName; // E.g. LEADER, MEMBER
 }

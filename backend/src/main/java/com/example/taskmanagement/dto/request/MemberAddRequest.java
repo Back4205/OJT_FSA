@@ -8,10 +8,10 @@ import lombok.Setter;
 @Getter
 @Setter
 public class MemberAddRequest {
-    @NotBlank(message = "Email không được trống")
-    @Email(message = "Email không hợp lệ")
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email is invalid")
     private String email;
 
-    @NotBlank(message = "Vai trò không được trống")
+    @NotBlank(message = "Role is required")
     private String roleName; // E.g. LEADER, MEMBER
 }

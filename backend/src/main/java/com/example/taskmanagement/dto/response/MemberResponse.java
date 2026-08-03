@@ -6,8 +6,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Response DTO cho thông tin một member trong Project hoặc Workspace.
+ * Response DTO for a member in a project or workspace.
  */
 @Getter
 @Setter

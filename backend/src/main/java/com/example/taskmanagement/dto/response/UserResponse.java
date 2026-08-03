@@ -8,8 +8,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Trả về FE - KHÔNG bao giờ chứa password.
+ * Returned to the frontend; never contains a password.
  */
 @Getter
 @Setter

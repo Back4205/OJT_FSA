@@ -21,28 +21,27 @@ const RegisterForm: React.FC = () => {
     setErrorMsg("");
     setSuccessMsg("");
 
-    // Kiểm tra mật khẩu xác nhận
     if (formData.password !== confirmPassword) {
-      setErrorMsg("Mật khẩu xác nhận không trùng khớp!");
+      setErrorMsg("Password confirmation does not match.");
       return;
     }
 
     try {
       await api.post("/auth/register", formData);
-      setSuccessMsg("Đăng ký tài khoản thành công! Vui lòng kiểm tra hộp thư email để kích hoạt tài khoản.");
+      setSuccessMsg("Account registered successfully. Please check your email to activate it.");
       setTimeout(() => {
         navigate("/taskmanager/login");
       }, 2000);
     } catch (error: any) {
       console.error("Detailed server error:", error.response?.data || error.message);
-      setErrorMsg(error.response?.data?.message || "Đăng ký thất bại. Vui lòng kiểm tra lại thông tin.");
+      setErrorMsg(error.response?.data?.message || "Registration failed. Please check your information.");
     }
   };
 
   return (
     <div className={styles["login-container-page"]}>
       
-      {/* CỘT TRÁI: FORM ĐĂNG KÝ MOCKUP */}
+
       <div className={styles["login-left-column"]}>
         <div className={styles["login-form-area"]}>
           
@@ -59,20 +58,17 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Tiêu đề & phụ đề */}
           <div className={styles["login-header"]}>
             <h1>Create your workspace</h1>
             <p>Start your 14-day trial. No credit card required.</p>
           </div>
 
-          {/* Các thông báo phản hồi lỗi / thành công */}
           {errorMsg && <div className={styles["alert-error"]}>{errorMsg}</div>}
           {successMsg && <div className={styles["alert-success"]}>{successMsg}</div>}
 
-          {/* Form đăng ký */}
           <form onSubmit={handleSubmit} className={styles["standard-form"]}>
             
-            {/* Trường nhập Full name (username) */}
+
             <div className={styles["input-field-group"]}>
               <label htmlFor="username">Full name</label>
               <input
@@ -85,7 +81,6 @@ const RegisterForm: React.FC = () => {
               />
             </div>
 
-            {/* Trường nhập Work email (email) */}
             <div className={styles["input-field-group"]}>
               <label htmlFor="email">Work email</label>
               <input
@@ -98,7 +93,6 @@ const RegisterForm: React.FC = () => {
               />
             </div>
 
-            {/* Khối nhập Password và Confirm song song */}
             <div className={styles["row-input-group"]}>
               <div className={styles["input-field-group"]}>
                 <label htmlFor="password">Password</label>
@@ -143,30 +137,25 @@ const RegisterForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Các yêu cầu mật khẩu ở dưới */}
             <ul className={styles["password-requirements-list"]}>
               <li>At least 8 characters</li>
               <li>A number and a symbol</li>
               <li>Mixed case letters</li>
             </ul>
 
-            {/* Nút gửi tạo tài khoản */}
             <button type="submit" className={styles["btn-sign-in-mockup"]} style={{ marginTop: "8px" }}>
               Create account
             </button>
           </form>
 
-          {/* Cam kết điều khoản */}
           <div className={styles["agreement-text"]}>
             By continuing, you agree to our Terms and Privacy Policy.
           </div>
 
-          {/* Dòng liên kết sang đăng nhập */}
           <div className={styles["create-account-prompt"]}>
             Already have an account? <Link to="/taskmanager/login">Sign in</Link>
           </div>
 
-          {/* Footer chân trang cột trái */}
           <div className={styles["mockup-footer"]}>
             <span>© 2026 Flowspace, Inc. · Privacy · Terms</span>
           </div>
@@ -174,7 +163,6 @@ const RegisterForm: React.FC = () => {
         </div>
       </div>
 
-      {/* CỘT PHẢI: TESTIMONIAL & STATS MOCKUP (CHỈ HIỂN THỊ TRÊN DESKTOP) */}
       <div className={styles["login-right-column"]}>
         <div className={styles["right-content-wrapper"]}>
           
@@ -203,12 +191,10 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Danh ngôn */}
           <div className={styles["testimonial-quote"]}>
             "Flowspace replaced Jira, Notion and Linear for our engineering org. We ship 2x faster."
           </div>
 
-          {/* Tác giả */}
           <div className={styles["testimonial-author"]}>
             <div className={styles["author-avatar"]}></div>
             <div className={styles["author-info"]}>
@@ -217,7 +203,6 @@ const RegisterForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Chỉ số metrics */}
           <div className={styles["stats-row"]}>
             <div className={styles["stat-item"]}>
               <div className={styles["stat-number"]}>2.4M</div>

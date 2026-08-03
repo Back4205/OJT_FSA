@@ -8,9 +8,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * @author Vương Bách
- * Response DTO cho thông tin chi tiết của một Project,
- * bao gồm danh sách members và tasks.
+ * Response DTO for project details, including members and tasks.
  */
 @Getter
 @Setter

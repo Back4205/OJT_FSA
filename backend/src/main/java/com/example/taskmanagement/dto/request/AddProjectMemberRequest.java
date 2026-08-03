@@ -5,13 +5,12 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Request DTO để thêm một member (từ workspace) vào một Project.
+ * Request DTO for adding a workspace member to a project.
  */
 @Getter
 @Setter
 public class AddProjectMemberRequest {
 
-    @NotNull(message = "memberId không được để trống")
-    private Long memberId; // userId của user cần thêm vào project
+    @NotNull(message = "memberId is required")
+    private Long memberId; // userId to add to the project
 }

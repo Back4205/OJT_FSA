@@ -11,19 +11,18 @@ const ResetPasswordForm: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [successMsg, setSuccessMsg] = useState<string>("");
   
-  // Trạng thái hiển thị mật khẩu
+
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState<boolean>(false);
   
   const navigate = useNavigate();
 
-  // Trích xuất token khôi phục từ URL tham số ?token=xxx
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenVal = params.get("token") || "";
     setToken(tokenVal);
     if (!tokenVal) {
-      setErrorMsg("Đường dẫn khôi phục mật khẩu không khả dụng hoặc đã thay đổi.");
+      setErrorMsg("The password recovery link is unavailable or has changed.");
     }
   }, []);
 
@@ -33,12 +32,12 @@ const ResetPasswordForm: React.FC = () => {
     setSuccessMsg("");
 
     if (!token) {
-      setErrorMsg("Mã token không hợp lệ.");
+      setErrorMsg("Invalid token.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMsg("Mật khẩu xác nhận không khớp!");
+      setErrorMsg("Password confirmation does not match.");
       return;
     }
 
@@ -46,12 +45,12 @@ const ResetPasswordForm: React.FC = () => {
 
     try {
       await api.post("/auth/reset-password", { token, password });
-      setSuccessMsg("Thay đổi mật khẩu thành công! Đang tự động chuyển hướng đăng nhập...");
+      setSuccessMsg("Password changed successfully. Redirecting to sign in...");
       setTimeout(() => {
         navigate("/taskmanager");
       }, 3000);
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Khôi phục mật khẩu thất bại. Token liên kết đã hết hiệu lực.");
+      setErrorMsg(err.response?.data?.message || "Password recovery failed. This reset link has expired.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +59,7 @@ const ResetPasswordForm: React.FC = () => {
   return (
     <div className={styles["login-container-page"]}>
       
-      {/* CỘT TRÁI: FORM THIẾT LẬP MẬT KHẨU MỚI MOCKUP */}
+
       <div className={styles["login-left-column"]}>
         <div className={styles["login-form-area"]}>
           
@@ -77,20 +76,17 @@ const ResetPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Tiêu đề & phụ đề */}
           <div className={styles["login-header"]}>
             <h1>Setup New Password</h1>
             <p>Please enter your new password below to recover your account.</p>
           </div>
 
-          {/* Alert thông báo lỗi / thành công */}
           {errorMsg && <div className={styles["alert-error"]}>{errorMsg}</div>}
           {successMsg && <div className={styles["alert-success"]}>{successMsg}</div>}
 
-          {/* Form đổi mật khẩu mới */}
           <form onSubmit={handleSubmit} className={styles["standard-form"]}>
             
-            {/* Nhập mật khẩu mới */}
+
             <div className={styles["input-field-group"]}>
               <label htmlFor="password">New Password</label>
               <div className={styles["password-input-wrapper"]}>
@@ -115,7 +111,6 @@ const ResetPasswordForm: React.FC = () => {
               </div>
             </div>
 
-            {/* Xác nhận mật khẩu mới */}
             <div className={styles["input-field-group"]}>
               <label htmlFor="confirmPassword">Confirm Password</label>
               <div className={styles["password-input-wrapper"]}>
@@ -145,12 +140,10 @@ const ResetPasswordForm: React.FC = () => {
             </button>
           </form>
 
-          {/* Dòng liên kết quay lại đăng nhập */}
           <div className={styles["create-account-prompt"]}>
             <Link to="/taskmanager/login">Back to sign in</Link>
           </div>
 
-          {/* Footer chân trang */}
           <div className={styles["mockup-footer"]}>
             <span>© 2026 Flowspace, Inc. · Privacy · Terms</span>
           </div>
@@ -158,7 +151,6 @@ const ResetPasswordForm: React.FC = () => {
         </div>
       </div>
 
-      {/* CỘT PHẢI: TESTIMONIAL & STATS MOCKUP (CHỈ HIỂN THỊ TRÊN DESKTOP) */}
       <div className={styles["login-right-column"]}>
         <div className={styles["right-content-wrapper"]}>
           
@@ -187,12 +179,10 @@ const ResetPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Quy trình */}
           <div className={styles["testimonial-quote"]}>
             "Flowspace replaced Jira, Notion and Linear for our engineering org. We ship 2x faster."
           </div>
 
-          {/* Tác giả */}
           <div className={styles["testimonial-author"]}>
             <div className={styles["author-avatar"]}></div>
             <div className={styles["author-info"]}>
@@ -201,7 +191,6 @@ const ResetPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Chỉ số metric */}
           <div className={styles["stats-row"]}>
             <div className={styles["stat-item"]}>
               <div className={styles["stat-number"]}>2.4M</div>

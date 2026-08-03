@@ -9,15 +9,15 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ProjectCreateRequest {
-    @NotBlank(message = "Tên project không được trống")
+    @NotBlank(message = "Project name is required")
     private String name;
 
     private String description;
 
-    @NotNull(message = "Người dẫn dắt (Leader) không được trống")
+    @NotNull(message = "Project leader is required")
     private Long leaderId;
 
-    @NotNull(message = "Giới hạn số lượng thành viên không được trống")
-    @Min(value = 1, message = "Số lượng thành viên tối đa phải lớn hơn hoặc bằng 1")
+    @NotNull(message = "Member limit is required")
+    @Min(value = 1, message = "Maximum member count must be at least 1")
     private Integer maxMembers;
 }

@@ -399,7 +399,7 @@ const MemberDashboard: React.FC = () => {
     try {
       await workspaceService.switchWorkspace(workspaceId);
       await checkAuth();
-      window.location.replace("/taskmanager/dashboard"); // reset về dashboard, tránh stale tab URL
+      window.location.replace("/taskmanager/dashboard");
     } catch (err: any) {
       setError(err.response?.data?.message || "Unable to switch workspace.");
     } finally {
@@ -599,7 +599,6 @@ const MemberDashboard: React.FC = () => {
     </article>
   );
   };
-
 
   return (
     <div className={styles.shell}>
@@ -1214,7 +1213,7 @@ const MemberDashboard: React.FC = () => {
                     </p>
                   </div>
                   <button type="button" className={styles.modalCloseButton} onClick={() => setSelectedTask(null)}>
-                    ×
+                    x
                   </button>
                 </div>
 
@@ -1309,7 +1308,7 @@ const MemberDashboard: React.FC = () => {
                     <h3>Add new Workspace</h3>
                   </div>
                   <button type="button" className={styles.modalCloseButton} onClick={closeCreateWorkspaceModal}>
-                    ×
+                    x
                   </button>
                 </div>
                 <div className={styles.modalBody}>

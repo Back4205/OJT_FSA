@@ -5,8 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * @author Vương Bách
- * Wrapper chung cho mọi response trả về từ API.
+ * Shared wrapper for every API response.
  */
 @Getter
 @Setter

@@ -8,15 +8,14 @@ import lombok.Setter;
 import java.time.LocalDate;
 
 /**
- * @author Vương Bách
- * Request DTO để cập nhật Task.
- * Tất cả fields đều optional — chỉ update field nào non-null.
+ * Request DTO for updating a task.
+ * All fields are optional; only non-null fields are updated.
  */
 @Getter
 @Setter
 public class UpdateTaskRequest {
 
-    @Size(max = 255, message = "Tiêu đề task không được vượt quá 255 ký tự")
+    @Size(max = 255, message = "Task title must not exceed 255 characters")
     private String title;
 
     private String description;
@@ -25,6 +24,6 @@ public class UpdateTaskRequest {
 
     private LocalDate deadline;
 
-    // null = giữ nguyên assignee; -1 = bỏ assignee (unassign)
+    // null = keep assignee; -1 = remove assignee (unassign)
     private Long assigneeId;
 }

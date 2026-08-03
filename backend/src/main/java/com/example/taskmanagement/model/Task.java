@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(name = "tasks")
@@ -34,7 +34,7 @@ public class Task {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TaskStatus status = TaskStatus.TODO; // Mặc định là TO DO
+    private TaskStatus status = TaskStatus.TODO;
 
     private LocalDate deadline;
 

@@ -2,7 +2,6 @@ import React, { useState, useMemo } from "react";
 import type { MemberNotificationResponse } from "../../services/memberService";
 import styles from "./NotificationDropdown.module.css";
 
-// ── Helpers ────────────────────────────────────────────────────────────────
 const timeAgo = (iso: string): string => {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -18,7 +17,6 @@ const timeAgo = (iso: string): string => {
 type TabFilter = "ALL" | "UNREAD" | "READ";
 const DROPDOWN_LIMIT = 5;
 
-// ── Props ──────────────────────────────────────────────────────────────────
 interface NotificationDropdownProps {
   notifications: MemberNotificationResponse[];
   onMarkRead: (id: number, read: boolean) => Promise<void>;
@@ -27,7 +25,6 @@ interface NotificationDropdownProps {
   onRefresh?: () => void;
 }
 
-// ── Component ──────────────────────────────────────────────────────────────
 const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
   notifications,
   onMarkRead,
@@ -71,7 +68,6 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     onRefresh?.();
   };
 
-  // ── Tab bar (reused in dropdown and modal) ──
   const renderTabs = (
     currentTab: TabFilter,
     setCurrentTab: (t: TabFilter) => void,
@@ -90,7 +86,6 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     </div>
   );
 
-  // ── Notification row (reused in dropdown and modal) ──
   const renderItem = (noti: MemberNotificationResponse) => (
     <div
       key={noti.id}
@@ -125,7 +120,6 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     </div>
   );
 
-  // ── Empty state ──
   const renderEmpty = () => (
     <div className={styles.empty}>
       <div className={styles.emptyIcon}>

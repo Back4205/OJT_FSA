@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 /**
- * @author Vương Bách
+
  */
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);

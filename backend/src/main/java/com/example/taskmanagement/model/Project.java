@@ -7,7 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(name = "projects")

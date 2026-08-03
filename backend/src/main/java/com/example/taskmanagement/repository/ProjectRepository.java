@@ -15,8 +15,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     long countByWorkspaceId(Long workspaceId);
 
     /**
-     * Kiểm tra project tồn tại và thuộc đúng workspace.
-     * Dùng trong TaskServiceImpl.getTasksByProject() để validate trước khi query task.
+
      */
     boolean existsByIdAndWorkspaceId(Long id, Long workspaceId);
 

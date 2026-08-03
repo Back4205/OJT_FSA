@@ -65,7 +65,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
                 email = (String) attributes.get("email");
 
-                // Nếu GitHub không trả email thì gọi API /user/emails
                 if (email == null || email.isBlank()) {
                     email = getGithubPrimaryEmail(userRequest);
                 }
@@ -110,7 +109,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             );
         }
 
-        // Cho phép login dù khác provider; ghi nhận provider của lần login cuối
         user.setProvider(provider);
         user.setEmailVerified(true);
         userRepository.save(user);
@@ -131,7 +129,7 @@ return new CustomOAuth2User(
     }
 
     /**
-     * Lấy email chính của GitHub nếu /user không trả email
+
      */
     private String getGithubPrimaryEmail(OAuth2UserRequest userRequest) {
 

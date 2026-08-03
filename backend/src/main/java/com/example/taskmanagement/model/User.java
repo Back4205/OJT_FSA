@@ -8,7 +8,7 @@ import java.util.Set;
 import com.example.taskmanagement.model.enums.AuthProvider;
 
 /**
- * @author Vương Bách
+
  */
 @Entity
 @Table(
@@ -21,7 +21,7 @@ import com.example.taskmanagement.model.enums.AuthProvider;
 @AllArgsConstructor
 public class User {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY) // Tương đương IDENTITY(1,1) trong MSSQL
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true)
@@ -43,7 +43,7 @@ private String providerId;
     private boolean isSuperAdmin = false;
 
     @Column(name = "is_active")
-    private boolean isActive = true; // Phục vụ tính năng Khóa/Mở khóa User
+    private boolean isActive = true;
 
     @Column(name = "is_email_verified", nullable = false)
     private boolean isEmailVerified = false;

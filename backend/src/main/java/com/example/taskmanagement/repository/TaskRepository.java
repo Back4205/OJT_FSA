@@ -51,16 +51,14 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
     long countByProjectWorkspaceIdAndPriority(Long workspaceId, TaskPriority priority);
 
     /**
-     * Lấy task theo workspaceId (thông qua project → workspace).
-     * Dùng để kiểm tra task thuộc đúng workspace từ JWT.
+
      */
     @Query("SELECT t FROM Task t WHERE t.id = :taskId AND t.project.workspace.id = :workspaceId")
     Optional<Task> findByIdAndWorkspaceId(@Param("taskId") Long taskId,
                                           @Param("workspaceId") Long workspaceId);
 
     /**
-     * Lấy danh sách task của project với filter tùy chọn theo status và/hoặc priority.
-     * Nếu filter = null thì bỏ qua điều kiện đó.
+
      */
     @Query("SELECT t FROM Task t WHERE t.project.id = :projectId " +
            "AND (:status IS NULL OR t.status = :status) " +

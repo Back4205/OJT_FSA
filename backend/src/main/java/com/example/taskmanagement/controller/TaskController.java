@@ -26,9 +26,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
- * @author Vương Bách
- * Controller quản lý Task.
- * workspaceId luôn được lấy từ JWT — KHÔNG từ path hay body.
+
  */
 @RestController
 @RequestMapping("/api/tasks")
@@ -39,9 +37,6 @@ public class TaskController {
     private final JwtService jwtService;
     private final CookieUtil cookieUtil;
     private final UserRepository userRepository;
-
-    // ─── GET /api/tasks/project/{projectId} ──────────────────────────────────
-    // Lấy danh sách task của project với filter + pagination
 
     @GetMapping("/project/{projectId}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
@@ -65,14 +60,11 @@ public class TaskController {
         try {
             Page<TaskResponse> tasks = taskService.getTasksByProject(
                     projectId, workspaceId, status, priority, pageable);
-            return ResponseEntity.ok(ApiResponse.success("Lấy danh sách task thành công", tasks));
+            return ResponseEntity.ok(ApiResponse.success("Tasks loaded successfully", tasks));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── POST /api/tasks ─────────────────────────────────────────────────────
-    // Tạo task mới — chỉ LEADER và WORKSPACE_ADMIN
 
     @PostMapping
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -87,13 +79,11 @@ public class TaskController {
         try {
             TaskResponse created = taskService.createTask(body, currentUserId, workspaceId);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success("Tạo task thành công", created));
+                    .body(ApiResponse.success("Task created successfully", created));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── GET /api/tasks/{id} ─────────────────────────────────────────────────
 
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
@@ -105,15 +95,12 @@ public class TaskController {
 
         try {
             TaskResponse task = taskService.getTaskById(id, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Lấy thông tin task thành công", task));
+            return ResponseEntity.ok(ApiResponse.success("Task details loaded successfully", task));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── PUT /api/tasks/{id} ─────────────────────────────────────────────────
-    // LEADER chỉ sửa task trong project do mình lead; WORKSPACE_ADMIN sửa tất cả
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -129,7 +116,7 @@ public class TaskController {
 
         try {
             TaskResponse updated = taskService.updateTask(id, body, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Cập nhật task thành công", updated));
+            return ResponseEntity.ok(ApiResponse.success("Task updated successfully", updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -137,8 +124,6 @@ public class TaskController {
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── DELETE /api/tasks/{id} ──────────────────────────────────────────────
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN')")
@@ -153,7 +138,7 @@ public class TaskController {
 
         try {
             taskService.deleteTask(id, currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Xóa task thành công", null));
+            return ResponseEntity.ok(ApiResponse.success("Task deleted successfully", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -161,10 +146,6 @@ public class TaskController {
                     .body(ApiResponse.error(e.getMessage()));
         }
     }
-
-    // ─── PATCH /api/tasks/{id}/status ────────────────────────────────────────
-    // MEMBER chỉ cập nhật task được gán cho mình
-    // LEADER và WORKSPACE_ADMIN cập nhật tất cả task trong workspace
 
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('LEADER', 'WORKSPACE_ADMIN', 'MEMBER')")
@@ -181,7 +162,7 @@ public class TaskController {
         try {
             TaskResponse updated = taskService.updateTaskStatus(
                     id, body.getStatus(), currentUserId, currentRole, workspaceId);
-            return ResponseEntity.ok(ApiResponse.success("Cập nhật status task thành công", updated));
+            return ResponseEntity.ok(ApiResponse.success("Task status updated successfully", updated));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (org.springframework.security.access.AccessDeniedException e) {
@@ -190,19 +171,17 @@ public class TaskController {
         }
     }
 
-    // ─── Private helpers ─────────────────────────────────────────────────────
-
     /**
-     * Trích xuất workspaceId từ JWT cookie — KHÔNG lấy từ path hay body.
+
      */
     private Long extractWorkspaceId(HttpServletRequest request) {
         String token = cookieUtil.extractTokenFromCookies(request);
         if (token == null) {
-            throw new IllegalStateException("Không tìm thấy access token");
+            throw new IllegalStateException("Access token not found");
         }
         Long workspaceId = jwtService.extractWorkspaceId(token);
         if (workspaceId == null) {
-            throw new IllegalStateException("Token không chứa workspaceId. Hãy chọn workspace trước.");
+            throw new IllegalStateException("Token does not contain workspaceId. Please select a workspace first.");
         }
         return workspaceId;
     }
@@ -210,7 +189,7 @@ public class TaskController {
     private Long extractCurrentUserId(Authentication authentication) {
         String email = AuthEmailExtractor.extractEmail(authentication);
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalStateException("User không tồn tại"))
+                .orElseThrow(() -> new IllegalStateException("User does not exist"))
                 .getId();
     }
 

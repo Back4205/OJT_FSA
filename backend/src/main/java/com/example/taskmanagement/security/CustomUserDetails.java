@@ -8,8 +8,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 
 /**
- * Custom UserDetails để lưu trữ thêm context của Workspace đang hoạt động
- * và thông tin đối tượng User gốc đầy đủ.
+
  */
 @Getter
 public class CustomUserDetails implements UserDetails {

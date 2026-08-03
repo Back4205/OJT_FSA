@@ -17,9 +17,9 @@ const ForgotPasswordForm: React.FC = () => {
 
     try {
       await api.post("/auth/forgot-password", { email });
-      setSuccessMsg("Yêu cầu thành công! Vui lòng kiểm tra hộp thư email để nhận đường dẫn đặt lại mật khẩu.");
+      setSuccessMsg("Request sent successfully. Please check your email for the password reset link.");
     } catch (err: any) {
-      setErrorMsg(err.response?.data?.message || "Không tìm thấy tài khoản liên kết với email này.");
+      setErrorMsg(err.response?.data?.message || "No account is linked to this email.");
     } finally {
       setLoading(false);
     }
@@ -28,7 +28,7 @@ const ForgotPasswordForm: React.FC = () => {
   return (
     <div className={styles["login-container-page"]}>
       
-      {/* CỘT TRÁI: FORM QUÊN MẬT KHẨU MOCKUP */}
+
       <div className={styles["login-left-column"]}>
         <div className={styles["login-form-area"]}>
           
@@ -45,17 +45,14 @@ const ForgotPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Tiêu đề & phụ đề */}
           <div className={styles["login-header"]}>
             <h1>Forgot Password</h1>
             <p>Enter your email address and we will send you a password reset link.</p>
           </div>
 
-          {/* Alert thông báo lỗi / thành công */}
           {errorMsg && <div className={styles["alert-error"]}>{errorMsg}</div>}
           {successMsg && <div className={styles["alert-success"]}>{successMsg}</div>}
 
-          {/* Form gửi email khôi phục */}
           <form onSubmit={handleSubmit} className={styles["standard-form"]}>
             <div className={styles["input-field-group"]}>
               <label htmlFor="email">Email Address</label>
@@ -75,12 +72,10 @@ const ForgotPasswordForm: React.FC = () => {
             </button>
           </form>
 
-          {/* Dòng liên kết quay lại đăng nhập */}
           <div className={styles["create-account-prompt"]}>
             <Link to="/taskmanager/login">Back to sign in</Link>
           </div>
 
-          {/* Footer chân trang */}
           <div className={styles["mockup-footer"]}>
             <span>© 2026 Flowspace, Inc. · Privacy · Terms</span>
           </div>
@@ -88,7 +83,6 @@ const ForgotPasswordForm: React.FC = () => {
         </div>
       </div>
 
-      {/* CỘT PHẢI: TESTIMONIAL & STATS MOCKUP (CHỈ HIỂN THỊ TRÊN DESKTOP) */}
       <div className={styles["login-right-column"]}>
         <div className={styles["right-content-wrapper"]}>
           
@@ -117,12 +111,10 @@ const ForgotPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Lời trích dẫn */}
           <div className={styles["testimonial-quote"]}>
             "Flowspace replaced Jira, Notion and Linear for our engineering org. We ship 2x faster."
           </div>
 
-          {/* Tác giả */}
           <div className={styles["testimonial-author"]}>
             <div className={styles["author-avatar"]}></div>
             <div className={styles["author-info"]}>
@@ -131,7 +123,6 @@ const ForgotPasswordForm: React.FC = () => {
             </div>
           </div>
 
-          {/* Chỉ số metric */}
           <div className={styles["stats-row"]}>
             <div className={styles["stat-item"]}>
               <div className={styles["stat-number"]}>2.4M</div>

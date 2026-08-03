@@ -37,7 +37,6 @@ public class ProjectResponse {
         private String email;
     }
 
-    /** Alias for fromEntity() — kept for backward compatibility with ProjectServiceImpl. */
     public static ProjectResponse from(Project project) {
         return fromEntity(project);
     }
