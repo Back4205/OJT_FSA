@@ -116,4 +116,11 @@ public interface WorkspaceAdminService {
      * @return DashboardStatsResponse thống kê dự án, thành viên, và các task theo trạng thái/mức độ ưu tiên
      */
     DashboardStatsResponse getDashboardStats(Long workspaceId);
+
+    /**
+     * Lấy danh sách nhật ký hoạt động (ActivityLog) của toàn bộ Workspace.
+     * @param workspaceId ID của workspace đang hoạt động
+     * @return Danh sách nhật ký hoạt động của Workspace
+     */
+    List<ActivityLogResponse> getActivityLogs(Long workspaceId);
 }

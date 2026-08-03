@@ -31,4 +31,12 @@ public interface ActivityLogRepository extends JpaRepository<ActivityLog, Long> 
         @Param("start") LocalDateTime start,
         @Param("end") LocalDateTime end
     );
+
+    @Query(
+        "SELECT a FROM ActivityLog a " +
+        "WHERE a.targetType = 'Task' " +
+        "AND EXISTS (SELECT t FROM Task t WHERE t.id = a.targetId AND t.project.workspace.id = :workspaceId) " +
+        "ORDER BY a.timestamp DESC"
+    )
+    List<ActivityLog> findAllActivitiesInWorkspace(@Param("workspaceId") Long workspaceId);
 }

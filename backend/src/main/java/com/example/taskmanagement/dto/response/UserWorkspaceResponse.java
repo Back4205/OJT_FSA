@@ -16,12 +16,12 @@ public class UserWorkspaceResponse {
     private boolean active;
     private Long uncompletedTaskCount;
     private Long completedTaskCount;
-    private List<CompletedTaskInfo> completedTasks;
+    private List<UncompletedTaskInfo> uncompletedTasks;
 
     @Getter
     @Setter
     @AllArgsConstructor
-    public static class CompletedTaskInfo {
+    public static class UncompletedTaskInfo {
         private Long id;
         private String title;
         private String projectName;

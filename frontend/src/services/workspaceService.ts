@@ -78,7 +78,7 @@ export interface DashboardStatsResponse {
   completedTasksWeekly?: number[];
 }
 
-export interface CompletedTaskInfo {
+export interface UncompletedTaskInfo {
   id: number;
   title: string;
   projectName: string;
@@ -93,7 +93,7 @@ export interface UserWorkspaceResponse {
   active: boolean;
   uncompletedTaskCount: number;
   completedTaskCount: number;
-  completedTasks: CompletedTaskInfo[];
+  uncompletedTasks: UncompletedTaskInfo[];
 }
 
 export const workspaceService = {
@@ -182,6 +182,12 @@ export const workspaceService = {
   // Lấy thống kê của Dashboard
   getDashboardStats: async (): Promise<DashboardStatsResponse> => {
     const response = await api.get("/workspaces/current/dashboard-stats");
+    return response.data.data;
+  },
+
+  // Lấy nhật ký hoạt động của Workspace
+  getActivityLogs: async (): Promise<any[]> => {
+    const response = await api.get("/workspaces/current/activity-logs");
     return response.data.data;
   },
 

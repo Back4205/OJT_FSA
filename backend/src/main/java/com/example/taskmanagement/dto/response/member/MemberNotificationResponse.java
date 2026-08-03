@@ -32,10 +32,18 @@ public class MemberNotificationResponse {
     private LocalDate deadline;
 
     public static MemberNotificationResponse fromEntity(Notification notification) {
+        return fromEntity(notification, null);
+    }
+
+    public static MemberNotificationResponse fromEntity(Notification notification, Long currentUserId) {
         Task task = notification.getTask();
+        String content = notification.getContent();
+        if (currentUserId != null && notification.getUser() != null && !notification.getUser().getId().equals(currentUserId)) {
+            content = content.replace("cho bạn", "cho " + notification.getUser().getUsername());
+        }
         return MemberNotificationResponse.builder()
                 .id(notification.getId())
-                .content(notification.getContent())
+                .content(content)
                 .read(notification.isRead())
                 .timestamp(notification.getTimestamp())
                 .taskId(task != null ? task.getId() : null)

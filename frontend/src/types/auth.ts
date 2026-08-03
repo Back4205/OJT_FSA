@@ -6,6 +6,7 @@ export interface User {
   active: boolean;
   workspaceId: number | null;
   workspaceName: string | null;
+  provider: "LOCAL" | "GOOGLE" | "GITHUB";
 }
 
 export interface AuthContextType {
@@ -15,4 +16,5 @@ export interface AuthContextType {
   verifyOtp: (email: string, otpCode: string) => Promise<void>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
+  updateProfile: (username: string, password?: string) => Promise<void>;
 }

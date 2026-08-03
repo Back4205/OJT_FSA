@@ -18,5 +18,6 @@ public interface AuthService {
     java.util.List<com.example.taskmanagement.dto.response.UserWorkspaceResponse> getUserWorkspaces(String email);
     UserResponse createNewWorkspace(String email, String name, String description, HttpServletResponse response);
     UserResponse joinWorkspaceWithInviteCode(String email, String inviteCode, HttpServletResponse response);
+    UserResponse updateProfile(String email, com.example.taskmanagement.dto.request.UpdateProfileRequest request, Long activeWorkspaceId);
 }
 

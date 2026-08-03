@@ -17,7 +17,7 @@ const menuItems = [
 type TabKey = typeof menuItems[number]["key"];
 
 const MemberDashboard: React.FC = () => {
-  const { user, logout, checkAuth } = useAuth();
+  const { user, logout, checkAuth, updateProfile } = useAuth();
   
   const { "*": splat } = useParams();
   const navigate = useNavigate();
@@ -51,6 +51,54 @@ const MemberDashboard: React.FC = () => {
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
+
+  // Profile update states
+  const [profileUsername, setProfileUsername] = useState<string>(user?.username || "");
+  const [profilePassword, setProfilePassword] = useState<string>("");
+  const [profileConfirmPassword, setProfileConfirmPassword] = useState<string>("");
+  const [profileLoading, setProfileLoading] = useState<boolean>(false);
+  const [profileSuccess, setProfileSuccess] = useState<string>("");
+  const [profileError, setProfileError] = useState<string>("");
+
+  useEffect(() => {
+    if (user) {
+      setProfileUsername(user.username);
+    }
+  }, [user]);
+
+  const handleUpdateProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSuccess("");
+    setProfileError("");
+
+    if (!profileUsername.trim()) {
+      setProfileError("Username cannot be empty");
+      return;
+    }
+
+    if (profilePassword) {
+      if (profilePassword.length < 6) {
+        setProfileError("Password must be at least 6 characters long");
+        return;
+      }
+      if (profilePassword !== profileConfirmPassword) {
+        setProfileError("Confirm password does not match");
+        return;
+      }
+    }
+
+    setProfileLoading(true);
+    try {
+      await updateProfile(profileUsername.trim(), profilePassword);
+      setProfileSuccess("Personal profile updated successfully.");
+      setProfilePassword("");
+      setProfileConfirmPassword("");
+    } catch (err: any) {
+      setProfileError(err.response?.data?.message || "Failed to update profile details.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   const loadDashboard = async (showSpinner = true) => {
     if (showSpinner) {
@@ -147,15 +195,10 @@ const MemberDashboard: React.FC = () => {
         active: dashboard.workspaceActive,
         uncompletedTaskCount: 0,
         completedTaskCount: 0,
-        completedTasks: []
+        uncompletedTasks: []
       }
     );
   }, [dashboard, userWorkspaces]);
-
-  const unreadNotificationCount = useMemo(
-    () => notifications.filter((notification) => !notification.read).length,
-    [notifications]
-  );
 
   const filterTasks = (search: string) => {
     const tasks = dashboard?.tasks ?? [];
@@ -931,14 +974,118 @@ const MemberDashboard: React.FC = () => {
                 <h2>My profile</h2>
                 <span>{dashboard.role}</span>
               </div>
-              <div className={styles.profileCard}>
-                <div className={styles.profileAvatar}>{(user?.username || "ME").slice(0, 2).toUpperCase()}</div>
-                <div className={styles.profileMeta}>
-                  <div className={styles.profileName}>{user?.username || dashboard.username}</div>
-                  <div className={styles.profileEmail}>{user?.email || "No email"}</div>
-                  <div className={styles.profileRow}>Current workspace: {activeWorkspace?.workspaceName || dashboard.workspaceName || "No workspace"}</div>
-                  <div className={styles.profileRow}>Joined workspaces: {userWorkspaces.length}</div>
-                  <div className={styles.profileRow}>Account status: Active</div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "24px", alignItems: "start", marginTop: "20px" }}>
+                {/* Left Card: Read-only summary */}
+                <div className={styles.profileCard} style={{ margin: 0, padding: "24px", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+                  <div className={styles.profileAvatar} style={{ width: "80px", height: "80px", borderRadius: "50%", background: "rgba(99, 102, 241, 0.1)", color: "var(--admin-primary)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: "1.5rem", marginBottom: "16px" }}>
+                    {(user?.username || "ME").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className={styles.profileMeta} style={{ width: "100%", textAlign: "left" }}>
+                    <div className={styles.profileName} style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "12px", color: "var(--admin-text-main)", textAlign: "center" }}>
+                      {user?.username || dashboard.username}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                      <strong>Email: </strong>{user?.email || "No email"}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                      <strong>Current Role (Read-only): </strong>{user?.role || dashboard.role || "MEMBER"}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)", marginBottom: "8px", borderBottom: "1px dashed var(--admin-border)", paddingBottom: "6px" }}>
+                      <strong>Workspace: </strong>{dashboard.workspaceName || "No workspace"}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", color: "var(--admin-text-secondary)" }}>
+                      <strong>Status: </strong>Active
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Card: Update Profile Form */}
+                <div style={{ background: "var(--admin-card-bg)", padding: "24px", borderRadius: "12px", border: "1px solid var(--admin-border)" }}>
+                  <h3 style={{ margin: "0 0 16px 0", fontSize: "1.05rem", fontWeight: 700, color: "var(--admin-text-main)", borderBottom: "1px solid var(--admin-border)", paddingBottom: "12px" }}>
+                    Update Personal Information
+                  </h3>
+
+                  {user?.provider !== "LOCAL" && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)", borderRadius: "8px", padding: "10px 12px", marginBottom: "16px", color: "#d97706", fontSize: "0.82rem", fontWeight: 500 }}>
+                      <i className="bi bi-info-circle-fill" style={{ fontSize: "0.95rem" }}></i>
+                      <span>This account is authenticated via {user?.provider || "OAuth2"}. Password changes are disabled for OAuth2 accounts.</span>
+                    </div>
+                  )}
+
+                  {profileSuccess && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-success"]}`} style={{ marginBottom: "16px", padding: "10px", background: "rgba(16, 185, 129, 0.08)", border: "1px solid rgba(16, 185, 129, 0.2)", color: "#047857", borderRadius: "8px", fontSize: "0.82rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <i className="bi bi-check-circle-fill"></i>
+                      <span>{profileSuccess}</span>
+                    </div>
+                  )}
+
+                  {profileError && (
+                    <div className={`${styles["alert-box"]} ${styles["alert-error"]}`} style={{ marginBottom: "16px", padding: "10px", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.2)", color: "#b91c1c", borderRadius: "8px", fontSize: "0.82rem", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <i className="bi bi-exclamation-triangle-fill"></i>
+                      <span>{profileError}</span>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleUpdateProfileSubmit}>
+                    <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                      <label htmlFor="profile-username" style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--admin-text-main)" }}>
+                        Display Name / Full Name
+                      </label>
+                      <input
+                        type="text"
+                        id="profile-username"
+                        style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--admin-border)", outline: "none", fontSize: "0.88rem" }}
+                        value={profileUsername}
+                        onChange={(e) => setProfileUsername(e.target.value)}
+                        required
+                        placeholder="Enter your name"
+                      />
+                    </div>
+
+                    {user?.provider === "LOCAL" && (
+                      <>
+                        <div style={{ marginBottom: "16px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <label htmlFor="profile-password" style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--admin-text-main)" }}>
+                            New Password (Leave blank to keep current)
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-password"
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--admin-border)", outline: "none", fontSize: "0.88rem" }}
+                            value={profilePassword}
+                            onChange={(e) => setProfilePassword(e.target.value)}
+                            placeholder="Minimum 6 characters"
+                          />
+                        </div>
+
+                        <div style={{ marginBottom: "20px", display: "flex", flexDirection: "column", gap: "6px" }}>
+                          <label htmlFor="profile-confirm-password" style={{ fontWeight: 600, fontSize: "0.82rem", color: "var(--admin-text-main)" }}>
+                            Confirm New Password
+                          </label>
+                          <input
+                            type="password"
+                            id="profile-confirm-password"
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--admin-border)", outline: "none", fontSize: "0.88rem" }}
+                            value={profileConfirmPassword}
+                            onChange={(e) => setProfileConfirmPassword(e.target.value)}
+                            placeholder="Re-enter new password"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <button type="submit" style={{ width: "100%", height: "40px", borderRadius: "8px", border: "none", background: "var(--admin-primary)", color: "#fff", fontWeight: 600, fontSize: "0.9rem", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }} disabled={profileLoading}>
+                      {profileLoading ? (
+                        <span>Updating Profile...</span>
+                      ) : (
+                        <>
+                          <i className="bi bi-person-check-fill"></i>
+                          <span>Save Profile Details</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
                 </div>
               </div>
             </section>
@@ -999,17 +1146,17 @@ const MemberDashboard: React.FC = () => {
                           </div>
                         </div>
 
-                        {/* Completed tasks inside this workspace */}
-                        <div className={styles["history-tasks-section"]}>
-                          <h4 className={styles["history-tasks-title"]}>
-                            <i className="bi bi-check2-all"></i> Your completed tasks ({ws.completedTasks?.length || 0})
-                          </h4>
+                          {/* Uncompleted tasks inside this workspace */}
+                          <div className={styles["history-tasks-section"]}>
+                            <h4 className={styles["history-tasks-title"]}>
+                              <i className="bi bi-clock"></i> Uncompleted tasks ({ws.uncompletedTasks?.length || 0})
+                            </h4>
 
-                          {!ws.completedTasks || ws.completedTasks.length === 0 ? (
-                            <p className={styles["no-tasks-text"]}>No completed tasks in this Workspace.</p>
+                          {!ws.uncompletedTasks || ws.uncompletedTasks.length === 0 ? (
+                            <p className={styles["no-tasks-text"]}>No uncompleted tasks in this Workspace.</p>
                           ) : (
                             <div className={styles["history-tasks-grid"]}>
-                              {ws.completedTasks.map((t) => (
+                              {ws.uncompletedTasks.map((t) => (
                                 <div key={t.id} className={styles["history-task-item"]}>
                                   <div className={styles["history-task-top"]}>
                                     <span className={styles["history-task-proj"]}>{t.projectName}</span>

@@ -286,4 +286,34 @@ public class AuthController {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }
     }
+
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
+            Authentication authentication,
+            @Valid @RequestBody com.example.taskmanagement.dto.request.UpdateProfileRequest request,
+            HttpServletResponse servletResponse) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Not authenticated"));
+        }
+        try {
+            String email = AuthEmailExtractor.extractEmail(authentication);
+            Long activeWorkspaceId = null;
+            if (authentication.getPrincipal() instanceof com.example.taskmanagement.security.CustomUserDetails) {
+                activeWorkspaceId = ((com.example.taskmanagement.security.CustomUserDetails) authentication.getPrincipal()).getActiveWorkspaceId();
+            }
+            UserResponse userResponse = authService.updateProfile(email, request, activeWorkspaceId);
+
+            // Re-generate access token with updated username/email since username might have changed
+            String refreshedToken = jwtService.generateToken(
+                    userResponse.getEmail(),
+                    userResponse.getRole().name(),
+                    userResponse.getWorkspaceId()
+            );
+            cookieUtil.addTokenCookie(servletResponse, refreshedToken, jwtService.getExpirationSeconds());
+
+            return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", userResponse));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+        }
+    }
 }
