@@ -190,12 +190,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
     setWsModalSuccess("");
     try {
       await workspaceService.joinWorkspace(joinWSCodeInput.trim());
-      setWsModalSuccess("Joined Workspace successfully! Redirecting...");
+      setWsModalSuccess("Join request sent. Please wait for workspace admin approval.");
       setJoinWSCodeInput("");
-      await checkAuth();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      setWsModalLoading(false);
     } catch (err: any) {
       setWsModalError(err.response?.data?.message || "Cannot join Workspace. Please check the invitation code.");
       setWsModalLoading(false);
@@ -382,6 +379,20 @@ const WorkspaceAdminDashboard: React.FC = () => {
   };
 
   const currentWorkspaceName = workspace?.name || user?.workspaceName || "My Account";
+
+  const handleCopyInviteCode = async () => {
+    if (!workspace?.inviteCode) {
+      setErrorMsg("Workspace invite code is not available.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(workspace.inviteCode);
+      setSuccessMsg("Workspace invite code copied.");
+    } catch {
+      setErrorMsg("Cannot copy invite code. Please copy it manually.");
+    }
+  };
 
   // Hàm phụ trợ tạo Avatar Initials
   const getInitials = (fullName: string) => {
@@ -1224,7 +1235,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                       >
                         <option value="ALL">Role / Status: All</option>
                         <option value="ACTIVE">Active members</option>
-                        <option value="INACTIVE">Banned members</option>
+                        <option value="INACTIVE">Pending approval</option>
                       </select>
                     </div>
                   </div>
@@ -1265,7 +1276,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                             <td>
                               <span className={`${styles["badge-status"]} ${member.active ? styles["badge-status-active"] : styles["badge-status-inactive"]}`}>
                                 <span className={styles["status-dot"]}></span>
-                                {member.active ? "Active" : "Locked"}
+                                {member.active ? "Active" : "Pending approval"}
                               </span>
                             </td>
                             <td>
@@ -1334,11 +1345,11 @@ const WorkspaceAdminDashboard: React.FC = () => {
                                 <div className={styles["actions-cell-buttons"]}>
                                   <button
                                     className={`${styles["btn-workspace-toggle"]} ${member.active ? styles["danger"] : styles["success"]}`}
-                                    title={member.active ? "Disable all WorkSpace" : "Enable all WorkSpace"}
+                                    title={member.active ? "Disable all WorkSpace" : "Approve member"}
                                     onClick={() => handleToggleMemberStatus(member.userId, member.active)}
                                   >
                                     <i className={member.active ? "bi bi-lock-fill" : "bi bi-unlock-fill"}></i>
-                                    {member.active ? "Disable all WorkSpace" : "Enable all WorkSpace"}
+                                    {member.active ? "Disable all WorkSpace" : "Approve member"}
                                   </button>
                                 </div>
                               )}
@@ -1667,6 +1678,24 @@ const WorkspaceAdminDashboard: React.FC = () => {
               </div>
 
               <div className={styles["settings-form-container"]}>
+                <div className={styles["invite-code-panel"]}>
+                  <div>
+                    <h3>Workspace invite code</h3>
+                    <p>Share this code with people who need to join this workspace.</p>
+                  </div>
+                  <div className={styles["invite-code-row"]}>
+                    <code>{workspace?.inviteCode || "No invite code"}</code>
+                    <button
+                      type="button"
+                      className={styles["btn-secondary"]}
+                      onClick={handleCopyInviteCode}
+                      disabled={!workspace?.inviteCode}
+                    >
+                      <i className="bi bi-clipboard"></i> Copy
+                    </button>
+                  </div>
+                </div>
+
                 <form onSubmit={handleUpdateWorkspace} className={styles["modal-body"]} style={{ padding: 0 }}>
                   <div className={styles["form-group"]}>
                     <label htmlFor="ws-name">Workspace/Organization Name</label>

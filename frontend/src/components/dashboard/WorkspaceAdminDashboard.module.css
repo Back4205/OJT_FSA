@@ -1611,6 +1611,50 @@
   box-shadow: var(--admin-shadow-sm);
 }
 
+.invite-code-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding: 16px;
+  border: 1px solid var(--admin-border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.invite-code-panel h3 {
+  margin: 0 0 4px;
+  color: var(--admin-text-main);
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.invite-code-panel p {
+  margin: 0;
+  color: var(--admin-text-muted);
+  font-size: 0.82rem;
+}
+
+.invite-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.invite-code-row code {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--admin-primary);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
 .profile-card-container {
   display: flex;
   gap: 24px;

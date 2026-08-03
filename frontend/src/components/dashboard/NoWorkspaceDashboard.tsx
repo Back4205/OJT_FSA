@@ -38,10 +38,9 @@ const NoWorkspaceDashboard: React.FC = () => {
     setErrorMsg("");
     try {
       await workspaceService.joinWorkspace(inviteCode.trim());
-      setSuccessMsg("Tham gia workspace thành công. Đang chuyển đến dashboard...");
+      setSuccessMsg("Join request sent. Please wait for workspace admin approval.");
       setInviteCode("");
-      await checkAuth();
-      window.setTimeout(() => window.location.reload(), 800);
+      setLoading(false);
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Không thể tham gia workspace. Vui lòng kiểm tra lại mã mời.");
       setLoading(false);
@@ -194,7 +193,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                       type="text"
                       id="invite-code-input"
                       className={styles["form-control"]}
-                      placeholder="Ví dụ: GOOGLE123 hoặc WS-A2B4C6D8"
+                      placeholder="Ví dụ: WS-A2B4C6D8"
                       value={inviteCode}
                       onChange={(event) => setInviteCode(event.target.value)}
                       disabled={loading}

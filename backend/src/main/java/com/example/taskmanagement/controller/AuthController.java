@@ -281,7 +281,7 @@ public class AuthController {
         try {
             String email = AuthEmailExtractor.extractEmail(authentication);
             UserResponse userResponse = authService.joinWorkspaceWithInviteCode(email, inviteCode, response);
-            return ResponseEntity.ok(ApiResponse.success("Joined workspace successfully", userResponse));
+            return ResponseEntity.ok(ApiResponse.success("Join request sent. Waiting for workspace admin approval.", userResponse));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         }

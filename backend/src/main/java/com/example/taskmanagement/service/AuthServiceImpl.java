@@ -42,6 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final EmailService emailService;
     private final TaskRepository taskRepository;
+    private final NotificationRepository notificationRepository;
 
     @Value("${app.backend-base-url:http://localhost:8080/taskmanager}")
     private String backendBaseUrl;
@@ -495,16 +496,18 @@ public class AuthServiceImpl implements AuthService {
         if (existingMembershipOpt.isPresent()) {
             membership = existingMembershipOpt.get();
             if (!membership.isActive()) {
-                membership.setActive(true);
-                workspaceMembershipRepository.save(membership);
+                notifyWorkspaceAdminsAboutJoinRequest(workspace, user);
+                return UserResponse.fromEntity(user);
             }
         } else {
             membership = new WorkspaceMembership();
             membership.setUser(user);
             membership.setWorkspace(workspace);
             membership.setRole(memberRole);
-            membership.setActive(true);
-            membership = workspaceMembershipRepository.save(membership);
+            membership.setActive(false);
+            workspaceMembershipRepository.save(membership);
+            notifyWorkspaceAdminsAboutJoinRequest(workspace, user);
+            return UserResponse.fromEntity(user);
         }
 
         // Re-generate cookies/tokens for the new workspace context
@@ -519,5 +522,19 @@ public class AuthServiceImpl implements AuthService {
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
         return UserResponse.fromEntity(user, workspace, membership.getRole());
+    }
+
+    private void notifyWorkspaceAdminsAboutJoinRequest(Workspace workspace, User requester) {
+        String content = requester.getEmail() + " requested to join workspace \"" + workspace.getName() + "\".";
+        workspaceMembershipRepository.findByWorkspaceId(workspace.getId()).stream()
+                .filter(WorkspaceMembership::isActive)
+                .filter(membership -> membership.getRole() != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN)
+                .map(WorkspaceMembership::getUser)
+                .forEach(admin -> {
+                    Notification notification = new Notification();
+                    notification.setUser(admin);
+                    notification.setContent(content);
+                    notificationRepository.save(notification);
+                });
     }
 }

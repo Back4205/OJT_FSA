@@ -31,6 +31,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     private final TaskRepository taskRepository;
     private final PasswordEncoder passwordEncoder;
     private final ActivityLogRepository activityLogRepository;
+    private final NotificationRepository notificationRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -277,8 +278,20 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         WorkspaceMembership membership = workspaceMembershipRepository.findByUserIdAndWorkspaceId(userId, workspaceId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thành viên này trong Workspace"));
 
+        boolean wasInactive = !membership.isActive();
         membership.setActive(true);
         workspaceMembershipRepository.save(membership);
+
+        if (wasInactive) {
+            sendWorkspaceApprovalNotification(membership);
+        }
+    }
+
+    private void sendWorkspaceApprovalNotification(WorkspaceMembership membership) {
+        Notification notification = new Notification();
+        notification.setUser(membership.getUser());
+        notification.setContent("Your request to join workspace \"" + membership.getWorkspace().getName() + "\" has been approved.");
+        notificationRepository.save(notification);
     }
 
     @Override
@@ -485,4 +498,4 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         }
         // Nếu đã là LEADER hoặc WORKSPACE_ADMIN → không cần thay đổi
     }
-}
+}

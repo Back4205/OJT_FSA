@@ -371,10 +371,11 @@ const AdminDashboard: React.FC = () => {
     ...weeklyActivity.flatMap((item) => [item.users, item.workspaces]),
     1
   );
+  const getWeeklyPointX = (index: number) =>
+    weeklyActivity.length <= 1 ? 50 : ((index + 0.5) / weeklyActivity.length) * 100;
   const toWeeklyPoints = (values: number[]) => {
-    const denominator = Math.max(values.length - 1, 1);
     return values.map((value, index) => [
-      Number(((index / denominator) * 100).toFixed(2)),
+      Number(getWeeklyPointX(index).toFixed(2)),
       Number((92 - (value / weeklyMaxValue) * 64).toFixed(2))
     ]);
   };
@@ -527,28 +528,42 @@ const AdminDashboard: React.FC = () => {
               </div>
 
               <div className={styles.dashboardChartGrid}>
-                <article className={styles.chartCard}>
+                <article className={`${styles.chartCard} ${styles.taskStatusCard}`}>
                   <div className={styles.panelHeader}>
                     <h2>Task status</h2>
                     <span>{totalWorkspaceTasks.toLocaleString()} tasks</span>
                   </div>
                   <div className={styles.taskStatusLayout}>
-                    <div
-                      className={styles.taskDonut}
-                      style={{
-                        background: `conic-gradient(#10b981 0 ${completionRate}%, #4f46e5 ${completionRate}% 100%)`
-                      }}
-                    >
-                      <span>{completionRate}%</span>
-                    </div>
-                    <div className={styles.taskLegendGrid}>
-                      <div>
-                        <span><i className={styles.legendGreen} />Completed</span>
-                        <strong>{completedWorkspaceTasks.toLocaleString()}</strong>
+                    <div className={styles.taskDonutBlock}>
+                      <div
+                        className={styles.taskDonut}
+                        style={{
+                          background: `conic-gradient(#10b981 0 ${completionRate}%, #4f46e5 ${completionRate}% 100%)`
+                        }}
+                      >
+                        <span>{completionRate}%</span>
                       </div>
-                      <div>
-                        <span><i className={styles.legendIndigo} />Open</span>
-                        <strong>{openWorkspaceTasks.toLocaleString()}</strong>
+                      <span>Completion rate</span>
+                    </div>
+                    <div className={styles.taskStatusDetails}>
+                      <div className={styles.taskLegendGrid}>
+                        <div>
+                          <span><i className={styles.legendGreen} />Completed</span>
+                          <strong>{completedWorkspaceTasks.toLocaleString()}</strong>
+                        </div>
+                        <div>
+                          <span><i className={styles.legendIndigo} />Open</span>
+                          <strong>{openWorkspaceTasks.toLocaleString()}</strong>
+                        </div>
+                      </div>
+                      <div className={styles.taskProgressBlock}>
+                        <div className={styles.taskProgressTop}>
+                          <span>Done out of total</span>
+                          <strong>{completedWorkspaceTasks.toLocaleString()} / {totalWorkspaceTasks.toLocaleString()}</strong>
+                        </div>
+                        <div className={styles.taskProgressTrack}>
+                          <div className={styles.taskProgressFill} style={{ width: `${completionRate}%` }} />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -558,8 +573,18 @@ const AdminDashboard: React.FC = () => {
                   <div className={styles.panelHeader}>
                     <h2>Weekly activity</h2>
                     <div className={styles.inlineLegend}>
-                      <span><i className={styles.legendIndigo} />Users {weeklyUserTotal}</span>
-                      <span><i className={styles.legendGreen} />Workspaces {weeklyWorkspaceTotal}</span>
+                      <span><i className={styles.legendIndigo} />Users</span>
+                      <span><i className={styles.legendGreen} />Workspaces</span>
+                    </div>
+                  </div>
+                  <div className={styles.weeklySummaryGrid}>
+                    <div className={styles.weeklySummaryItem}>
+                      <span>Users this week</span>
+                      <strong>{weeklyUserTotal}</strong>
+                    </div>
+                    <div className={styles.weeklySummaryItem}>
+                      <span>Workspaces this week</span>
+                      <strong>{weeklyWorkspaceTotal}</strong>
                     </div>
                   </div>
                   <div className={styles.weeklyChart}>
@@ -576,6 +601,15 @@ const AdminDashboard: React.FC = () => {
                         <span key={item.day}>{formatDayLabel(item.day)}</span>
                       ))}
                     </div>
+                  </div>
+                  <div className={styles.weeklyDayGrid}>
+                    {weeklyActivity.map((item) => (
+                      <div key={item.day} className={styles.weeklyDayCard}>
+                        <strong>{formatDayLabel(item.day)}</strong>
+                        <span><i className={styles.legendIndigo} /> {item.users}</span>
+                        <span><i className={styles.legendGreen} /> {item.workspaces}</span>
+                      </div>
+                    ))}
                   </div>
                 </article>
               </div>

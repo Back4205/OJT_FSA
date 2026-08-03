@@ -40,6 +40,7 @@ const MemberDashboard: React.FC = () => {
   const [showCreateWorkspaceModal, setShowCreateWorkspaceModal] = useState(false);
   const [newWorkspaceName, setNewWorkspaceName] = useState("");
   const [newWorkspaceDescription, setNewWorkspaceDescription] = useState("");
+  const [workspaceInviteCode, setWorkspaceInviteCode] = useState("");
   const [createWorkspaceLoading, setCreateWorkspaceLoading] = useState(false);
   const [createWorkspaceError, setCreateWorkspaceError] = useState("");
   const [createWorkspaceSuccess, setCreateWorkspaceSuccess] = useState("");
@@ -97,7 +98,14 @@ const MemberDashboard: React.FC = () => {
       void loadDashboard(false);
     }, 30000);
 
-    return () => window.clearInterval(refreshTimer);
+    const roleRefreshTimer = window.setInterval(() => {
+      void checkAuth();
+    }, 10000);
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      window.clearInterval(roleRefreshTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -394,6 +402,27 @@ const MemberDashboard: React.FC = () => {
     }
   };
 
+  const handleJoinWorkspaceSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!workspaceInviteCode.trim()) {
+      setCreateWorkspaceError("Invite code is required.");
+      return;
+    }
+
+    setCreateWorkspaceLoading(true);
+    setCreateWorkspaceError("");
+    setCreateWorkspaceSuccess("");
+    try {
+      await workspaceService.joinWorkspace(workspaceInviteCode.trim());
+      setCreateWorkspaceSuccess("Join request sent. Please wait for workspace admin approval.");
+      setWorkspaceInviteCode("");
+      setCreateWorkspaceLoading(false);
+    } catch (err: any) {
+      setCreateWorkspaceError(err.response?.data?.message || "Unable to join workspace.");
+      setCreateWorkspaceLoading(false);
+    }
+  };
+
   const formatWorkspaceRole = (roleName: string) => {
     if (roleName === "WORKSPACE_ADMIN") {
       return "Workspace admin";
@@ -545,7 +574,9 @@ const MemberDashboard: React.FC = () => {
               {userWorkspaces.length === 0 && (
                 <div className={styles.workspaceEmpty}>No joined workspaces yet.</div>
               )}
-              {userWorkspaces.filter(ws => ws.uncompletedTaskCount > 0 || ws.workspaceId === dashboard?.workspaceId).map((workspace) => {
+              {userWorkspaces
+                .filter((workspace) => workspace.uncompletedTaskCount > 0 || workspace.workspaceId === dashboard?.workspaceId)
+                .map((workspace) => {
                 const isActive = workspace.workspaceId === dashboard?.workspaceId;
                 return (
                   <button
@@ -553,7 +584,7 @@ const MemberDashboard: React.FC = () => {
                     type="button"
                     className={`${styles.workspaceDropdownItem} ${isActive ? styles.workspaceDropdownItemActive : ""}`}
                     onClick={() => handleSwitchWorkspace(workspace.workspaceId)}
-                    disabled={workspaceSwitchingId === workspace.workspaceId || isActive}
+                    disabled={workspaceSwitchingId === workspace.workspaceId}
                   >
                     <div className={styles.workspaceItemAvatar}>
                       {(workspace.workspaceName || "WS").slice(0, 2).toUpperCase()}
@@ -572,7 +603,7 @@ const MemberDashboard: React.FC = () => {
               })}
 
               <button type="button" className={styles.dropdownActionBtn} onClick={openCreateWorkspaceModal}>
-                <i className="bi bi-plus-lg" />
+                <i className={`bi bi-plus-lg ${styles.actionIcon}`} />
                 <span>Create workspace</span>
               </button>
             </div>
@@ -1104,11 +1135,10 @@ const MemberDashboard: React.FC = () => {
 
           {showCreateWorkspaceModal && (
             <div className={styles.modalOverlay} onClick={closeCreateWorkspaceModal}>
-              <div className={styles.modalContent} onClick={(event) => event.stopPropagation()}>
+              <div className={`${styles.modalContent} ${styles.workspaceAddModal}`} onClick={(event) => event.stopPropagation()}>
                 <div className={styles.modalHeader}>
                   <div>
-                    <h3>Create workspace</h3>
-                    <p className={styles.modalSubTitle}>Start a new workspace and invite people later.</p>
+                    <h3>Add new Workspace</h3>
                   </div>
                   <button type="button" className={styles.modalCloseButton} onClick={closeCreateWorkspaceModal}>
                     ×
@@ -1117,36 +1147,60 @@ const MemberDashboard: React.FC = () => {
                 <div className={styles.modalBody}>
                   {createWorkspaceError && <div className={styles.error}>{createWorkspaceError}</div>}
                   {createWorkspaceSuccess && <div className={styles.loading}>{createWorkspaceSuccess}</div>}
-                  <form className={styles.createWorkspaceForm} onSubmit={handleCreateWorkspaceSubmit}>
-                    <label className={styles.formLabel}>
-                      Workspace name
-                      <input
-                        className={styles.filterInput}
-                        type="text"
-                        value={newWorkspaceName}
-                        onChange={(e) => setNewWorkspaceName(e.target.value)}
-                        placeholder="e.g. Northwind Studio"
-                      />
-                    </label>
-                    <label className={styles.formLabel}>
-                      Description
-                      <textarea
-                        className={styles.textArea}
-                        value={newWorkspaceDescription}
-                        onChange={(e) => setNewWorkspaceDescription(e.target.value)}
-                        placeholder="What is this workspace for?"
-                        rows={4}
-                      />
-                    </label>
-                    <div className={styles.detailActions}>
-                      <button type="button" className={styles.taskActionButton} onClick={closeCreateWorkspaceModal}>
-                        Cancel
-                      </button>
-                      <button type="submit" className={styles.taskActionButton} disabled={createWorkspaceLoading}>
-                        {createWorkspaceLoading ? "Creating..." : "Create workspace"}
-                      </button>
-                    </div>
-                  </form>
+                  <div>
+                    <h3 className={styles.workspaceModalSectionTitle}>Create new Workspace</h3>
+                    <form onSubmit={handleCreateWorkspaceSubmit}>
+                      <div className={styles.workspaceFormGroup}>
+                        <label className={styles.workspaceFormLabel}>Workspace Name <span>*</span></label>
+                        <input
+                          type="text"
+                          className={styles.workspaceFormInput}
+                          placeholder="e.g. Team Alpha..."
+                          value={newWorkspaceName}
+                          onChange={(e) => setNewWorkspaceName(e.target.value)}
+                          disabled={createWorkspaceLoading}
+                        />
+                      </div>
+                      <div className={styles.workspaceFormGroup}>
+                        <label className={styles.workspaceFormLabel}>Description (Optional)</label>
+                        <textarea
+                          className={styles.workspaceFormTextarea}
+                          placeholder="Enter a short description for this workspace..."
+                          value={newWorkspaceDescription}
+                          onChange={(e) => setNewWorkspaceDescription(e.target.value)}
+                          disabled={createWorkspaceLoading}
+                          rows={2}
+                        />
+                      </div>
+                      <div className={styles.workspaceModalActionRow}>
+                        <button type="submit" className={styles.workspacePrimaryButton} disabled={createWorkspaceLoading}>
+                          {createWorkspaceLoading ? "Processing..." : "Initialize"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+
+                  <div>
+                    <h3 className={styles.workspaceModalSectionTitle}>Or Join via Invite Code</h3>
+                    <form onSubmit={handleJoinWorkspaceSubmit}>
+                      <div className={styles.workspaceFormGroup}>
+                        <label className={styles.workspaceFormLabel}>Invite Code <span>*</span></label>
+                        <input
+                          type="text"
+                          className={styles.workspaceFormInput}
+                          placeholder="e.g. WS-A2B4C6D8"
+                          value={workspaceInviteCode}
+                          onChange={(e) => setWorkspaceInviteCode(e.target.value.toUpperCase())}
+                          disabled={createWorkspaceLoading}
+                        />
+                      </div>
+                      <div className={styles.workspaceModalActionRow}>
+                        <button type="submit" className={styles.workspacePrimaryButton} disabled={createWorkspaceLoading}>
+                          {createWorkspaceLoading ? "Processing..." : "Join Now"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>

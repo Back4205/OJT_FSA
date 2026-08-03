@@ -438,17 +438,35 @@
   gap: 16px;
 }
 
+.taskStatusCard {
+  display: flex;
+  flex-direction: column;
+}
+
 .taskStatusLayout {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(150px, 0.72fr) minmax(0, 1fr);
+  gap: 20px;
   align-items: center;
-  min-height: 220px;
+  flex: 1;
+  min-height: 300px;
+}
+
+.taskDonutBlock {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+}
+
+.taskDonutBlock > span {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .taskDonut {
-  width: 148px;
-  height: 148px;
+  width: 168px;
+  height: 168px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -458,7 +476,7 @@
 .taskDonut::after {
   content: "";
   position: absolute;
-  inset: 24px;
+  inset: 28px;
   border-radius: 50%;
   background: #fff;
 }
@@ -467,20 +485,35 @@
   position: relative;
   z-index: 1;
   color: #0f172a;
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   font-weight: 800;
+}
+
+.taskStatusDetails {
+  display: grid;
+  gap: 16px;
+  align-content: center;
 }
 
 .taskLegendGrid {
   display: grid;
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .taskLegendGrid div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.taskLegendGrid strong {
+  color: #0f172a;
+  font-size: 1.4rem;
+  line-height: 1;
 }
 
 .taskLegendGrid span,
@@ -504,6 +537,41 @@
   background: #4f46e5;
 }
 
+.taskProgressBlock {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.taskProgressTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.taskProgressTop strong {
+  color: #0f172a;
+}
+
+.taskProgressTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.taskProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: #10b981;
+}
+
 .inlineLegend {
   display: inline-flex;
   gap: 14px;
@@ -511,11 +579,40 @@
 }
 
 .weeklyCard {
-  min-height: 300px;
+  min-height: 390px;
+}
+
+.weeklySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 14px 0 8px;
+}
+
+.weeklySummaryItem {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.weeklySummaryItem span {
+  display: block;
+  color: #64748b;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.weeklySummaryItem strong {
+  display: block;
+  margin-top: 4px;
+  color: #0f172a;
+  font-size: 1.35rem;
+  line-height: 1;
 }
 
 .weeklyChart {
-  height: 226px;
+  height: 206px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -560,6 +657,45 @@
   color: #64748b;
   font-size: 0.75rem;
   text-align: center;
+}
+
+.weeklyDayGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.weeklyDayCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 8px;
+  min-width: 0;
+}
+
+.weeklyDayCard strong {
+  display: block;
+  color: #0f172a;
+  font-size: 0.76rem;
+  margin-bottom: 6px;
+}
+
+.weeklyDayCard span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.weeklyDayCard i {
+  width: 10px;
+  height: 3px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 .progressList,

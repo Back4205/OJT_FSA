@@ -11,7 +11,7 @@ import {
   type CreateProjectRequest,
   type CreateTaskRequest,
 } from "../../services/leaderService";
-import { workspaceService, type UserWorkspaceResponse } from "../../services/workspaceService";
+import { workspaceService, type DashboardStatsResponse, type UserWorkspaceResponse } from "../../services/workspaceService";
 import { commentService, type TaskComment } from "../../services/commentService";
 import { memberService, type MemberNotificationResponse } from "../../services/memberService";
 import NotificationDropdown from "../common/NotificationDropdown";
@@ -54,6 +54,7 @@ const deadlineVariant = (iso?: string): "overdue" | "upcoming" | "normal" => {
 
 // ── Component ──────────────────────────────────────────────────────────────
 type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "members" | "profile" | "history";
+type ChartPoint = { x: number; y: number };
 
 const LeaderDashboard: React.FC = () => {
   const { user, logout, checkAuth } = useAuth();
@@ -92,7 +93,7 @@ const LeaderDashboard: React.FC = () => {
   const [wsMembers, setWsMembers] = useState<WorkspaceMemberShort[]>([]);
   const [allTasks, setAllTasks] = useState<TaskResponse[]>([]);
   const [userWs, setUserWs] = useState<UserWorkspaceResponse[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
   const [taskComments, setTaskComments] = useState<TaskComment[]>([]);
   const [newComment, setNewComment] = useState("");
 
@@ -258,12 +259,9 @@ const LeaderDashboard: React.FC = () => {
     setWsModalSuccess("");
     try {
       await workspaceService.joinWorkspace(joinWSCodeInput.trim());
-      setWsModalSuccess("Joined Workspace successfully! Redirecting...");
+      setWsModalSuccess("Join request sent. Please wait for workspace admin approval.");
       setJoinWSCodeInput("");
-      await checkAuth();
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      setWsModalLoading(false);
     } catch (err: any) {
       setWsModalError(err.response?.data?.message || "Invalid or expired invitation code.");
       setWsModalLoading(false);
@@ -562,19 +560,19 @@ const LeaderDashboard: React.FC = () => {
     let currentDayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const todayIndex = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
 
-    const createdData = (stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
-    const completedData = (stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+    const createdData: number[] = (stats?.createdTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
+    const completedData: number[] = (stats?.completedTasksWeekly || [0, 0, 0, 0, 0, 0, 0]).slice(0, todayIndex + 1);
 
     const maxVal = Math.max(...createdData, ...completedData, 5);
 
     const xCoords = [50, 150, 250, 350, 450, 550, 650];
 
-    const createdPoints = createdData.map((val, i) => ({
+    const createdPoints: ChartPoint[] = createdData.map((val, i) => ({
       x: xCoords[i],
       y: 110 - (val / maxVal) * 90
     }));
 
-    const completedPoints = completedData.map((val, i) => ({
+    const completedPoints: ChartPoint[] = completedData.map((val, i) => ({
       x: xCoords[i],
       y: 110 - (val / maxVal) * 90
     }));
@@ -1933,7 +1931,7 @@ const LeaderDashboard: React.FC = () => {
                     <input
                       type="text"
                       className={styles["form-input"]}
-                      placeholder="Enter 6-digit invite code..."
+                      placeholder="e.g. WS-A2B4C6D8"
                       value={joinWSCodeInput}
                       onChange={(e) => setJoinWSCodeInput(e.target.value.toUpperCase())}
                       disabled={wsModalLoading}
