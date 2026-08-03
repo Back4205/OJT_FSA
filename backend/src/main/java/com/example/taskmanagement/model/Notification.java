@@ -38,6 +38,11 @@ public class Notification {
     @JoinColumn(name = "task_id")
     private Task task;
 
+    // Workspace liên quan, phục vụ cho WS Admin lấy thông báo
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_id")
+    private Workspace workspace;
+
     // Tự động set thời gian hiện tại khi lưu notification xuống DB
     @PrePersist
     protected void onCreate() {

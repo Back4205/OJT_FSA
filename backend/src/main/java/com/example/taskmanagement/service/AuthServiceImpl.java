@@ -533,6 +533,7 @@ public class AuthServiceImpl implements AuthService {
                 .forEach(admin -> {
                     Notification notification = new Notification();
                     notification.setUser(admin);
+                    notification.setWorkspace(workspace);
                     notification.setContent(content);
                     notificationRepository.save(notification);
                 });

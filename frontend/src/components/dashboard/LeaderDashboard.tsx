@@ -161,6 +161,7 @@ const LeaderDashboard: React.FC = () => {
   // Forms
   const [projName, setProjName] = useState("");
   const [projDesc, setProjDesc] = useState("");
+  const [newProjMaxMembers, setNewProjMaxMembers] = useState<number>(10);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDesc, setTaskDesc] = useState("");
   const [taskPriority, setTaskPriority] = useState<TaskPriority>("MEDIUM");
@@ -319,15 +320,14 @@ const LeaderDashboard: React.FC = () => {
   // ── Create project ───────────────────────────────────────────────────────
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projName.trim()) { setErrorMsg("Project name cannot be empty."); return; }
+    if (!projName.trim()) return;
     try {
-      const req: CreateProjectRequest = { name: projName.trim(), description: projDesc.trim() };
+      const req: CreateProjectRequest = { name: projName.trim(), description: projDesc.trim(), maxMembers: newProjMaxMembers };
       await leaderService.createProject(req);
-      setSuccessMsg("Created project successfully.");
+      setSuccessMsg("Project created successfully.");
       setShowCreateProject(false);
-      setProjName(""); setProjDesc("");
-      const projs = await leaderService.getProjects();
-      setProjects(projs);
+      setProjName(""); setProjDesc(""); setNewProjMaxMembers(10);
+      await loadData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Failed to create project.");
     }
@@ -980,11 +980,16 @@ const LeaderDashboard: React.FC = () => {
                         <div key={p.id} className={styles["project-row"]} onClick={() => setSelectedProjectId(p.id)}>
                           <div className={styles["project-row-top"]}>
                             <span className={styles["project-name"]}>{p.name}</span>
-                            {firstDeadline && (
-                              <span className={`${styles["due-badge"]} ${isOverdue(firstDeadline) ? styles["overdue"] : ""}`}>
-                                Due {formatDue(firstDeadline)}
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                              <span style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 500 }}>
+                                {p.members?.length || 0}{p.maxMembers ? ` / ${p.maxMembers}` : ""} members
                               </span>
-                            )}
+                              {firstDeadline && (
+                                <span className={`${styles["due-badge"]} ${isOverdue(firstDeadline) ? styles["overdue"] : ""}`}>
+                                  Due {formatDue(firstDeadline)}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className={styles["progress-wrap"]}>
                             <div className={styles["progress-fill"]} style={{ width: `${pct}%` }} />
@@ -1168,7 +1173,7 @@ const LeaderDashboard: React.FC = () => {
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{p.name}</div>
-                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{p.members.length}{p.maxMembers ? `/${p.maxMembers}` : ""} members · {p.taskCount} tasks</div>
+                            <div style={{ fontSize: "0.72rem", color: "#64748b" }}>{p.members?.length || 0}{p.maxMembers ? ` / ${p.maxMembers}` : ""} members · {p.taskCount} tasks</div>
                           </div>
                         </div>
                         {p.description && <p style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "14px" }}>{p.description}</p>}
@@ -1959,6 +1964,18 @@ const LeaderDashboard: React.FC = () => {
                 <label className={styles["form-label"]}>Description</label>
                 <textarea className={styles["form-textarea"]} value={projDesc} onChange={e => setProjDesc(e.target.value)} placeholder="Optional description..." />
               </div>
+              <div className={styles["form-group"]}>
+                <label className={styles["form-label"]}>Max Members</label>
+                <input 
+                  type="number" 
+                  className={styles["form-input"]} 
+                  value={newProjMaxMembers} 
+                  onChange={e => setNewProjMaxMembers(Number(e.target.value))} 
+                  min={1} 
+                  max={100} 
+                  required 
+                />
+              </div>
               <div className={styles["modal-footer"]}>
                 <button type="button" className={styles["btn-outline"]} onClick={() => setShowCreateProject(false)}>Cancel</button>
                 <button type="submit" className={styles["btn-primary"]}>Create project</button>
@@ -2139,6 +2156,11 @@ const LeaderDashboard: React.FC = () => {
           <div className={styles["modal"]} style={{ maxWidth: "600px", width: "95%" }} onClick={(e) => e.stopPropagation()}>
             <div className={styles["modal-header"]}>
               <h2 className={styles["modal-title"]}>Add Project Member</h2>
+              {proj && (
+                <p style={{ fontSize: "0.85rem", color: "#64748b", margin: "4px 0 0 0" }}>
+                  Current members: {proj.members?.length || 0}{proj.maxMembers ? ` / ${proj.maxMembers}` : ""}
+                </p>
+              )}
             </div>
             
             <div className={styles["modal-body"]}>

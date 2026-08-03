@@ -290,6 +290,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
     private void sendWorkspaceApprovalNotification(WorkspaceMembership membership) {
         Notification notification = new Notification();
         notification.setUser(membership.getUser());
+        notification.setWorkspace(membership.getWorkspace());
         notification.setContent("Your request to join workspace \"" + membership.getWorkspace().getName() + "\" has been approved.");
         notificationRepository.save(notification);
     }

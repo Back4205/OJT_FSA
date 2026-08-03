@@ -1662,3 +1662,289 @@
   background-color: #e2e8f0;
   color: #0f172a;
 }
+/* ── Project Card Grid ── */
+.proj-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 1200px) {
+  .proj-card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .proj-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Project Card ── */
+.proj-card {
+  background: var(--admin-card-bg);
+  border: 1px solid var(--admin-border);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: var(--admin-shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.proj-card:hover {
+  box-shadow: var(--admin-shadow-lg);
+  transform: translateY(-2px);
+}
+
+.proj-card-expanded {
+  border-color: var(--admin-primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.12), var(--admin-shadow-lg);
+}
+
+/* Card Header: avatar + name + desc */
+.proj-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.proj-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+}
+
+.proj-card-title-group {
+  flex: 1;
+  min-width: 0;
+}
+
+.proj-card-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--admin-text-main);
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proj-card-desc {
+  font-size: 0.76rem;
+  color: var(--admin-text-muted);
+  margin: 0;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Progress bar */
+.proj-progress-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.proj-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+}
+
+.proj-progress-pct {
+  color: var(--admin-primary);
+  font-weight: 800;
+}
+
+.proj-progress-track {
+  width: 100%;
+  height: 6px;
+  background: var(--admin-border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.proj-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6);
+  transition: width 0.6s ease;
+}
+
+/* Status + Leader row */
+.proj-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proj-leader-label {
+  font-size: 0.74rem;
+  color: var(--admin-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 55%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status badges */
+.proj-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.proj-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.proj-status-ontrack {
+  background: rgba(16, 185, 129, 0.12);
+  color: #059669;
+}
+
+.proj-status-ontrack .proj-status-dot {
+  background: #10b981;
+}
+
+.proj-status-atrisk {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+}
+
+.proj-status-atrisk .proj-status-dot {
+  background: #f59e0b;
+}
+
+.proj-status-offtrack {
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+}
+
+.proj-status-offtrack .proj-status-dot {
+  background: #ef4444;
+}
+
+.proj-status-notask {
+  background: rgba(100, 116, 139, 0.1);
+  color: #64748b;
+}
+
+.proj-status-notask .proj-status-dot {
+  background: #94a3b8;
+}
+
+/* Stats row */
+.proj-stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--admin-border);
+  padding-top: 14px;
+  gap: 12px;
+}
+
+.proj-stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.proj-stat-value {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--admin-text-main);
+  line-height: 1;
+}
+
+.proj-stat-label {
+  font-size: 0.7rem;
+  color: var(--admin-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Card action button */
+.proj-card-actions {
+  display: flex;
+  align-items: center;
+}
+
+.proj-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--admin-text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--admin-transition);
+  width: 100%;
+  justify-content: center;
+}
+
+.proj-action-btn:hover {
+  background: var(--admin-primary-light);
+  border-color: var(--admin-primary);
+  color: var(--admin-primary);
+}
+
+.proj-action-btn-active {
+  background: var(--admin-primary-light);
+  border-color: var(--admin-primary);
+  color: var(--admin-primary);
+}
+
+/* Inline expanded panel inside card */
+.proj-inline-panel {
+  border-top: 1px solid var(--admin-border);
+  background: #f8fafc;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 4px;
+}
+
+.proj-panel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.proj-panel-heading {
+  font-size: 0.82rem;
+  font-weight: 700;
+}

@@ -1154,7 +1154,9 @@ const WorkspaceAdminDashboard: React.FC = () => {
                             <span className={styles["proj-subdesc"]}>Leader (ID): {proj.leaderUsername}</span>
                           </div>
                           <div className={styles["proj-stats"]}>
-                            <span className={styles["proj-members-tag"]}>{proj.members ? proj.members.length : 1} members</span>
+                            <span className={styles["proj-members-tag"]}>
+                              {proj.members?.length || 0}{proj.maxMembers ? ` / ${proj.maxMembers}` : ""} members
+                            </span>
                             <div className={styles["proj-task-cnt"]} style={{ fontSize: "0.68rem", color: "var(--admin-primary)", marginTop: "2px", fontWeight: "700" }}>{pct}% Complete</div>
                           </div>
                         </div>
@@ -2341,7 +2343,12 @@ const WorkspaceAdminDashboard: React.FC = () => {
         <div className={styles["modal-overlay"]}>
           <div className={styles["modal-content"]} style={{ maxWidth: "500px" }}>
             <div className={styles["modal-header"]}>
-              <h3>Project Members - {selectedProjForMembers.name}</h3>
+              <div>
+                <h3 style={{ margin: 0 }}>Project Members - {selectedProjForMembers.name}</h3>
+                <p style={{ fontSize: "0.85rem", color: "var(--admin-text-muted)", margin: "4px 0 0 0" }}>
+                  Current members: {selectedProjForMembers.members?.length || 0}{selectedProjForMembers.maxMembers ? ` / ${selectedProjForMembers.maxMembers}` : ""}
+                </p>
+              </div>
               <button className={styles["modal-close-btn"]} onClick={() => setSelectedProjForMembers(null)}>&times;</button>
             </div>
 
