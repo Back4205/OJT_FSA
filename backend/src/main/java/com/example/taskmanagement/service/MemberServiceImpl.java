@@ -70,7 +70,7 @@ public class MemberServiceImpl implements MemberService {
 
         Workspace workspace = membership.getWorkspace();
         List<Task> tasks = new ArrayList<>(taskRepository
-                .findByAssigneeIdAndProjectWorkspaceIdOrderByDeadlineAsc(user.getId(), workspace.getId()));
+                .findAssignedOrUnassignedForMember(user.getId(), workspace.getId()));
         tasks.sort(Comparator.comparing(Task::getDeadline, Comparator.nullsLast(Comparator.naturalOrder())));
 
         LocalDate today = LocalDate.now();
@@ -250,11 +250,16 @@ public class MemberServiceImpl implements MemberService {
         }
 
         if (task.getAssignee() == null || !task.getAssignee().getId().equals(user.getId())) {
-            throw new IllegalStateException("You can only update tasks assigned to you");
+            throw new IllegalStateException("You can only update tasks assigned to you.");
         }
 
         if (status == null) {
-            throw new IllegalArgumentException("Task status is required");
+            throw new IllegalArgumentException("Task status is required.");
+        }
+
+        // Enforce: task must be assigned before moving to IN_PROGRESS
+        if (status == TaskStatus.IN_PROGRESS && task.getAssignee() == null) {
+            throw new IllegalStateException("Task must be assigned to someone before moving to IN_PROGRESS.");
         }
 
         task.setStatus(status);

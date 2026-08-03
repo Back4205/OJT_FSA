@@ -192,17 +192,22 @@ public class TaskServiceImpl implements TaskService {
 
         if (RoleName.MEMBER.name().equals(currentRole)) {
             if (task.getAssignee() == null || !task.getAssignee().getId().equals(currentUserId)) {
-                throw new AccessDeniedException("Bạn chỉ có thể cập nhật status của task được gán cho mình");
+                throw new AccessDeniedException("You can only update the status of tasks assigned to you.");
             }
+        }
+
+        // Enforce: a task must be assigned to someone before moving to IN_PROGRESS
+        if (newStatus == TaskStatus.IN_PROGRESS && task.getAssignee() == null) {
+            throw new IllegalStateException("Task must be assigned to someone before moving to IN_PROGRESS.");
         }
 
         TaskStatus oldStatus = task.getStatus();
         task.setStatus(newStatus);
         Task saved = taskRepository.save(task);
 
-        // Ghi ActivityLog: thay đổi status
+        // Log the status change
         logActivity(ActionType.CHANGE_TASK_STATUS, "Task", saved.getId(),
-                "Cập nhật status task \"" + saved.getTitle() + "\": "
+                "Updated task \"" + saved.getTitle() + "\" status: "
                         + oldStatus.name() + " → " + newStatus.name(), currentUser);
 
         return TaskResponse.from(saved);

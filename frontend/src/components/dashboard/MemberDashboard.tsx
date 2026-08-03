@@ -25,7 +25,7 @@ const MemberDashboard: React.FC = () => {
   const activeTab = (pathParts[0] as TabKey) || "dashboard";
   
   const setActiveTab = (tab: TabKey) => {
-    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`);
   };
   
   const [dashboard, setDashboard] = useState<MemberDashboardResponse | null>(null);
@@ -399,7 +399,7 @@ const MemberDashboard: React.FC = () => {
     try {
       await workspaceService.switchWorkspace(workspaceId);
       await checkAuth();
-      await loadDashboard();
+      window.location.replace("/taskmanager/dashboard"); // reset về dashboard, tránh stale tab URL
     } catch (err: any) {
       setError(err.response?.data?.message || "Unable to switch workspace.");
     } finally {
@@ -531,7 +531,9 @@ const MemberDashboard: React.FC = () => {
 
   const renderTaskCard = (task: MemberTaskResponse, options?: { draggable?: boolean }) => {
     const isDone = task.status === "DONE";
-    const canDrag = options?.draggable && !isDone && !isTaskReadOnly(task);
+    const isUnassigned = !task.assigneeUsername;
+    // Member can only drag/update their own assigned tasks
+    const canDrag = options?.draggable && !isDone && !isTaskReadOnly(task) && !isUnassigned;
 
     return (
       <article
@@ -557,7 +559,23 @@ const MemberDashboard: React.FC = () => {
     >
       <div className={styles.taskTopRow}>
         <span className={styles.taskProject}>{task.projectName || "General"}</span>
-        <span className={`${styles.statusBadge} ${styles[`status_${task.status}`]}`}>{task.status.replace("_", " ")}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {isUnassigned && (
+            <span style={{
+              fontSize: "0.65rem",
+              fontWeight: 600,
+              padding: "2px 6px",
+              borderRadius: "4px",
+              background: "#fef3c7",
+              color: "#92400e",
+              border: "1px solid #fcd34d",
+              letterSpacing: "0.02em",
+            }}>
+              Unassigned
+            </span>
+          )}
+          <span className={`${styles.statusBadge} ${styles[`status_${task.status}`]}`}>{task.status.replace("_", " ")}</span>
+        </div>
       </div>
       <h3>{task.title}</h3>
       <p>{task.description || "No description"}</p>
@@ -581,6 +599,7 @@ const MemberDashboard: React.FC = () => {
     </article>
   );
   };
+
 
   return (
     <div className={styles.shell}>

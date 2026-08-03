@@ -9,6 +9,7 @@ export interface MemberTaskResponse {
   status: "TODO" | "IN_PROGRESS" | "REVIEW" | "DONE";
   deadline?: string | null;
   projectEnded?: boolean;
+  assigneeUsername?: string | null;
 }
 
 export interface MemberActivityResponse {

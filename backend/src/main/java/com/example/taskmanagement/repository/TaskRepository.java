@@ -16,6 +16,21 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     List<Task> findByProjectId(Long projectId);
     List<Task> findByAssigneeIdAndProjectWorkspaceIdOrderByDeadlineAsc(Long assigneeId, Long workspaceId);
+
+    /**
+     * Fetch tasks visible to a member:
+     * - Tasks assigned to them, OR
+     * - Tasks with no assignee (unassigned)
+     * Both must belong to a project the user is a member of, within the given workspace.
+     * Note: sorting by deadline nulls-last is handled in Java after this query returns.
+     */
+    @Query("SELECT DISTINCT t FROM Task t " +
+           "JOIN t.project p JOIN p.members m " +
+           "WHERE m.id = :userId " +
+           "AND p.workspace.id = :workspaceId " +
+           "AND (t.assignee.id = :userId OR t.assignee IS NULL)")
+    List<Task> findAssignedOrUnassignedForMember(@Param("userId") Long userId,
+                                                  @Param("workspaceId") Long workspaceId);
     long countByAssigneeIdAndProjectWorkspaceIdAndStatus(Long assigneeId, Long workspaceId, TaskStatus status);
     long countByProjectWorkspaceId(Long workspaceId);
 

@@ -25,6 +25,7 @@ public class MemberTaskResponse {
     private TaskStatus status;
     private LocalDate deadline;
     private boolean projectEnded;
+    private String assigneeUsername;
 
     public static MemberTaskResponse fromEntity(Task task) {
         return MemberTaskResponse.builder()
@@ -36,6 +37,7 @@ public class MemberTaskResponse {
                 .status(task.getStatus())
                 .deadline(task.getDeadline())
                 .projectEnded(task.getProject() != null && Boolean.TRUE.equals(task.getProject().getIsDeleted()))
+                .assigneeUsername(task.getAssignee() != null ? task.getAssignee().getUsername() : null)
                 .build();
     }
 }

@@ -67,15 +67,15 @@ const LeaderDashboard: React.FC = () => {
   const selectedTaskId = (activeTab === "task_detail" && pathParts[1]) ? Number(pathParts[1]) : null;
 
   const setActiveTab = (tab: ActiveTab) => {
-    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`);
   };
 
   const setSelectedProjectId = (id: number | null) => {
-    if (id !== null) navigate(`/taskmanager/dashboard/project_detail/${id}`, { replace: true });
+    if (id !== null) navigate(`/taskmanager/dashboard/project_detail/${id}`);
   };
 
   const setSelectedTaskId = (id: number | null) => {
-    if (id !== null) navigate(`/taskmanager/dashboard/task_detail/${id}`, { replace: true });
+    if (id !== null) navigate(`/taskmanager/dashboard/task_detail/${id}`);
   };
   const [projectViewMode, setProjectViewMode] = useState<"list" | "board">("list");
   const [listCurrentPage, setListCurrentPage] = useState<number>(1);
@@ -265,7 +265,7 @@ const LeaderDashboard: React.FC = () => {
     try {
       await workspaceService.switchWorkspace(wsId);
       await checkAuth();
-      window.location.reload();
+      window.location.replace("/taskmanager/dashboard"); // reset về dashboard, tránh stale tab URL
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Failed to switch workspace.");
       setLoading(false);
@@ -378,12 +378,39 @@ const LeaderDashboard: React.FC = () => {
       return;
     }
 
+    // Guard: task must be assigned before moving to IN_PROGRESS
+    if (newStatus === "IN_PROGRESS" && task && !task.assigneeUsername) {
+      setErrorMsg("This task has no assignee. Please assign it to someone before moving to In Progress.");
+      return;
+    }
+
     try {
       await leaderService.updateTaskStatus(taskId, newStatus);
       setSuccessMsg(`Updated task status to ${newStatus.replace("_", " ")}.`);
       await loadData();
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Failed to update task status.");
+    }
+  };
+
+  const handleUpdateTaskAssignee = async (taskId: number, assigneeId: number) => {
+    if (isWorkspaceLocked) {
+      setErrorMsg("Workspace is locked. You can view tasks only.");
+      return;
+    }
+    const task = allTasks.find((item) => item.id === taskId);
+    const taskProjectEnded = task?.projectEnded || projects.find((project) => project.id === task?.projectId)?.isDeleted;
+    if (taskProjectEnded) {
+      setErrorMsg("Project has ended. You can view tasks only.");
+      return;
+    }
+
+    try {
+      await leaderService.updateTask(taskId, { assigneeId: assigneeId === 0 ? -1 : assigneeId });
+      setSuccessMsg("Task assignee updated successfully.");
+      await loadData();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.message || "Failed to update task assignee.");
     }
   };
 
@@ -858,7 +885,6 @@ const LeaderDashboard: React.FC = () => {
               }}
               onNavigateToTask={(taskId) => {
                 setSelectedTaskId(taskId);
-                setActiveTab("task_detail");
               }}
               onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => {})}
             />
@@ -1392,7 +1418,7 @@ const LeaderDashboard: React.FC = () => {
                       </thead>
                       <tbody>
                         {paginatedTasks.map(t => (
-                          <tr key={t.id} onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }} style={{ cursor: "pointer" }}>
+                          <tr key={t.id} onClick={() => setSelectedTaskId(t.id)} style={{ cursor: "pointer" }}>
                             <td style={{ color: "#94a3b8" }}>#{t.id}</td>
                             <td>
                               <div style={{ fontWeight: 600 }}>{t.title}</div>
@@ -1481,7 +1507,7 @@ const LeaderDashboard: React.FC = () => {
                           return (
                             <div
                               key={t.id}
-                              onClick={() => { setSelectedTaskId(t.id); setActiveTab("task_detail"); }}
+                              onClick={() => setSelectedTaskId(t.id)}
                               draggable
                               onDragStart={(event) => handleTaskDragStart(event, t)}
                               onDragEnd={() => {
@@ -1515,7 +1541,16 @@ const LeaderDashboard: React.FC = () => {
                               </div>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                 <span className={`${styles["priority-badge"]} ${styles[t.priority]}`}>{t.priority}</span>
-                                {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                  {t.assigneeUsername ? (
+                                    <div title={`Assignee: ${t.assigneeUsername}`} className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "22px", height: "22px", fontSize: "0.65rem", display: "inline-flex", margin: 0 }}>
+                                      {getInitials(t.assigneeUsername)}
+                                    </div>
+                                  ) : (
+                                    <span title="Unassigned" style={{ fontSize: "0.7rem", padding: "2px 6px", borderRadius: "4px", background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontWeight: 600 }}>Unassigned</span>
+                                  )}
+                                  {t.deadline && <span style={{ fontSize: "0.68rem", color: isOverdue(t.deadline) ? "#ef4444" : "#64748b" }}>{formatDue(t.deadline)}</span>}
+                                </div>
                               </div>
                             </div>
                           );
@@ -1658,14 +1693,18 @@ const LeaderDashboard: React.FC = () => {
                       <div className={styles["property-row"]}>
                         <div className={styles["property-label"]}><i className="bi bi-person" /> Assignee</div>
                         <div className={styles["property-value"]}>
-                          {task.assigneeUsername ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <div className={`${styles["member-avatar"]} ${styles["av-indigo"]}`} style={{ width: "20px", height: "20px", fontSize: "0.6rem" }}>
-                                {getInitials(task.assigneeUsername)}
-                              </div>
-                              <span style={{ fontSize: "0.85rem", fontWeight: 500 }}>{task.assigneeUsername}</span>
-                            </div>
-                          ) : <span style={{ fontSize: "0.85rem", color: "#94a3b8" }}>Unassigned</span>}
+                          <select
+                            value={task.assigneeId || 0}
+                            onChange={(e) => void handleUpdateTaskAssignee(task.id, Number(e.target.value))}
+                            className={styles["form-select"]}
+                            disabled={isWorkspaceLocked || task.projectEnded}
+                            style={{ padding: "4px 8px", fontSize: "0.85rem", height: "auto", width: "100%" }}
+                          >
+                            <option value={0}>-- Unassigned --</option>
+                            {wsMembers.filter(m => m.active).map(m => (
+                              <option key={m.id} value={m.userId}>{m.username}</option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 

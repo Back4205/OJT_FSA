@@ -62,7 +62,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
   const pathParts = (splat || "").split("/").filter(Boolean);
   const activeTab = (pathParts[0] as ActiveTab) || "dashboard";
   const setActiveTab = (tab: ActiveTab) => {
-    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`);
   };
 
   // Dữ liệu ứng dụng
@@ -286,7 +286,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
       await workspaceService.switchWorkspace(wsId);
       setSuccessMsg("Đã chuyển đổi tổ chức/workspace.");
       await checkAuth(); // cập nhật user context
-      window.location.reload(); // tải lại toàn bộ trạng thái chuẩn JWT mới
+      window.location.replace("/taskmanager/dashboard"); // reset về dashboard, tránh stale tab URL
     } catch (err: any) {
       setErrorMsg(err.response?.data?.message || "Chuyển đổi workspace thất bại.");
       setLoading(false);

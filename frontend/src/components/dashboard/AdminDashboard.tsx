@@ -68,14 +68,14 @@ const AdminDashboard: React.FC = () => {
   }
 
   const setActiveTab = (tab: TabKey) => {
-    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`, { replace: true });
+    navigate(`/taskmanager/dashboard/${tab === "dashboard" ? "" : tab}`);
   };
   
   const setDetailTarget = (target: DetailTarget | null) => {
     if (target === null) {
       setActiveTab(activeTab);
     } else {
-      navigate(`/taskmanager/dashboard/${target.type}s/${target.id}`, { replace: true });
+      navigate(`/taskmanager/dashboard/${target.type}s/${target.id}`);
     }
   };
   const [dashboard, setDashboard] = useState<AdminDashboardResponse | null>(null);
