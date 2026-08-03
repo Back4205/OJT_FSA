@@ -268,7 +268,7 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public List<MemberNotificationResponse> getNotifications(Authentication authentication) {
         User user = getAuthenticatedUser(authentication);
         Long activeWorkspaceId = null;
@@ -288,6 +288,7 @@ public class MemberServiceImpl implements MemberService {
 
         List<Notification> list;
         if (isWorkspaceAdmin && activeWorkspaceId != null) {
+            ensurePendingWorkspaceJoinNotifications(activeWorkspaceId, user);
             list = notificationRepository.findByUserIdOrWorkspaceIdOrderByTimestampDesc(user.getId(), activeWorkspaceId);
         } else {
             list = notificationRepository.findByUserIdOrderByTimestampDesc(user.getId());
@@ -296,6 +297,28 @@ public class MemberServiceImpl implements MemberService {
         return list.stream()
                 .map(n -> MemberNotificationResponse.fromEntity(n, user.getId()))
                 .toList();
+    }
+
+    private void ensurePendingWorkspaceJoinNotifications(Long workspaceId, User notificationOwner) {
+        workspaceMembershipRepository.findByWorkspaceId(workspaceId).stream()
+                .filter(membership -> !membership.isActive())
+                .filter(membership -> membership.getWorkspace() != null && membership.getUser() != null)
+                .forEach(membership -> {
+                    String content = buildJoinRequestContent(membership.getWorkspace(), membership.getUser());
+                    if (notificationRepository.existsByWorkspaceIdAndContent(workspaceId, content)) {
+                        return;
+                    }
+
+                    Notification notification = new Notification();
+                    notification.setUser(notificationOwner);
+                    notification.setWorkspace(membership.getWorkspace());
+                    notification.setContent(content);
+                    notificationRepository.save(notification);
+                });
+    }
+
+    private String buildJoinRequestContent(Workspace workspace, User requester) {
+        return requester.getEmail() + " requested to join workspace \"" + workspace.getName() + "\".";
     }
 
     @Override
@@ -325,6 +348,11 @@ public class MemberServiceImpl implements MemberService {
                 .orElseThrow(() -> new IllegalArgumentException("Notification not found"));
 
         boolean hasPermission = notification.getUser().getId().equals(user.getId());
+        if (!hasPermission && isWorkspaceAdmin && activeWorkspaceId != null && notification.getWorkspace() != null) {
+            if (notification.getWorkspace().getId().equals(activeWorkspaceId)) {
+                hasPermission = true;
+            }
+        }
         if (!hasPermission && isWorkspaceAdmin && activeWorkspaceId != null && notification.getTask() != null) {
             if (notification.getTask().getProject().getWorkspace().getId().equals(activeWorkspaceId)) {
                 hasPermission = true;

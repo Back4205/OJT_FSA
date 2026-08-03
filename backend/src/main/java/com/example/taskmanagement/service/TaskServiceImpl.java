@@ -276,6 +276,7 @@ public class TaskServiceImpl implements TaskService {
         notification.setUser(task.getAssignee());
         notification.setWorkspace(task.getProject().getWorkspace());
         notification.setTask(task);
+        notification.setWorkspace(task.getProject().getWorkspace());
         notification.setContent(
                 assigner.getUsername() + " đã giao task \""
                         + task.getTitle() + "\" cho bạn trong project \""

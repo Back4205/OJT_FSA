@@ -37,6 +37,8 @@ type DetailTarget = {
 
 const USER_PAGE_SIZE = 6;
 const WORKSPACE_PAGE_SIZE = 6;
+const canResetUserPassword = (user: Pick<AdminUserSummaryResponse, "provider">) =>
+  (user.provider || "LOCAL").toUpperCase() === "LOCAL";
 
 const emptyPageInfo: PageInfo = {
   pageNumber: 0,
@@ -259,6 +261,11 @@ const AdminDashboard: React.FC = () => {
   };
 
   const handleResetPassword = async (item: AdminUserSummaryResponse) => {
+    if (!canResetUserPassword(item)) {
+      setError(`Accounts signed in with ${item.provider || "an external provider"} do not have a local password to reset.`);
+      return;
+    }
+
     const nextPassword = window.prompt(`Enter a new password for ${item.username}`, "Admin@1234");
     if (!nextPassword) {
       return;
@@ -1044,16 +1051,18 @@ const AdminDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className={styles.detailActions}>
-                        <button
-                          type="button"
-                          className={styles.actionButton}
-                          onClick={() => handleResetPassword(selectedUserSummary)}
-                          disabled={actionLoading === `user-password-${selectedUserSummary.id}`}
-                        >
-                          Reset password
-                        </button>
-                      </div>
+                      {canResetUserPassword(selectedUserSummary) && (
+                        <div className={styles.detailActions}>
+                          <button
+                            type="button"
+                            className={styles.actionButton}
+                            onClick={() => handleResetPassword(selectedUserSummary)}
+                            disabled={actionLoading === `user-password-${selectedUserSummary.id}`}
+                          >
+                            Reset password
+                          </button>
+                        </div>
+                      )}
                     </>
                   )}
 

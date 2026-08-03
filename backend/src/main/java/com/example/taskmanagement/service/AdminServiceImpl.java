@@ -13,6 +13,7 @@ import com.example.taskmanagement.model.Role;
 import com.example.taskmanagement.model.User;
 import com.example.taskmanagement.model.Workspace;
 import com.example.taskmanagement.model.WorkspaceMembership;
+import com.example.taskmanagement.model.enums.AuthProvider;
 import com.example.taskmanagement.model.enums.RoleName;
 import com.example.taskmanagement.model.enums.TaskStatus;
 import com.example.taskmanagement.repository.RoleRepository;
@@ -154,6 +155,9 @@ public class AdminServiceImpl implements AdminService {
     @Transactional
     public AdminUserSummaryResponse resetUserPassword(Long userId, String rawPassword) {
         User user = loadUser(userId);
+        if (user.getProvider() != AuthProvider.LOCAL) {
+            throw new IllegalArgumentException("Accounts signed in with " + user.getProvider() + " do not have a local password to reset.");
+        }
         user.setPassword(passwordEncoder.encode(rawPassword));
         userRepository.save(user);
         return AdminUserSummaryResponse.fromEntity(user, workspaceMembershipRepository.countByUserId(user.getId()));

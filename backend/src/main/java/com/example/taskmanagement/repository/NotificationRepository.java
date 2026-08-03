@@ -9,10 +9,12 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserId(Long userId);
     List<Notification> findByUserIdOrderByTimestampDesc(Long userId);
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
+    boolean existsByWorkspaceIdAndContent(Long workspaceId, String content);
 
     @org.springframework.data.jpa.repository.Query(
         "SELECT n FROM Notification n WHERE n.user.id = :userId OR " +
-        "n.workspace.id = :workspaceId " +
+        "(n.workspace IS NOT NULL AND n.workspace.id = :workspaceId) OR " +
+        "(n.task IS NOT NULL AND n.task.project.workspace.id = :workspaceId) " +
         "ORDER BY n.timestamp DESC"
     )
     List<Notification> findByUserIdOrWorkspaceIdOrderByTimestampDesc(

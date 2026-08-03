@@ -6,8 +6,6 @@ type HomePageProps = {
   onRegister?: () => void;
 };
 
-const navItems = ["Product", "Customers", "Pricing", "Docs"];
-
 const roleCards = [
   {
     title: "Super admin",
@@ -44,14 +42,6 @@ export default function HomePage({ onLogin, onRegister }: HomePageProps) {
             <small>TASK OS</small>
           </span>
         </Link>
-
-        <nav className={styles.nav} aria-label="Primary navigation">
-          {navItems.map((item) => (
-            <a key={item} href={`#${item.toLowerCase()}`}>
-              {item}
-            </a>
-          ))}
-        </nav>
 
         <div className={styles.actions}>
           <Link to="/taskmanager/login" className={styles.textLink} onClick={onLogin}>

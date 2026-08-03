@@ -84,9 +84,12 @@ public class DataInitializer implements CommandLineRunner {
             memberUser.setEmail(memberEmail);
             memberUser.setPassword(passwordEncoder.encode("member123"));
             memberUser.setSuperAdmin(false);
-            memberUser.setProvider(AuthProvider.LOCAL);
+            memberUser.setProvider(AuthProvider.GOOGLE);
             memberUser.setActive(true);
             memberUser.setEmailVerified(true);
+            memberUser = userRepository.save(memberUser);
+        } else if (memberUser.getProvider() == AuthProvider.LOCAL) {
+            memberUser.setProvider(AuthProvider.GOOGLE);
             memberUser = userRepository.save(memberUser);
         }
 
@@ -98,9 +101,12 @@ public class DataInitializer implements CommandLineRunner {
             inactiveUser.setEmail(inactiveEmail);
             inactiveUser.setPassword(passwordEncoder.encode("member123"));
             inactiveUser.setSuperAdmin(false);
-            inactiveUser.setProvider(AuthProvider.LOCAL);
+            inactiveUser.setProvider(AuthProvider.GOOGLE);
             inactiveUser.setActive(true);
             inactiveUser.setEmailVerified(true);
+            inactiveUser = userRepository.save(inactiveUser);
+        } else if (inactiveUser.getProvider() == AuthProvider.LOCAL) {
+            inactiveUser.setProvider(AuthProvider.GOOGLE);
             inactiveUser = userRepository.save(inactiveUser);
         }
 

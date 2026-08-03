@@ -324,6 +324,10 @@ public class AuthServiceImpl implements AuthService {
         }
 
         User user = resetToken.getUser();
+        if (user.getProvider() != AuthProvider.LOCAL) {
+            verificationTokenRepository.delete(resetToken);
+            throw new IllegalArgumentException("This account signs in with " + user.getProvider() + ". Please use that provider instead.");
+        }
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
@@ -499,6 +503,7 @@ public class AuthServiceImpl implements AuthService {
                 notifyWorkspaceAdminsAboutJoinRequest(workspace, user);
                 return UserResponse.fromEntity(user);
             }
+            throw new IllegalArgumentException("You are already a member of workspace \"" + workspace.getName() + "\".");
         } else {
             membership = new WorkspaceMembership();
             membership.setUser(user);
@@ -510,33 +515,25 @@ public class AuthServiceImpl implements AuthService {
             return UserResponse.fromEntity(user);
         }
 
-        // Re-generate cookies/tokens for the new workspace context
-        String token = jwtService.generateToken(
-                user.getEmail(),
-                membership.getRole().getName().name(),
-                workspace.getId()
-        );
-        cookieUtil.addTokenCookie(response, token, jwtService.getExpirationSeconds());
-
-        var refreshToken = refreshTokenService.createRefreshToken(user, workspace);
-        cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
-
-        return UserResponse.fromEntity(user, workspace, membership.getRole());
     }
 
     private void notifyWorkspaceAdminsAboutJoinRequest(Workspace workspace, User requester) {
         String content = requester.getEmail() + " requested to join workspace \"" + workspace.getName() + "\".";
-        workspaceMembershipRepository.findByWorkspaceId(workspace.getId()).stream()
+        List<User> workspaceAdmins = workspaceMembershipRepository.findByWorkspaceId(workspace.getId()).stream()
                 .filter(WorkspaceMembership::isActive)
                 .filter(membership -> membership.getRole() != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN)
                 .map(WorkspaceMembership::getUser)
-                .forEach(admin -> {
-                    Notification notification = new Notification();
-                    notification.setUser(admin);
-                    notification.setWorkspace(workspace);
-                    notification.setContent(content);
-                    notificationRepository.save(notification);
-                });
+                .toList();
+
+        if (workspaceAdmins.isEmpty()) {
+            return;
+        }
+
+        Notification notification = new Notification();
+        notification.setUser(workspaceAdmins.get(0));
+        notification.setWorkspace(workspace);
+        notification.setContent(content);
+        notificationRepository.save(notification);
     }
 
     @Override

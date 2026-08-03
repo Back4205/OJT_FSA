@@ -2,6 +2,7 @@ package com.example.taskmanagement.dto.response.member;
 
 import com.example.taskmanagement.model.Notification;
 import com.example.taskmanagement.model.Task;
+import com.example.taskmanagement.model.Workspace;
 import com.example.taskmanagement.model.enums.TaskPriority;
 import com.example.taskmanagement.model.enums.TaskStatus;
 import lombok.AllArgsConstructor;
@@ -37,6 +38,10 @@ public class MemberNotificationResponse {
 
     public static MemberNotificationResponse fromEntity(Notification notification, Long currentUserId) {
         Task task = notification.getTask();
+        Workspace workspace = notification.getWorkspace();
+        if (workspace == null && task != null && task.getProject() != null) {
+            workspace = task.getProject().getWorkspace();
+        }
         String content = notification.getContent();
         if (currentUserId != null && notification.getUser() != null && !notification.getUser().getId().equals(currentUserId)) {
             content = content.replace("cho bạn", "cho " + notification.getUser().getUsername());
@@ -49,7 +54,7 @@ public class MemberNotificationResponse {
                 .taskId(task != null ? task.getId() : null)
                 .taskTitle(task != null ? task.getTitle() : null)
                 .projectName(task != null && task.getProject() != null ? task.getProject().getName() : null)
-                .workspaceName(task != null && task.getProject() != null && task.getProject().getWorkspace() != null ? task.getProject().getWorkspace().getName() : null)
+                .workspaceName(workspace != null ? workspace.getName() : null)
                 .priority(task != null ? task.getPriority() : null)
                 .status(task != null ? task.getStatus() : null)
                 .deadline(task != null ? task.getDeadline() : null)

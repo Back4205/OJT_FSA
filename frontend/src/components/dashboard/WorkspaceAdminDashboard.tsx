@@ -200,6 +200,51 @@ const WorkspaceAdminDashboard: React.FC = () => {
   // Notifications
   const [notifications, setNotifications] = useState<MemberNotificationResponse[]>([]);
 
+  const buildPendingJoinNotifications = (
+    memberList: MembershipResponse[] = members,
+    currentWorkspace: WorkspaceResponse | null = workspace
+  ): MemberNotificationResponse[] =>
+    memberList
+      .filter((member) => !member.active)
+      .map((member) => ({
+        id: -member.id,
+        content: `${member.email} requested to join workspace "${currentWorkspace?.name || "this workspace"}".`,
+        read: false,
+        timestamp: new Date().toISOString(),
+        taskId: null,
+        taskTitle: null,
+        projectName: null,
+        workspaceName: currentWorkspace?.name || null,
+        priority: null,
+        status: null,
+        deadline: null
+      }));
+
+  const mergePendingJoinNotifications = (
+    serverNotifications: MemberNotificationResponse[],
+    memberList: MembershipResponse[] = members,
+    currentWorkspace: WorkspaceResponse | null = workspace
+  ) => {
+    const pendingNotifications = buildPendingJoinNotifications(memberList, currentWorkspace);
+    const existingContent = new Set(serverNotifications.map((notification) => notification.content));
+    return [
+      ...pendingNotifications.filter((notification) => !existingContent.has(notification.content)),
+      ...serverNotifications
+    ];
+  };
+
+  const refreshNotifications = async (
+    memberList: MembershipResponse[] = members,
+    currentWorkspace: WorkspaceResponse | null = workspace
+  ) => {
+    try {
+      const notis = await memberService.getNotifications();
+      setNotifications(mergePendingJoinNotifications(notis, memberList, currentWorkspace));
+    } catch {
+      setNotifications(buildPendingJoinNotifications(memberList, currentWorkspace));
+    }
+  };
+
   // Workspace Activity Logs
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
 
@@ -249,10 +294,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
     setUserWorkspaces(listWorkspaces);
 
     // 6. Load notifications
-    try {
-      const notis = await memberService.getNotifications();
-      setNotifications(notis);
-    } catch { setNotifications([]); }
+    await refreshNotifications(membersData, workspaceData);
 
     // 7. Load activity logs
     try {
@@ -277,6 +319,13 @@ const WorkspaceAdminDashboard: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void refreshNotifications();
+    }, 10000);
+    return () => window.clearInterval(timer);
+  }, [members, workspace]);
 
   // Chuyển đổi sang workspace mới
   const handleSwitchWorkspace = async (wsId: number) => {
@@ -906,6 +955,10 @@ const WorkspaceAdminDashboard: React.FC = () => {
             <NotificationDropdown
               notifications={notifications}
               onMarkRead={async (id, read) => {
+                if (id < 0) {
+                  setNotifications(prev => prev.map(n => n.id === id ? { ...n, read } : n));
+                  return;
+                }
                 await memberService.updateNotificationReadState(id, read);
                 setNotifications(prev => prev.map(n => n.id === id ? { ...n, read } : n));
               }}
@@ -913,7 +966,7 @@ const WorkspaceAdminDashboard: React.FC = () => {
                 await memberService.markAllNotificationsRead();
                 setNotifications(prev => prev.map(n => ({ ...n, read: true })));
               }}
-              onRefresh={() => void memberService.getNotifications().then(setNotifications).catch(() => { })}
+              onRefresh={() => void refreshNotifications()}
             />
 
             {/* Profile trigger */}
