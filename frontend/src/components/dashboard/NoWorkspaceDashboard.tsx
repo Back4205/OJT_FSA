@@ -225,7 +225,7 @@ const NoWorkspaceDashboard: React.FC = () => {
           )}
 
           {activeTab === "join" && (
-            <>
+            <div className={styles["centered-form-page"]}>
               <div className={styles["page-header"]}>
                 <h1 className={styles["header-title"]}>Join Workspace</h1>
                 <p className={styles["header-subtitle"]}>
@@ -258,11 +258,11 @@ const NoWorkspaceDashboard: React.FC = () => {
                   </button>
                 </form>
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === "create" && (
-            <>
+            <div className={styles["centered-form-page"]}>
               <div className={styles["page-header"]}>
                 <h1 className={styles["header-title"]}>Create New Workspace</h1>
                 <p className={styles["header-subtitle"]}>
@@ -307,7 +307,7 @@ const NoWorkspaceDashboard: React.FC = () => {
                   </button>
                 </form>
               </div>
-            </>
+            </div>
           )}
 
           {activeTab === "profile" && (

@@ -16,6 +16,8 @@ const timeAgo = (iso: string): string => {
 
 type TabFilter = "ALL" | "UNREAD" | "READ";
 const DROPDOWN_LIMIT = 5;
+const ASSIGNMENT_PATTERN = /^(.+?)(\s+assigned task\s+".+?"\s+to\s+)(.+?)(\s+in project\b.*)$/i;
+const JOIN_REQUEST_PATTERN = /^(.+?)(\s+requested to join workspace\b.*)$/i;
 
 interface NotificationDropdownProps {
   notifications: MemberNotificationResponse[];
@@ -68,6 +70,37 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     onRefresh?.();
   };
 
+  const renderNotificationContent = (content: string) => {
+    const match = content.match(ASSIGNMENT_PATTERN);
+    if (!match) {
+      const joinMatch = content.match(JOIN_REQUEST_PATTERN);
+      if (!joinMatch) {
+        return content;
+      }
+
+      return (
+        <>
+          <span className={styles.notificationName}>{joinMatch[1]}</span>
+          {joinMatch[2]}
+        </>
+      );
+    }
+
+    const assigner = match[1];
+    const middle = match[2];
+    const recipient = match[3];
+    const suffix = match[4];
+
+    return (
+      <>
+        <span className={styles.notificationName}>{assigner}</span>
+        {middle}
+        <span className={styles.recipientHighlight}>{recipient}</span>
+        {suffix}
+      </>
+    );
+  };
+
   const renderTabs = (
     currentTab: TabFilter,
     setCurrentTab: (t: TabFilter) => void,
@@ -94,7 +127,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({
     >
       <div className={`${styles.itemDot} ${noti.read ? styles.itemDotRead : ""}`} />
       <div className={styles.itemBody}>
-        <div className={styles.itemContent}>{noti.content}</div>
+        <div className={styles.itemContent}>{renderNotificationContent(noti.content)}</div>
         <div className={styles.itemMeta}>
           {(noti.workspaceName || noti.projectName) && (
             <span className={styles.itemHierarchy}>

@@ -44,7 +44,12 @@ public class MemberNotificationResponse {
         }
         String content = notification.getContent();
         if (currentUserId != null && notification.getUser() != null && !notification.getUser().getId().equals(currentUserId)) {
-            content = content.replace("for you", "for " + notification.getUser().getUsername());
+            String recipientName = notification.getUser().getUsername() != null && !notification.getUser().getUsername().isBlank()
+                    ? notification.getUser().getUsername()
+                    : notification.getUser().getEmail();
+            content = content
+                    .replace("to you", "to " + recipientName)
+                    .replace("for you", "for " + recipientName);
         }
         return MemberNotificationResponse.builder()
                 .id(notification.getId())

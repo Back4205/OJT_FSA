@@ -89,7 +89,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             user = new User();
 
             user.setEmail(email);
-            user.setUsername(email);
+            user.setUsername(buildUniqueDisplayName(name, email, null));
             user.setPassword(null);
 
             user.setProvider(provider);
@@ -110,6 +110,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }
 
         user.setProvider(provider);
+        if (user.getUsername() == null || user.getUsername().isBlank() || user.getUsername().equalsIgnoreCase(email)) {
+            user.setUsername(buildUniqueDisplayName(name, email, user.getUsername()));
+        }
         user.setEmailVerified(true);
         userRepository.save(user);
 
@@ -167,5 +170,23 @@ return new CustomOAuth2User(
         }
 
         return null;
+    }
+
+    private String buildUniqueDisplayName(String rawName, String email, String currentUsername) {
+        String base = rawName != null && !rawName.isBlank() ? rawName.trim() : email;
+        if (base.length() > 50) {
+            base = base.substring(0, 50);
+        }
+
+        String candidate = base;
+        int counter = 2;
+        while ((currentUsername == null || !candidate.equals(currentUsername)) && userRepository.existsByUsername(candidate)) {
+            String suffix = String.valueOf(counter);
+            int maxBaseLength = Math.max(1, 50 - suffix.length());
+            String trimmedBase = base.length() > maxBaseLength ? base.substring(0, maxBaseLength) : base;
+            candidate = trimmedBase + suffix;
+            counter += 1;
+        }
+        return candidate;
     }
 }

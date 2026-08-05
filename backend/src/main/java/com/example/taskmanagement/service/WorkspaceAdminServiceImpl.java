@@ -270,6 +270,7 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
 
         membership.setActive(false);
         workspaceMembershipRepository.save(membership);
+        sendWorkspaceRemovalNotification(membership);
     }
 
     @Override
@@ -292,6 +293,14 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
         notification.setUser(membership.getUser());
         notification.setWorkspace(membership.getWorkspace());
         notification.setContent("Your request to join workspace \"" + membership.getWorkspace().getName() + "\" has been approved.");
+        notificationRepository.save(notification);
+    }
+
+    private void sendWorkspaceRemovalNotification(WorkspaceMembership membership) {
+        Notification notification = new Notification();
+        notification.setUser(membership.getUser());
+        notification.setWorkspace(membership.getWorkspace());
+        notification.setContent("You have been removed from workspace \"" + membership.getWorkspace().getName() + "\".");
         notificationRepository.save(notification);
     }
 

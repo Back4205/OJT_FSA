@@ -518,7 +518,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void notifyWorkspaceAdminsAboutJoinRequest(Workspace workspace, User requester) {
-        String content = requester.getEmail() + " requested to join workspace \"" + workspace.getName() + "\".";
+        String content = displayName(requester) + " requested to join workspace \"" + workspace.getName() + "\".";
         List<User> workspaceAdmins = workspaceMembershipRepository.findByWorkspaceId(workspace.getId()).stream()
                 .filter(WorkspaceMembership::isActive)
                 .filter(membership -> membership.getRole() != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN)
@@ -534,6 +534,13 @@ public class AuthServiceImpl implements AuthService {
         notification.setWorkspace(workspace);
         notification.setContent(content);
         notificationRepository.save(notification);
+    }
+
+    private String displayName(User user) {
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return user.getUsername();
+        }
+        return user.getEmail();
     }
 
     @Override

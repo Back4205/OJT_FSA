@@ -224,6 +224,15 @@
   margin-bottom: 32px;
 }
 
+.centered-form-page {
+  width: min(680px, 100%);
+  margin: 0 auto;
+}
+
+.centered-form-page .card-form-container {
+  max-width: none;
+}
+
 .header-title {
   font-size: 2rem;
   font-weight: 800;

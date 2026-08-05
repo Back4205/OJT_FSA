@@ -185,6 +185,12 @@
   overflow: hidden;
 }
 
+.notificationName,
+.recipientHighlight {
+  color: inherit;
+  font-weight: 800;
+}
+
 .itemMeta {
   display: flex;
   flex-direction: column;

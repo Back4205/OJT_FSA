@@ -32,10 +32,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
 public class MemberServiceImpl implements MemberService {
+    private static final Pattern ASSIGNMENT_NOTIFICATION_PATTERN = Pattern.compile(
+            "^(.+?)(\\s+assigned task\\s+\".+?\"\\s+to\\s+)(.+?)(\\s+in project\\b.*)$",
+            Pattern.CASE_INSENSITIVE
+    );
+    private static final Pattern JOIN_REQUEST_NOTIFICATION_PATTERN = Pattern.compile(
+            "^(.+?)(\\s+requested to join workspace\\b.*)$",
+            Pattern.CASE_INSENSITIVE
+    );
 
     private final UserRepository userRepository;
     private final WorkspaceMembershipRepository workspaceMembershipRepository;
@@ -295,7 +305,7 @@ public class MemberServiceImpl implements MemberService {
         }
 
         return list.stream()
-                .map(n -> MemberNotificationResponse.fromEntity(n, user.getId()))
+                .map(n -> toNotificationResponse(n, user.getId()))
                 .toList();
     }
 
@@ -305,7 +315,10 @@ public class MemberServiceImpl implements MemberService {
                 .filter(membership -> membership.getWorkspace() != null && membership.getUser() != null)
                 .forEach(membership -> {
                     String content = buildJoinRequestContent(membership.getWorkspace(), membership.getUser());
-                    if (notificationRepository.existsByWorkspaceIdAndContent(workspaceId, content)) {
+                    String legacyContent = membership.getUser().getEmail() + " requested to join workspace \""
+                            + membership.getWorkspace().getName() + "\".";
+                    if (notificationRepository.existsByWorkspaceIdAndContent(workspaceId, content)
+                            || notificationRepository.existsByWorkspaceIdAndContent(workspaceId, legacyContent)) {
                         return;
                     }
 
@@ -318,7 +331,7 @@ public class MemberServiceImpl implements MemberService {
     }
 
     private String buildJoinRequestContent(Workspace workspace, User requester) {
-        return requester.getEmail() + " requested to join workspace \"" + workspace.getName() + "\".";
+        return displayName(requester) + " requested to join workspace \"" + workspace.getName() + "\".";
     }
 
     @Override
@@ -364,7 +377,7 @@ public class MemberServiceImpl implements MemberService {
         }
 
         notification.setRead(read);
-        return MemberNotificationResponse.fromEntity(notificationRepository.save(notification), user.getId());
+        return toNotificationResponse(notificationRepository.save(notification), user.getId());
     }
 
     @Override
@@ -398,8 +411,54 @@ public class MemberServiceImpl implements MemberService {
                 .forEach(notification -> notification.setRead(true));
 
         return notificationRepository.saveAll(notifications).stream()
-                .map(n -> MemberNotificationResponse.fromEntity(n, user.getId()))
+                .map(n -> toNotificationResponse(n, user.getId()))
                 .toList();
+    }
+
+    private MemberNotificationResponse toNotificationResponse(Notification notification, Long currentUserId) {
+        MemberNotificationResponse response = MemberNotificationResponse.fromEntity(notification, currentUserId);
+        response.setContent(resolveNotificationDisplayNames(response.getContent()));
+        return response;
+    }
+
+    private String resolveNotificationDisplayNames(String content) {
+        if (content == null) {
+            return null;
+        }
+
+        Matcher assignmentMatcher = ASSIGNMENT_NOTIFICATION_PATTERN.matcher(content);
+        if (assignmentMatcher.matches()) {
+            String assigner = resolveDisplayNameToken(assignmentMatcher.group(1));
+            String recipient = resolveDisplayNameToken(assignmentMatcher.group(3));
+            return assigner + assignmentMatcher.group(2) + recipient + assignmentMatcher.group(4);
+        }
+
+        Matcher joinRequestMatcher = JOIN_REQUEST_NOTIFICATION_PATTERN.matcher(content);
+        if (joinRequestMatcher.matches()) {
+            String requester = resolveDisplayNameToken(joinRequestMatcher.group(1));
+            return requester + joinRequestMatcher.group(2);
+        }
+
+        return content;
+    }
+
+    private String resolveDisplayNameToken(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (!trimmed.contains("@")) {
+            return trimmed;
+        }
+
+        return userRepository.findByEmail(trimmed)
+                .map(User::getUsername)
+                .filter(username -> username != null && !username.isBlank())
+                .orElse(trimmed);
+    }
+
+    private String displayName(User user) {
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return user.getUsername();
+        }
+        return user.getEmail();
     }
 
     private User getAuthenticatedUser(Authentication authentication) {
