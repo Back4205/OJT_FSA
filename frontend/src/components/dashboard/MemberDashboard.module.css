@@ -2987,3 +2987,134 @@
   font-size: 0.9rem;
   margin-left: auto;
 }
+
+/* =====================================================================
+   RESPONSIVE — Member Dashboard
+   ===================================================================== */
+
+.sidebarToggle {
+  display: none;
+  background: none;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #0f172a;
+  font-size: 1.4rem;
+  line-height: 1;
+  border-radius: 10px;
+  transition: background 0.18s;
+}
+.sidebarToggle:hover { background: rgba(79,70,229,0.08); }
+
+.sidebarOverlay { display: none; }
+
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+    padding: 18px 12px;
+  }
+  .content {
+    padding: 20px 20px 32px;
+  }
+  .statsGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .searchBox {
+    min-width: 180px;
+    max-width: 320px;
+    width: 40%;
+  }
+}
+
+@media (max-width: 768px) {
+  .sidebarToggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    width: 260px;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+  }
+
+  .sidebar.sidebarOpen {
+    left: 0;
+    box-shadow: 4px 0 32px rgba(15, 23, 42, 0.32);
+  }
+
+  .sidebarOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s;
+  }
+  .sidebarOverlay.sidebarOpen {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .shell {
+    overflow: hidden;
+  }
+
+  .main {
+    width: 100%;
+  }
+
+  .topbar {
+    padding: 0 16px;
+    height: 60px;
+    gap: 10px;
+  }
+
+  .searchBox {
+    flex: 1;
+    min-width: 0;
+    max-width: none;
+    width: auto;
+  }
+
+  .userName, .userRole {
+    display: none;
+  }
+
+  .content {
+    padding: 14px 14px 24px;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .panelGrid,
+  .twoColGrid,
+  .dashboardTwoCol {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
+  .topbar {
+    height: 56px;
+    padding: 0 12px;
+  }
+  .content {
+    padding: 10px 10px 20px;
+  }
+}
+

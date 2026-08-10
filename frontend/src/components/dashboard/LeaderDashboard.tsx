@@ -54,6 +54,7 @@ type ActiveTab = "dashboard" | "projects" | "project_detail" | "task_detail" | "
 type ChartPoint = { x: number; y: number };
 
 const LeaderDashboard: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout, checkAuth, updateProfile } = useAuth();
 
   const { "*": splat } = useParams();
@@ -738,8 +739,14 @@ const LeaderDashboard: React.FC = () => {
 
   return (
     <div className={styles["leader-layout"]}>
+      {/* Mobile backdrop */}
+      <div
+        className={`${styles["sidebar-overlay"]} ${sidebarOpen ? styles["sidebar-open"] : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
 
-      <aside className={styles["sidebar"]}>
+      <aside className={`${styles["sidebar"]} ${sidebarOpen ? styles["sidebar-open"] : ""}`}>
         {/* Logo */}
         <div className={styles["sidebar-header"]}>
           <div className={styles["logo-row"]}>
@@ -844,6 +851,16 @@ const LeaderDashboard: React.FC = () => {
 
         {/* Topbar */}
         <header className={styles["topbar"]}>
+          {/* Hamburger — visible on mobile only */}
+          <button
+            type="button"
+            className={styles["sidebar-toggle"]}
+            aria-label="Toggle sidebar"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            <i className={sidebarOpen ? "bi bi-x-lg" : "bi bi-list"} />
+          </button>
+
           <div className={styles["search-wrap"]}>
             <i className="bi bi-search" />
             <input

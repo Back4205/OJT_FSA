@@ -14,6 +14,7 @@ import NotificationDropdown from "../common/NotificationDropdown";
 import styles from "./WorkspaceAdminDashboard.module.css";
 
 const WorkspaceAdminDashboard: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout, checkAuth } = useAuth();
 
   const formatRelativeTime = (dateStr: string) => {
@@ -790,8 +791,14 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
   return (
     <div className={styles["admin-layout"]}>
+      {/* Mobile backdrop */}
+      <div
+        className={`${styles["sidebar-overlay"]} ${sidebarOpen ? styles["sidebar-open"] : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
 
-      <aside className={styles["sidebar"]}>
+      <aside className={`${styles["sidebar"]} ${sidebarOpen ? styles["sidebar-open"] : ""}`}>
         {/* Header Logo */}
         <div className={styles["sidebar-header"]}>
           <div className={styles["logo-container"]}>
@@ -926,6 +933,16 @@ const WorkspaceAdminDashboard: React.FC = () => {
 
         {/* TOPBAR */}
         <header className={styles["topbar"]}>
+          {/* Hamburger — visible on mobile only */}
+          <button
+            type="button"
+            className={styles["sidebar-toggle"]}
+            aria-label="Toggle sidebar"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            <i className={sidebarOpen ? "bi bi-x-lg" : "bi bi-list"} />
+          </button>
+
           <div className={styles["search-container"]}>
             <i className={`bi bi-search ${styles["search-icon"]}`}></i>
             <input

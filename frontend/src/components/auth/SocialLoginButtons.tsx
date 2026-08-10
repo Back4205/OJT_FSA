@@ -6,13 +6,13 @@ import styles from "./LoginForm.module.css";
 const SocialLoginButtons: React.FC = () => {
 
   const handleGoogleLogin = () => {
-    window.location.href =
-      "http://localhost:8080/taskmanager/oauth2/authorization/google";
+    const redirectUri = `${window.location.origin}/taskmanager/dashboard`;
+    window.location.href = `/taskmanager/oauth2/authorization/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
   };
 
   const handleGithubLogin = () => {
-    window.location.href =
-      "http://localhost:8080/taskmanager/oauth2/authorization/github";
+    const redirectUri = `${window.location.origin}/taskmanager/dashboard`;
+    window.location.href = `/taskmanager/oauth2/authorization/github?redirect_uri=${encodeURIComponent(redirectUri)}`;
   };
 
   return (

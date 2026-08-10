@@ -17,6 +17,7 @@ const menuItems = [
 type TabKey = typeof menuItems[number]["key"];
 
 const MemberDashboard: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout, checkAuth, updateProfile } = useAuth();
   
   const { "*": splat } = useParams();
@@ -602,7 +603,13 @@ const MemberDashboard: React.FC = () => {
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
+      {/* Mobile backdrop */}
+      <div
+        className={`${styles.sidebarOverlay} ${sidebarOpen ? styles.sidebarOpen : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.brand}>
           <div className={styles.brandMark}>F</div>
           <div>
@@ -697,6 +704,15 @@ const MemberDashboard: React.FC = () => {
 
       <main className={styles.main}>
         <header className={styles.topbar}>
+          {/* Hamburger — visible on mobile only */}
+          <button
+            type="button"
+            className={styles.sidebarToggle}
+            aria-label="Toggle sidebar"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            <i className={sidebarOpen ? "bi bi-x-lg" : "bi bi-list"} />
+          </button>
           <div className={styles.topbarActions}>
             <NotificationDropdown
               notifications={notifications}

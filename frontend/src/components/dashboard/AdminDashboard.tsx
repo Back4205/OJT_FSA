@@ -55,6 +55,7 @@ const emptyWorkspacePageInfo: PageInfo = {
 };
 
 const AdminDashboard: React.FC = () => {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const { user, logout } = useAuth();
   
   const { "*": splat } = useParams();
@@ -508,7 +509,14 @@ const AdminDashboard: React.FC = () => {
 
   return (
     <div className={styles.shell}>
-      <aside className={styles.sidebar}>
+      {/* Mobile backdrop */}
+      <div
+        className={`${styles.sidebarOverlay} ${sidebarOpen ? styles.sidebarOpen : ""}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.brand}>
           <div className={styles.brandMark}>F</div>
           <div>
@@ -539,6 +547,16 @@ const AdminDashboard: React.FC = () => {
 
       <main className={styles.main}>
         <header className={styles.topbar}>
+          {/* Hamburger button — visible on mobile only */}
+          <button
+            type="button"
+            className={styles.sidebarToggle}
+            aria-label="Toggle sidebar"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            <i className={sidebarOpen ? "bi bi-x-lg" : "bi bi-list"} />
+          </button>
+
           <div className={styles.searchBox}>
             <i className="bi bi-search" />
             <input
