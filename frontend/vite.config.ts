@@ -13,6 +13,14 @@ export default defineConfig({
         target: "http://localhost:8080",
         changeOrigin: true,
       },
+      "/taskmanager/oauth2": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
+      "/taskmanager/login/oauth2": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
     },
   },
 });

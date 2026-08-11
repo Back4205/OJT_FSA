@@ -61,9 +61,30 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         var refreshToken = refreshTokenService.createRefreshToken(user, activeWorkspace);
         cookieUtil.addRefreshTokenCookie(response, refreshToken.getToken(), refreshTokenService.getExpirationSeconds());
 
+        String targetUrl = determineTargetUrl(request);
+
         httpCookieOAuth2AuthorizationRequestRepository.removeAuthorizationRequestCookies(request, response);
         cookieUtil.clearJSessionIdCookie(response);
 
-        getRedirectStrategy().sendRedirect(request, response, frontendUrl);
+        getRedirectStrategy().sendRedirect(request, response, targetUrl);
+    }
+
+    private String determineTargetUrl(HttpServletRequest request) {
+        String serverName = request.getServerName();
+        String scheme = request.getScheme();
+        int port = request.getServerPort();
+
+        // If it's hitting localhost:8080, it means it came through Vite's proxy without Forwarded headers
+        if (("localhost".equals(serverName) || "127.0.0.1".equals(serverName)) && port == 8080) {
+            return frontendUrl;
+        }
+
+        StringBuilder url = new StringBuilder();
+        url.append(scheme).append("://").append(serverName);
+        if (port != 80 && port != 443 && port != -1) {
+            url.append(":").append(port);
+        }
+        url.append("/taskmanager/dashboard");
+        return url.toString();
     }
 }

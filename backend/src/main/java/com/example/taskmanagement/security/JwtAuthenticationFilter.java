@@ -31,7 +31,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
 
-        if (SecurityContextHolder.getContext().getAuthentication() != null) {
+        var existingAuth = SecurityContextHolder.getContext().getAuthentication();
+        if (existingAuth != null && existingAuth.isAuthenticated() && !(existingAuth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)) {
             filterChain.doFilter(request, response);
             return;
         }
