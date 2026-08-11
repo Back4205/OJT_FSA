@@ -129,13 +129,11 @@ const LoginForm: React.FC = () => {
   };
 
   const handleGoogleLogin = () => {
-    const redirectUri = `${window.location.origin}/taskmanager/dashboard`;
-    window.location.href = `/taskmanager/oauth2/authorization/google?redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.location.href = "/taskmanager/oauth2/authorization/google";
   };
 
   const handleGithubLogin = () => {
-    const redirectUri = `${window.location.origin}/taskmanager/dashboard`;
-    window.location.href = `/taskmanager/oauth2/authorization/github?redirect_uri=${encodeURIComponent(redirectUri)}`;
+    window.location.href = "/taskmanager/oauth2/authorization/github";
   };
 
   return (
