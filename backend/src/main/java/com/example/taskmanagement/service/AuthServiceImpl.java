@@ -52,7 +52,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public UserResponse register(RegisterRequest request) {
+    public UserResponse register(RegisterRequest request, String backendOrigin) {
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("Username already exists");
         }
@@ -100,7 +100,8 @@ public class AuthServiceImpl implements AuthService {
         verificationTokenRepository.save(verificationToken);
 
         // Send confirmation email
-        String verifyUrl = backendBaseUrl + "/api/auth/verify-email?token=" + verificationTokenString;
+        String baseUrl = (backendOrigin != null && !backendOrigin.isBlank()) ? backendOrigin : backendBaseUrl;
+        String verifyUrl = baseUrl + "/api/auth/verify-email?token=" + verificationTokenString;
         emailService.sendVerificationEmail(user.getEmail(), user.getUsername(), verifyUrl);
 
         Role userRole = memberRole;
@@ -287,7 +288,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void forgotPassword(String email) {
+    public void forgotPassword(String email, String frontendOrigin) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("No account found for this email."));
 
@@ -307,8 +308,9 @@ public class AuthServiceImpl implements AuthService {
         resetToken.setExpiryDate(LocalDateTime.now().plusHours(2)); // 2 hours validity for reset
         verificationTokenRepository.save(resetToken);
 
-        // Send email
-        String resetUrl = frontendBaseUrl + "/reset-password?token=" + token;
+        // Send email - use the actual origin the user's browser is hitting (dynamic)
+        String baseUrl = (frontendOrigin != null && !frontendOrigin.isBlank()) ? frontendOrigin : frontendBaseUrl;
+        String resetUrl = baseUrl + "/reset-password?token=" + token;
         emailService.sendPasswordResetEmail(user.getEmail(), resetUrl);
     }
 
@@ -529,11 +531,14 @@ public class AuthServiceImpl implements AuthService {
             return;
         }
 
-        Notification notification = new Notification();
-        notification.setUser(workspaceAdmins.get(0));
-        notification.setWorkspace(workspace);
-        notification.setContent(content);
-        notificationRepository.save(notification);
+        // Notify ALL admins, not just the first one
+        for (User admin : workspaceAdmins) {
+            Notification notification = new Notification();
+            notification.setUser(admin);
+            notification.setWorkspace(workspace);
+            notification.setContent(content);
+            notificationRepository.save(notification);
+        }
     }
 
     private String displayName(User user) {

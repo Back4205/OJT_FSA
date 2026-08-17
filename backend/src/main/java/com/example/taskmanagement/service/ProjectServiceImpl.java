@@ -130,6 +130,10 @@ public class ProjectServiceImpl implements ProjectService {
             throw new IllegalArgumentException("User is locked in this workspace");
         }
 
+        if (membership.getRole() != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
+            throw new IllegalArgumentException("Cannot add a Workspace Admin to a project");
+        }
+
         User newMember = membership.getUser();
 
         if (project.getMembers().contains(newMember)) {

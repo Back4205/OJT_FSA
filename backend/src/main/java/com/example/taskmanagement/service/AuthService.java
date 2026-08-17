@@ -7,13 +7,13 @@ import com.example.taskmanagement.dto.response.UserResponse;
 import jakarta.servlet.http.HttpServletResponse;
 
 public interface AuthService {
-    UserResponse register(RegisterRequest request);
+    UserResponse register(RegisterRequest request, String backendOrigin);
     UserResponse login(LoginRequest request, HttpServletResponse response);
     UserResponse verifyLoginOtp(LoginOtpRequest request, HttpServletResponse response);
     UserResponse getCurrentUserByEmail(String email, Long activeWorkspaceId);
     UserResponse switchWorkspace(String email, Long workspaceId, HttpServletResponse response);
     void verifyEmail(String token);
-    void forgotPassword(String email);
+    void forgotPassword(String email, String frontendOrigin);
     void resetPassword(String token, String newPassword);
     java.util.List<com.example.taskmanagement.dto.response.UserWorkspaceResponse> getUserWorkspaces(String email);
     UserResponse createNewWorkspace(String email, String name, String description, HttpServletResponse response);

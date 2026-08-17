@@ -73,4 +73,11 @@ public interface TaskRepository extends JpaRepository<Task, Long> {
 
     @Query("SELECT COUNT(t) FROM Task t WHERE t.project.workspace.id = :workspaceId AND (t.project.isDeleted = false OR t.project.isDeleted IS NULL) AND t.status = :status AND t.createdAt <= :date")
     long countByProjectWorkspaceIdAndStatusAndCreatedAtBefore(@Param("workspaceId") Long workspaceId, @Param("status") TaskStatus status, @Param("date") java.time.LocalDateTime date);
+
+    /**
+     * Fetch all tasks belonging to a list of project IDs.
+     * Used in dashboard stats to avoid loading the entire Task table.
+     */
+    @Query("SELECT t FROM Task t WHERE t.project.id IN :projectIds")
+    List<Task> findByProjectIdIn(@Param("projectIds") List<Long> projectIds);
 }

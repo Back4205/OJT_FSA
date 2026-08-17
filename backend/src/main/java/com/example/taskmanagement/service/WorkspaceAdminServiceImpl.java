@@ -361,6 +361,11 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
             throw new IllegalArgumentException("The member account to add is locked");
         }
 
+        // Business rule: WORKSPACE_ADMIN should not be added as a regular project member.
+        if (membership.getRole() != null && membership.getRole().getName() == RoleName.WORKSPACE_ADMIN) {
+            throw new IllegalArgumentException("Cannot add a Workspace Admin to a project");
+        }
+
         if (project.getMembers().contains(membership.getUser())) {
             throw new IllegalArgumentException("Member is already in this project");
         }
@@ -416,11 +421,9 @@ public class WorkspaceAdminServiceImpl implements WorkspaceAdminService {
                 .map(Project::getId)
                 .collect(Collectors.toList());
 
-        // Get all tasks in active projects.
+        // Get all tasks in active projects (use projectIds to avoid loading entire Task table)
         List<Task> activeTasks = activeProjectIds.isEmpty() ? new java.util.ArrayList<>()
-                : taskRepository.findAll().stream()
-                        .filter(t -> activeProjectIds.contains(t.getProject().getId()))
-                        .collect(Collectors.toList());
+                : taskRepository.findByProjectIdIn(activeProjectIds);
 
         long totalTasks = activeTasks.size();
 

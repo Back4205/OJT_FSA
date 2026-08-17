@@ -41,9 +41,13 @@ public class AuthController {
     private String frontendBaseUrl;
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<UserResponse>> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<ApiResponse<UserResponse>> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest) {
         try {
-            UserResponse response = authService.register(request);
+            // Build backend origin dynamically so verification email links work through ngrok/LAN.
+            String backendOrigin = buildBackendOrigin(httpRequest);
+            UserResponse response = authService.register(request, backendOrigin);
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(ApiResponse.success("Registration successful. Please check your email to verify your account.", response));
         } catch (IllegalArgumentException e) {
@@ -53,24 +57,68 @@ public class AuthController {
     }
 
     @GetMapping("/verify-email")
-    public ResponseEntity<Void> verifyEmail(@RequestParam String token) {
+    public ResponseEntity<Void> verifyEmail(@RequestParam String token, HttpServletRequest request) {
+        // Build frontend base URL dynamically from the incoming backend request.
+        // When server.forward-headers-strategy=framework is set and the proxy forwards
+        // X-Forwarded-Host / X-Forwarded-Proto, this correctly produces the ngrok/LAN URL.
+        String dynamicFrontendBase = buildFrontendBase(request);
         try {
             authService.verifyEmail(token);
-            return ResponseEntity.status(HttpStatus.FOUND) // 302 Redirect
-                    .location(java.net.URI.create(frontendBaseUrl + "/login?verified=true"))
+            return ResponseEntity.status(HttpStatus.FOUND)
+                    .location(java.net.URI.create(dynamicFrontendBase + "/login?verified=true"))
                     .build();
         } catch (Exception e) {
             String errorMsg = java.net.URLEncoder.encode(e.getMessage(), java.nio.charset.StandardCharsets.UTF_8);
             return ResponseEntity.status(HttpStatus.FOUND)
-                    .location(java.net.URI.create(frontendBaseUrl + "/login?error=" + errorMsg))
+                    .location(java.net.URI.create(dynamicFrontendBase + "/login?error=" + errorMsg))
                     .build();
         }
     }
 
-    @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+    /** Reconstruct the frontend base URL (scheme://host[:port]/taskmanager) from the current request. */
+    private String buildFrontendBase(HttpServletRequest request) {
         try {
-            authService.forgotPassword(request.getEmail());
+            String scheme = request.getScheme();
+            String host   = request.getServerName();
+            int    port   = request.getServerPort();
+            StringBuilder sb = new StringBuilder();
+            sb.append(scheme).append("://").append(host);
+            boolean defaultPort = ("https".equals(scheme) && port == 443) || ("http".equals(scheme) && port == 80);
+            if (!defaultPort && port > 0) sb.append(":").append(port);
+            sb.append("/taskmanager");
+            return sb.toString();
+        } catch (Exception e) {
+            return frontendBaseUrl;
+        }
+    }
+
+    /** Backend origin: same as buildFrontendBase but used for backend-served links (verify-email). */
+    private String buildBackendOrigin(HttpServletRequest request) {
+        // When server.forward-headers-strategy=framework is active, scheme/host already reflect
+        // the ngrok/proxy domain (X-Forwarded-Host, X-Forwarded-Proto are applied automatically).
+        return buildFrontendBase(request); // same host, same path prefix /taskmanager
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request,
+            HttpServletRequest httpRequest) {
+        try {
+            // Pass the frontend origin so the reset link in the email uses the correct domain.
+            String origin = httpRequest.getHeader("Origin");
+            if (origin == null || origin.isBlank()) {
+                String referer = httpRequest.getHeader("Referer");
+                if (referer != null && !referer.isBlank()) {
+                    try { origin = new java.net.URL(referer).getProtocol() + "://" + new java.net.URL(referer).getHost();
+                        int p = new java.net.URL(referer).getPort();
+                        if (p > 0) origin += ":" + p;
+                        origin += "/taskmanager";
+                    } catch (Exception ignored) { origin = null; }
+                }
+            } else {
+                origin = origin + "/taskmanager";
+            }
+            authService.forgotPassword(request.getEmail(), origin);
             return ResponseEntity.ok(ApiResponse.success("Password reset request has been sent to your email.", null));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));

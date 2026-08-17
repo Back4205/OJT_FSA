@@ -83,7 +83,7 @@ public class EmailService {
                 + "<p><a href=\"" + resetUrl + "\">Reset Password</a></p>"
                 + "<p>Or copy and paste this URL into your browser:</p>"
                 + "<p><code>" + resetUrl + "</code></p>"
-                + "<p>This link will expire in 24 hours.</p>"
+                + "<p>This link will expire in 2 hours.</p>"
                 + "<br/>"
                 + "<p>Best regards,<br/>FSA TaskManagement Team</p>";
 

@@ -2157,7 +2157,7 @@ const LeaderDashboard: React.FC = () => {
 
               <div className={styles["manage-members-list"]}>
                 {wsMembers
-                  .filter(m => m.active && !currentMemberIds.includes(m.userId))
+                  .filter(m => m.active && !currentMemberIds.includes(m.userId) && m.roleName !== 'WORKSPACE_ADMIN')
                   .filter(m => 
                     m.username.toLowerCase().includes(manageMembersSearch.toLowerCase()) || 
                     m.email.toLowerCase().includes(manageMembersSearch.toLowerCase())
